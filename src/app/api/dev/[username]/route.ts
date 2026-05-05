@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { getGithubLoginFromUser, isAdminGithubLogin } from "@/lib/admin";
 import type { TopRepo } from "@/lib/github";
 import { calculateGithubXp } from "@/lib/xp";
 import {
@@ -74,26 +75,24 @@ export async function GET(
 
   // ─── New dev ───────────────────────────────────────────────
   if (!cached) {
-    // Check if authenticated user is looking up their own profile
+    // Check if authenticated user is looking up their own profile (or is an admin)
     let isOwnProfile = false;
+    let isAdmin = false;
     let authUserId: string | null = null;
     try {
       const authClient = await createServerSupabase();
       const { data: { user } } = await authClient.auth.getUser();
       if (user) {
         authUserId = user.id;
-        const authLogin = (
-          user.user_metadata.user_name ??
-          user.user_metadata.preferred_username ??
-          ""
-        ).toLowerCase();
+        const authLogin = getGithubLoginFromUser(user);
         isOwnProfile = authLogin === username.toLowerCase();
+        isAdmin = isAdminGithubLogin(authLogin);
       }
     } catch {}
 
-    // Rate limit (skip for own profile — they just logged in)
+    // Rate limit (skip for own profile or admin — they need unrestricted access)
     let rateLimitKey: string | null = null;
-    if (!isOwnProfile && process.env.NODE_ENV !== "development") {
+    if (!isOwnProfile && !isAdmin && process.env.NODE_ENV !== "development") {
       const key = await resolveRateLimitKey(request);
       rateLimitKey = key;
       const limited = await isRateLimited(key);
@@ -106,19 +105,27 @@ export async function GET(
     }
 
     try {
-      const data = await fetchGitHubDeveloperData(username, isOwnProfile ? { allowEmpty: true } : undefined);
+      const allowEmpty = isOwnProfile || isAdmin;
+      const data = await fetchGitHubDeveloperData(username, allowEmpty ? { allowEmpty: true } : undefined);
       if (rateLimitKey) await recordRateLimitRequest(rateLimitKey);
 
-      // Own profile: create building as fallback (auth callback may have failed)
-      if (isOwnProfile && authUserId) {
+      // Own profile or admin: create the building.
+      // Own profile claims it; admin creation leaves the dev unclaimed so the real user can claim later.
+      if ((isOwnProfile && authUserId) || isAdmin) {
+        const claimFields = isOwnProfile && authUserId
+          ? {
+              claimed: true,
+              claimed_by: authUserId,
+              claimed_at: new Date().toISOString(),
+            }
+          : {};
+
         const { data: created, error: createErr } = await sb
           .from("developers")
           .upsert({
             ...data,
+            ...claimFields,
             fetched_at: new Date().toISOString(),
-            claimed: true,
-            claimed_by: authUserId,
-            claimed_at: new Date().toISOString(),
             fetch_priority: 1,
           }, { onConflict: "github_login" })
           .select()
@@ -152,7 +159,7 @@ export async function GET(
         }
       }
 
-      // Not own profile (or creation failed): return preview
+      // Not own profile / not admin (or creation failed): return preview
       return NextResponse.json({
         exists: false,
         preview: {
