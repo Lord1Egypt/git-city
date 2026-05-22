@@ -20,39 +20,31 @@ interface RadarMapProps {
   remotePilotsRef?: React.MutableRefObject<Map<string, RemotePilot>>;
 }
 
-const RES     = 100;
-const DISPLAY = 200;
+// ─── Dimensions ─────────────────────────────────────────────
+// North-up minimap (no rotation). Sized so all 11 district labels are
+// readable, with explicit outline boundaries between districts so the
+// player can see where one ends and another begins at a glance.
+const RES     = 120;
+const DISPLAY = 170;
 const PAD     = 5;
 const SCALE   = DISPLAY / RES;
 
-const MARGIN = 12;
-const OUTER  = DISPLAY + MARGIN * 2; // 224
-const CX     = OUTER / 2;            // 112 — outer SVG center
-const CR     = DISPLAY / 2;          // 100 — circle radius
-
-// N/S/E/W labels live INSIDE the rotating map at radius 91 from map center
-const MAP_CX = DISPLAY / 2; // 100
-const MAP_CR = 91;           // distance from map center to compass label
-const INNER_CARDINALS = [
-  { label: "N", x: MAP_CX,           y: MAP_CX - MAP_CR, red: true  },
-  { label: "S", x: MAP_CX,           y: MAP_CX + MAP_CR, red: false },
-  { label: "E", x: MAP_CX + MAP_CR,  y: MAP_CX,          red: false },
-  { label: "W", x: MAP_CX - MAP_CR,  y: MAP_CX,          red: false },
-] as const;
-
-const DISTRICT_RGB: Record<string, [number, number, number]> = {
-  downtown:   [200, 153, 29],
-  frontend:   [47, 104, 197],
-  backend:    [191, 54, 54],
-  fullstack:  [134, 68, 197],
-  mobile:     [27, 157, 75],
-  data_ai:    [5, 146, 170],
-  devops:     [199, 92, 18],
-  security:   [176, 30, 30],
-  gamedev:    [189, 58, 122],
-  vibe_coder: [111, 74, 197],
-  creator:    [187, 143, 6],
-};
+// Palette redesign: buildings now in a flat neutral grey so the player
+// marker (white) and accent (lime) never compete with them. Active
+// district is no longer a re-color of buildings — it shows up as a
+// faint lime zone overlay + lime label only.
+const COL_BG       = "#0d0d0f";
+const COL_PANEL    = "#13131a";
+const COL_GRID     = "#1d1d24";
+const COL_BORDER   = "#2a2a30";
+const COL_BUILDING = "#3d3d45"; // neutral grey, uniform for all districts
+const COL_LIME     = "#c8e64a";
+const COL_CREAM    = "#e8dcc8";
+const COL_WHITE    = "#ffffff"; // player only — maximum contrast
+const COL_ZONE_FILL      = "rgba(200,230,74,0.10)"; // active district overlay
+const COL_ZONE_STROKE    = "rgba(200,230,74,0.85)"; // active district outline (lime, bright)
+const COL_ZONE_BORDER    = "rgba(168,168,180,0.45)"; // inactive district outline — visible grey
+const COL_ZONE_FILL_INA  = "rgba(168,168,180,0.04)"; // very faint inactive zone fill (helps boundaries pop)
 
 export default function RadarMap({
   buildings,
@@ -70,30 +62,7 @@ export default function RadarMap({
   remotePilotsRef,
 }: RadarMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [pulse, setPulse] = useState(false);
   const [remotePilotBlips, setRemotePilotBlips] = useState<{ id: string; x: number; z: number; yaw: number; login: string }[]>([]);
-
-  // ── Heading-up rotation (shortest-arc accumulator) ───────────
-  // Avoids the 360° wrap-around flip that CSS transitions can't handle.
-  const [mapRotDeg, setMapRotDeg] = useState(0);
-  const prevDeg = useRef(0);
-
-  useEffect(() => {
-    let raw: number;
-    if (flyMode) {
-      raw = -(playerYaw * 180) / Math.PI;
-    } else {
-      const dx = cameraTargetX - cameraX;
-      const dz = cameraTargetZ - cameraZ;
-      // Heading clockwise from north: atan2(east, north) where north = -dz
-      raw = -(Math.atan2(dx, -dz) * 180) / Math.PI;
-    }
-    // Normalize diff to [-180, 180] so we always take the shortest arc
-    const diff = ((raw - prevDeg.current) % 360 + 540) % 360 - 180;
-    const next = prevDeg.current + diff;
-    prevDeg.current = next;
-    setMapRotDeg(next);
-  }, [flyMode, playerYaw, cameraX, cameraZ, cameraTargetX, cameraTargetZ]);
 
   // ── World bounding box ───────────────────────────────────────
   const wb = useMemo(() => {
@@ -130,88 +99,59 @@ export default function RadarMap({
   }, [w2c]);
 
   // ── Building draw data ───────────────────────────────────────
+  // Active-district buildings get highlighted individually in lime
+  // so the player sees the REAL location of their district's buildings,
+  // not a bbox that wildly over-covers the map.
   const bData = useMemo(() => {
     if (!sp || !wb) return [];
     return buildings.map(b => ({
       cx: sp.ox + (b.position[0] - wb.x0) * sp.s,
       cy: sp.oy + (b.position[2] - wb.z0) * sp.s,
-      cw: Math.max(1.2, b.width  * sp.s * 0.75),
-      cd: Math.max(1.2, b.depth  * sp.s * 0.75),
-      d:  b.district ?? "fullstack",
+      cw: Math.max(1.0, b.width * sp.s * 0.7),
+      cd: Math.max(1.0, b.depth * sp.s * 0.7),
       active: b.district === currentDistrict,
     }));
   }, [buildings, sp, wb, currentDistrict]);
 
-  // ── District zone data ───────────────────────────────────────
-  const dzData = useMemo(() => {
-    if (!sp || !wb) return [];
-    return districtZones.map(z => ({
-      id:    z.id,
-      name:  z.name,
-      color: z.color,
-      fx: sp.ox + (z.bounds.minX - wb.x0) * sp.s,
-      fy: sp.oy + (z.bounds.minZ - wb.z0) * sp.s,
-      fw: (z.bounds.maxX - z.bounds.minX) * sp.s,
-      fh: (z.bounds.maxZ - z.bounds.minZ) * sp.s,
-      lx: (sp.ox + (z.center[0] - wb.x0) * sp.s) * SCALE,
-      ly: (sp.oy + (z.center[2] - wb.z0) * sp.s) * SCALE,
-    }));
-  }, [districtZones, sp, wb]);
-
   // ── Canvas draw ──────────────────────────────────────────────
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || bData.length === 0) return;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
 
-    ctx.fillStyle = "#05050B";
+    ctx.fillStyle = COL_PANEL;
     ctx.fillRect(0, 0, RES, RES);
 
-    ctx.strokeStyle = "rgba(22,22,44,1)";
-    ctx.lineWidth = 0.4;
-    for (let i = 0; i <= RES; i += 8) {
+    // Subtle grid for "scanning surface" feel
+    ctx.strokeStyle = COL_GRID;
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= RES; i += 10) {
       ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, RES); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(RES, i); ctx.stroke();
     }
 
-    for (const z of dzData) {
-      const pad = 2;
-      ctx.save();
-      ctx.globalAlpha = 0.14;
-      ctx.fillStyle = z.color;
-      ctx.fillRect(z.fx - pad, z.fy - pad, z.fw + pad * 2, z.fh + pad * 2);
-      ctx.globalAlpha = 0.28;
-      ctx.strokeStyle = z.color;
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(z.fx - pad, z.fy - pad, z.fw + pad * 2, z.fh + pad * 2);
-      ctx.restore();
-    }
-
+    // Buildings — neutral grey by default, lime for the active district.
+    // Two passes so all inactive buildings are drawn first, and active
+    // ones go on top (slightly bigger so they pop on this tiny scale).
+    ctx.fillStyle = COL_BUILDING;
     for (const b of bData) {
+      if (b.active) continue;
       if (b.cx < -3 || b.cx > RES + 3 || b.cy < -3 || b.cy > RES + 3) continue;
-      const rgb = DISTRICT_RGB[b.d];
-      if (b.active) {
-        ctx.fillStyle = rgb ? `rgb(${rgb[0]},${rgb[1]},${rgb[2]})` : "#aaa";
-        ctx.globalAlpha = 0.95;
-      } else {
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = rgb
-          ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.55)`
-          : "rgba(65,65,80,0.55)";
-      }
       ctx.fillRect(b.cx - b.cw / 2, b.cy - b.cd / 2, b.cw, b.cd);
     }
-    ctx.globalAlpha = 1;
-  }, [bData, dzData]);
+    ctx.fillStyle = COL_LIME;
+    for (const b of bData) {
+      if (!b.active) continue;
+      if (b.cx < -3 || b.cx > RES + 3 || b.cy < -3 || b.cy > RES + 3) continue;
+      // Slight bump in size so they read above the inactive crowd
+      const w = Math.max(1.6, b.cw + 0.4);
+      const h = Math.max(1.6, b.cd + 0.4);
+      ctx.fillRect(b.cx - w / 2, b.cy - h / 2, w, h);
+    }
+  }, [bData]);
 
   useEffect(() => { if (visible) draw(); }, [visible, draw]);
-
-  useEffect(() => {
-    if (!visible) return;
-    const id = setInterval(() => setPulse(p => !p), 700);
-    return () => clearInterval(id);
-  }, [visible]);
 
   // ── Sync remote pilots into state (~5fps) ────────────────────
   useEffect(() => {
@@ -240,34 +180,46 @@ export default function RadarMap({
   const cLen = Math.sqrt(cdx * cdx + cdy * cdy) || 1;
   const cnx = cdx / cLen, cny = cdy / cLen;
   const halfFov = (50 / 2) * (Math.PI / 180);
-  const coneLen = 38;
+  const coneLen = 28;
   const lx = camSx + coneLen * (cnx * Math.cos(halfFov)  - cny * Math.sin(halfFov));
   const ly = camSy + coneLen * (cnx * Math.sin(halfFov)  + cny * Math.cos(halfFov));
   const rx = camSx + coneLen * (cnx * Math.cos(-halfFov) - cny * Math.sin(-halfFov));
   const ry = camSy + coneLen * (cnx * Math.sin(-halfFov) + cny * Math.cos(-halfFov));
 
-  const headX = plySx - Math.sin(playerYaw) * 14;
-  const headY = plySy - Math.cos(playerYaw) * 14;
+  // FOV cone — wedge anchored at the player position, opening 60° in
+  // the direction the vehicle is facing. Reads like a strategy-game
+  // line-of-sight indicator (Civ, AoE). Forward vector in world is
+  // (-sin(yaw), 0, -cos(yaw)) → screen Δ is (-sin(yaw), -cos(yaw))
+  // because screen Y grows down. The left/right edges rotate ±half-fov.
+  const FOV_LEN = 22;
+  const FOV_HALF = (60 / 2) * (Math.PI / 180); // 30° each side = 60° total
+  const leftAng  = playerYaw - FOV_HALF;
+  const rightAng = playerYaw + FOV_HALF;
+  const fovLX = plySx - Math.sin(leftAng)  * FOV_LEN;
+  const fovLY = plySy - Math.cos(leftAng)  * FOV_LEN;
+  const fovRX = plySx - Math.sin(rightAng) * FOV_LEN;
+  const fovRY = plySy - Math.cos(rightAng) * FOV_LEN;
 
-  if (!visible || buildings.length === 0) return null;
+  if (!visible) return null;
 
   return (
     <div
       className="pointer-events-none fixed bottom-3 right-3 z-30 sm:bottom-4 sm:right-4"
-      style={{ width: OUTER, height: OUTER }}
+      style={{
+        width: DISPLAY,
+        height: DISPLAY,
+        background: COL_BG,
+        border: `3px solid ${COL_BORDER}`,
+        overflow: "hidden",
+      }}
     >
-      {/* ── Rotating inner area: canvas + SVG indicators + compass labels ── */}
+      {/* Static (north-up) inner area — no rotation. */}
       <div
         style={{
           position: "absolute",
-          inset: MARGIN,
-          borderRadius: "50%",
-          overflow: "hidden",
+          inset: 0,
           width: DISPLAY,
           height: DISPLAY,
-          transform: `rotate(${mapRotDeg}deg)`,
-          transition: "transform 0.12s linear",
-          willChange: "transform",
         }}
       >
         <canvas
@@ -280,6 +232,7 @@ export default function RadarMap({
             width: DISPLAY,
             height: DISPLAY,
             imageRendering: "pixelated",
+            display: "block",
           }}
         />
 
@@ -289,147 +242,134 @@ export default function RadarMap({
           height={DISPLAY}
           style={{ position: "absolute", inset: 0 }}
         >
-          {/* Camera viewport cone (orbit / explore) */}
+          {/* District zone rect removed — the axis-aligned bounding
+              box of a scattered district covers way too much area and
+              wildly misrepresents where the buildings actually are.
+              Instead, individual active-district buildings are drawn
+              lime in the canvas layer above. */}
+
+          {/* Camera viewport cone (explore mode only — fly mode uses the dot) */}
           {!flyMode && sp && (
             <g>
               <polygon
                 points={`${camSx},${camSy} ${lx},${ly} ${rx},${ry}`}
-                fill="rgba(255,255,255,0.06)"
-                stroke="rgba(255,255,255,0.22)"
-                strokeWidth="0.7"
+                fill="rgba(232,220,200,0.08)"
+                stroke="rgba(232,220,200,0.32)"
+                strokeWidth="0.6"
               />
-              <circle cx={camSx} cy={camSy} r={2.5} fill="rgba(255,255,255,0.75)" />
+              <rect x={camSx - 1.5} y={camSy - 1.5} width={3} height={3} fill={COL_CREAM} />
             </g>
           )}
 
-          {/* Player / vehicle (fly mode) */}
+          {/* Player marker (fly mode) — pure white against the neutral
+              grey map. FOV wedge shows the direction; dot marks position. */}
           {flyMode && (
             <g>
+              {/* FOV wedge — white semi-transparent fill + white edge */}
+              <polygon
+                points={`${plySx},${plySy} ${fovLX},${fovLY} ${fovRX},${fovRY}`}
+                fill={COL_WHITE}
+                fillOpacity={0.18}
+                stroke={COL_WHITE}
+                strokeWidth="1"
+                strokeLinejoin="round"
+              />
+              {/* Dark halo for contrast on any background */}
               <circle
                 cx={plySx} cy={plySy}
-                r={pulse ? 9 : 5.5}
-                fill="none"
-                stroke="rgba(255,255,255,0.35)"
-                strokeWidth="0.8"
+                r={4.5}
+                fill={COL_BG}
               />
-              <line
-                x1={plySx} y1={plySy}
-                x2={headX}  y2={headY}
-                stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.85"
+              {/* White dot — "you are here" */}
+              <circle
+                cx={plySx} cy={plySy}
+                r={3}
+                fill={COL_WHITE}
               />
-              <circle cx={plySx} cy={plySy} r={3} fill="white" />
             </g>
           )}
 
-          {/* Remote pilots */}
+          {/* Remote pilots — small red squares (damage tone) so they
+              never blend with lime (active district) or white (you).
+              No username text: at this scale it's unreadable anyway;
+              the marker alone communicates "someone is here". */}
           {remotePilotBlips.map((p) => {
             const [px, py] = w2s(p.x, p.z);
             return (
               <g key={p.id}>
-                <circle cx={px} cy={py} r={2.5} fill="#c8e64a" opacity={0.9} />
-                <circle cx={px} cy={py} r={5} fill="none" stroke="#c8e64a" strokeWidth="0.6" opacity={0.4} />
-                <text
-                  x={px} y={py + 8}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fontSize="4.5" fill="#c8e64a" opacity={0.7}
-                  fontFamily="monospace"
-                  transform={`rotate(${-mapRotDeg}, ${px}, ${py + 8})`}
-                  style={{ userSelect: "none" }}
-                >
-                  {p.login.slice(0, 10)}
-                </text>
+                {/* Dark outline for contrast on any background */}
+                <rect
+                  x={px - 2.3} y={py - 2.3}
+                  width={4.6} height={4.6}
+                  fill={COL_BG}
+                />
+                {/* Red marker */}
+                <rect
+                  x={px - 1.7} y={py - 1.7}
+                  width={3.4} height={3.4}
+                  fill="#e85d5d"
+                />
               </g>
             );
           })}
 
-          {/* District labels — counter-rotated so text stays upright */}
-          {dzData.map((z) => (
-            <text
-              key={z.id}
-              x={z.lx} y={z.ly}
-              textAnchor="middle" dominantBaseline="middle"
-              fontSize="5.5" fill={z.color}
-              opacity={z.id === currentDistrict ? 1 : 0.3}
-              fontFamily="monospace" letterSpacing="0.5"
-              transform={`rotate(${-mapRotDeg}, ${z.lx}, ${z.ly})`}
-              style={{ pointerEvents: "none", userSelect: "none" }}
-            >
-              {z.name.split(" ")[0].substring(0, 6).toUpperCase()}
-            </text>
-          ))}
-
-          {/* N/S/E/W compass labels — rotate with the map, text stays upright */}
-          {INNER_CARDINALS.map(({ label, x, y, red }) => (
-            <g key={label} transform={`rotate(${-mapRotDeg}, ${x}, ${y})`}>
-              <circle
-                cx={x} cy={y} r={7}
-                fill={red ? "rgba(150,25,25,0.92)" : "rgba(12,12,30,0.88)"}
-                stroke={red ? "rgba(210,55,55,0.6)" : "rgba(70,70,110,0.5)"}
-                strokeWidth="0.8"
-              />
-              <text
-                x={x} y={y}
-                textAnchor="middle" dominantBaseline="middle"
-                fontSize={red ? "8" : "7"}
-                fontWeight="bold"
-                fontFamily="monospace"
-                fill={red ? "rgba(255,200,200,1)" : "rgba(200,200,220,0.9)"}
-                style={{ userSelect: "none" }}
-              >
-                {label}
-              </text>
-            </g>
-          ))}
+          {/* District labels removed — only the active district is
+              named, in a pill below the N indicator (outside the SVG
+              layer, see the wrapper div). This keeps the map quiet. */}
         </svg>
       </div>
 
-      {/* ── Static outer SVG: dark bezel ring + cardinal tick marks ── */}
-      <svg
-        viewBox={`0 0 ${OUTER} ${OUTER}`}
-        width={OUTER}
-        height={OUTER}
-        style={{ position: "absolute", inset: 0, overflow: "visible" }}
+      {/* Fixed N indicator — always at top because the map is north-up. */}
+      <div
+        style={{
+          position: "absolute",
+          top: 3,
+          left: "50%",
+          transform: "translateX(-50%)",
+          color: COL_LIME,
+          fontFamily: "Silkscreen, monospace",
+          fontSize: 10,
+          letterSpacing: "0.15em",
+          lineHeight: 1,
+          padding: "2px 6px",
+          background: COL_BG,
+          border: `1px solid ${COL_BORDER}`,
+          pointerEvents: "none",
+        }}
       >
-        {/* Cardinal tick marks (fixed, always at N/S/E/W of the bezel) */}
-        {[
-          { x: CX,      y: CX - CR }, // top (N)
-          { x: CX,      y: CX + CR }, // bottom (S)
-          { x: CX + CR, y: CX      }, // right (E)
-          { x: CX - CR, y: CX      }, // left (W)
-        ].map(({ x, y }, i) => {
-          const nx = (x - CX) / CR, ny = (y - CX) / CR;
-          return (
-            <line
-              key={i}
-              x1={CX + nx * (CR - 7)} y1={CX + ny * (CR - 7)}
-              x2={CX + nx * (CR + 2)} y2={CX + ny * (CR + 2)}
-              stroke="rgba(160,160,200,0.45)"
-              strokeWidth="1.2"
-            />
-          );
-        })}
+        N
+      </div>
 
-        {/* Dark bezel ring */}
-        <circle
-          cx={CX} cy={CX} r={CR + 1}
-          fill="none"
-          stroke="rgba(8,8,22,0.97)"
-          strokeWidth={7}
-        />
-        {/* Inner glint ring */}
-        <circle
-          cx={CX} cy={CX} r={CR - 2}
-          fill="none"
-          stroke="rgba(80,80,130,0.25)"
-          strokeWidth="1"
-        />
-
-        {/* Fixed forward indicator: small notch at top of bezel showing "up = your direction" */}
-        <polygon
-          points={`${CX - 4},${CX - CR - 5} ${CX + 4},${CX - CR - 5} ${CX},${CX - CR + 3}`}
-          fill="rgba(255,255,255,0.5)"
-        />
-      </svg>
+      {/* Active district pill — directly under the N. Only shown when
+          we know which district the player is in. */}
+      {(() => {
+        if (!currentDistrict) return null;
+        const z = districtZones.find((z) => z.id === currentDistrict);
+        if (!z) return null;
+        const name = z.name.split(" ")[0].toUpperCase();
+        return (
+          <div
+            style={{
+              position: "absolute",
+              top: 21,
+              left: "50%",
+              transform: "translateX(-50%)",
+              color: COL_LIME,
+              fontFamily: "Silkscreen, monospace",
+              fontSize: 9,
+              letterSpacing: "0.12em",
+              lineHeight: 1,
+              padding: "2px 7px",
+              background: COL_BG,
+              border: `1px solid ${COL_ZONE_STROKE}`,
+              pointerEvents: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {name}
+          </div>
+        );
+      })()}
     </div>
   );
 }

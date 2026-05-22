@@ -25,6 +25,7 @@ export type XpSourceType =
   | "raid_win"
   | "raid_loss"
   | "raid_defend"
+  | "force_push"
   | "achievement"
   | "kudos_received"
   | "referral"

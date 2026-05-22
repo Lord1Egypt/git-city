@@ -30,6 +30,9 @@ import { useStreakCheckin } from "@/lib/useStreakCheckin";
 import { useLiveUsers } from "@/lib/useLiveUsers";
 import { useCodingPresence } from "@/lib/useCodingPresence";
 import { useFlyPresence } from "@/lib/useFlyPresence";
+import PvPHud from "@/components/PvPHud";
+import ForcePushFlyBadge from "@/components/ForcePushFlyBadge";
+import PixelHeart from "@/components/PixelHeart";
 import { useRaidSequence } from "@/lib/useRaidSequence";
 import { isFridayThe13th } from "@/lib/raid";
 import { useDailies } from "@/lib/useDailies";
@@ -450,6 +453,25 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
 
   const [hud, setHud] = useState({ speed: 0, altitude: 0 });
   const [playerPos, setPlayerPos] = useState<{ x: number; z: number }>({ x: 0, z: 0 });
+  // Ref-mirrored pos/yaw for the PvP HUD damage-direction indicator. We keep
+  // refs in parallel with the state so polling the HUD never causes the
+  // main scene to re-render.
+  const flyPlayerPosRef = useRef({ x: 0, z: 0 });
+  const flyPlayerYawRef = useRef(0);
+  // Auto-hide fly mode controls hint after a few seconds; toggleable via [?] button.
+  const [showFlyControlsHint, setShowFlyControlsHint] = useState(false);
+  useEffect(() => {
+    if (!flyMode) {
+      setShowFlyControlsHint(false);
+      return;
+    }
+    setShowFlyControlsHint(true);
+    const t = setTimeout(() => setShowFlyControlsHint(false), 6000);
+    return () => clearTimeout(t);
+  }, [flyMode]);
+
+  // HP state — populated by an effect after useFlyPresence runs (see below).
+  const [flySelfHp, setFlySelfHp] = useState(3);
   const [playerYaw, setPlayerYaw] = useState(0);
   const [cameraPos, setCameraPos] = useState<{ x: number; z: number; tx: number; tz: number }>({ x: 800, z: 1000, tx: 0, tz: 0 });
   const [districtAnnouncement, setDistrictAnnouncement] = useState<{ name: string; color: string; population: number } | null>(null);
@@ -715,12 +737,32 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
   ).toLowerCase();
 
   const authAvatar = (session?.user?.user_metadata?.avatar_url ?? "") as string;
-  const { pilotsRef: flyPilotsRef, sendMove: flySendMove } = useFlyPresence(
+  const {
+    pilotsRef: flyPilotsRef,
+    projectilesRef: flyProjectilesRef,
+    selfStateRef: flySelfStateRef,
+    selfId: flySelfId,
+    pvpEnabled: flyPvpEnabled,
+    sendMove: flySendMove,
+    sendShoot: flySendShoot,
+    reportHit: flyReportHit,
+    togglePvp: flyTogglePvp,
+  } = useFlyPresence(
     flyMode,
     authLogin,
     authAvatar,
     flyVehicle,
   );
+
+  // Poll HP from the PvP self state so the central fly HUD card can show
+  // pixel hearts inline next to the score. State (not ref) so React re-renders.
+  useEffect(() => {
+    if (!flyMode) return;
+    const i = setInterval(() => {
+      setFlySelfHp(flySelfStateRef.current.hp);
+    }, 100);
+    return () => clearInterval(i);
+  }, [flyMode, flySelfStateRef]);
 
   // Fetch existing VS Code API key
   useEffect(() => {
@@ -2300,6 +2342,10 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
         onHud={(s, a, x, z, yaw) => {
           setHud({ speed: s, altitude: a });
           setPlayerYaw(yaw);
+          // Update refs every tick (no re-render cost)
+          flyPlayerPosRef.current.x = x;
+          flyPlayerPosRef.current.z = z;
+          flyPlayerYawRef.current = yaw;
           // Look-ahead: ~40u ahead of vehicle = center of screen
           const mapX = x - Math.sin(yaw) * 40;
           const mapZ = z - Math.cos(yaw) * 40;
@@ -2476,7 +2522,23 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
         }}
         onFlyMove={flySendMove}
         flyPilotsRef={flyPilotsRef}
+        flyProjectilesRef={flyProjectilesRef}
+        flySelfStateRef={flySelfStateRef}
+        flySelfId={flySelfId}
+        flyOnShoot={flySendShoot}
+        flyOnReportHit={flyReportHit}
+        flyPvpEnabled={flyPvpEnabled}
       />
+      {flyMode && (
+        <PvPHud
+          selfStateRef={flySelfStateRef}
+          pilotsRef={flyPilotsRef}
+          pvpEnabled={flyPvpEnabled}
+          onTogglePvp={flyTogglePvp}
+          selfPosRef={flyPlayerPosRef}
+          selfYawRef={flyPlayerYawRef}
+        />
+      )}
 
       {/* Loading screen overlay */}
       {loadStage !== "done" && (
@@ -2643,9 +2705,13 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
             </div>
           ) : (
             <>
-              {/* ── Desktop: centered top bar ── */}
-              <div className="absolute top-4 left-1/2 -translate-x-1/2">
+              {/* ── Desktop: ONE unified status card (centered top) ───
+                  Holds status dot + PX + HP + collected + time + Force Push toggle,
+                  all separated by pipe `|` (the city pattern). Replaces the
+                  previous separate top-right score panel. */}
+              <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2">
                 <div className="inline-flex items-center gap-3 border-[3px] border-border bg-bg/70 px-5 py-2.5 backdrop-blur-sm">
+                  {/* Status dot + FLY */}
                   <span
                     className={`h-2 w-2 shrink-0 ${flyPaused ? "" : "blink-dot"}`}
                     style={{ backgroundColor: flyPaused ? "#f85149" : theme.accent }}
@@ -2653,6 +2719,8 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
                   <span className="text-[10px] text-cream">
                     {flyPaused ? "Paused" : "Fly"}
                   </span>
+
+                  {/* PX score */}
                   <span className="mx-1 text-border">|</span>
                   <span className="text-[10px]" style={{ color: theme.accent }}>{flyScore.score}</span>
                   <span className="text-[10px] text-muted">PX</span>
@@ -2661,52 +2729,156 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
                       &times;{flyScore.combo >= 4 ? 3 : flyScore.combo >= 3 ? 2 : 1.5}
                     </span>
                   )}
-                </div>
-              </div>
 
-              {/* ── Desktop: score HUD (top right) ── */}
-              <div className="absolute top-4 right-4 text-right text-[10px] text-muted">
-                <div>{flyScore.collected}/40 collected</div>
-                <div className="mt-1 flex h-1 w-24 items-center border border-border/40 bg-bg/50 ml-auto">
-                  <div className="h-full transition-all duration-150" style={{ width: `${(flyScore.collected / 40) * 100}%`, backgroundColor: theme.accent }} />
-                </div>
-                <div className="mt-1.5 text-[8px]">
-                  <span className="text-muted">TIME </span>
-                  <span style={{ color: flyElapsedSec < 90 ? theme.accent : "#f85149" }}>
+                  {/* HP (only when Force Push is on) */}
+                  {flyPvpEnabled && (
+                    <>
+                      <span className="mx-1 text-border">|</span>
+                      <span className="inline-flex items-center gap-1">
+                        {[0, 1, 2].map((i) => (
+                          <PixelHeart key={i} filled={i < flySelfHp} size={16} color={theme.accent} />
+                        ))}
+                      </span>
+                    </>
+                  )}
+
+                  {/* Collected coins */}
+                  <span className="mx-1 text-border">|</span>
+                  <span className="text-[10px] text-cream">{flyScore.collected}</span>
+                  <span className="text-[10px] text-muted">/40</span>
+
+                  {/* Time */}
+                  <span className="mx-1 text-border">|</span>
+                  <span
+                    className="text-[10px]"
+                    style={{ color: flyElapsedSec < 90 ? theme.accent : "#f85149" }}
+                  >
                     {Math.floor(flyElapsedSec / 60)}:{String(flyElapsedSec % 60).padStart(2, "0")}
                   </span>
+
+                  {/* Speed */}
+                  <span className="mx-1 text-border">|</span>
+                  <span className="text-[10px] uppercase text-muted tracking-wider">SPD</span>
+                  <span className="text-[10px]" style={{ color: theme.accent }}>
+                    {Math.round(hud.speed)}
+                  </span>
+
+                  {/* Force Push toggle (inline) */}
+                  <span className="mx-1 text-border">|</span>
+                  <button
+                    onClick={() => flyTogglePvp(!flyPvpEnabled)}
+                    role="switch"
+                    aria-checked={flyPvpEnabled}
+                    title={flyPvpEnabled ? "Disable combat" : "Enable combat"}
+                    className="btn-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] uppercase tracking-wider"
+                    style={{
+                      color: flyPvpEnabled ? theme.accent : "#8c8c9c",
+                      cursor: "pointer",
+                      background: "transparent",
+                      border: "none",
+                      padding: 0,
+                    }}
+                  >
+                    <span style={{ fontSize: 11 }}>{flyPvpEnabled ? "⚡" : "○"}</span>
+                    <span>Force Push</span>
+                    <span style={{ color: flyPvpEnabled ? theme.accent : "#5c5c6c" }}>
+                      {flyPvpEnabled ? "ON" : "OFF"}
+                    </span>
+                  </button>
+
+                  {/* Personal best (only when set) */}
+                  {flyPersonalBest > 0 && (
+                    <>
+                      <span className="mx-1 text-border">|</span>
+                      <span className="text-[8px] text-muted">
+                        BEST{" "}
+                        <span style={{ color: theme.accent }}>{flyPersonalBest}</span>
+                      </span>
+                    </>
+                  )}
                 </div>
-                {flyPersonalBest > 0 && (
-                  <div className="mt-0.5 text-[8px] text-muted">BEST: <span style={{ color: theme.accent }}>{flyPersonalBest}</span></div>
-                )}
               </div>
             </>
           )}
 
-          {/* Flight data (above lo-fi radio) — hidden on mobile */}
+          {/* Bottom-left HUD stack — Help chip pinned to the bottom,
+              full controls card stacks above when toggled.
+              SPD lives in the central status bar now; ALT was removed
+              because it added noise without changing how the player flies. */}
           {!isMobile && (
-            <div className="absolute bottom-14 left-3 text-[9px] leading-loose text-muted sm:left-4 sm:text-[10px]">
-              <div className="flex items-center gap-2">
-                <span>SPD</span>
-                <span style={{ color: theme.accent }} className="w-6 text-right">
-                  {Math.round(hud.speed)}
-                </span>
-                <div className="flex h-1.5 w-20 items-center border border-border/60 bg-bg/50">
-                  <div
-                    className="h-full transition-all duration-150"
-                    style={{
-                      width: `${Math.round(((hud.speed - 20) / 140) * 100)}%`,
-                      backgroundColor: theme.accent,
-                    }}
-                  />
+            <div className="pointer-events-auto absolute bottom-14 left-3 sm:left-4 flex flex-col-reverse items-start gap-2">
+              {/* Help chip (always visible) — same template as every other panel */}
+              <button
+                onClick={() => setShowFlyControlsHint((v) => !v)}
+                className="btn-press inline-flex items-center gap-1 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] uppercase tracking-wider backdrop-blur-sm transition-colors hover:border-border-light"
+                style={{ color: showFlyControlsHint ? theme.accent : "#8c8c9c" }}
+                title={showFlyControlsHint ? "Hide controls" : "Show controls"}
+              >
+                ? Help
+              </button>
+
+              {/* Controls card (only when ? Help is toggled on) */}
+              {showFlyControlsHint && (
+                <div className="inline-flex flex-col gap-1 border-[3px] border-border bg-bg/70 px-3 py-2 text-[10px] leading-tight text-muted backdrop-blur-sm animate-[fade-in_0.2s_ease-out]">
+                  {flyPaused ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-cream uppercase tracking-wider">Drag</span>
+                        <span>orbit</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-cream uppercase tracking-wider">Scroll</span>
+                        <span>zoom</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-cream uppercase tracking-wider">WASD</span>
+                        <span>resume</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap uppercase tracking-wider" style={{ color: theme.accent }}>ESC</span>
+                        <span>exit fly</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap uppercase tracking-wider" style={{ color: "#d44" }}>ESC × 2</span>
+                        <span>exit fly</span>
+                      </div>
+                      <div className="my-0.5 h-px w-full bg-border" />
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-cream uppercase tracking-wider">Mouse</span>
+                        <span>steer</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-cream uppercase tracking-wider">Shift</span>
+                        <span>boost</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-cream uppercase tracking-wider">Alt</span>
+                        <span>slow</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-cream uppercase tracking-wider">Scroll</span>
+                        <span>base speed</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap text-cream uppercase tracking-wider">Click / F</span>
+                        <span>fire</span>
+                      </div>
+                      <div className="my-0.5 h-px w-full bg-border" />
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap uppercase tracking-wider" style={{ color: theme.accent }}>R</span>
+                        <span>return to city</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-20 shrink-0 whitespace-nowrap uppercase tracking-wider" style={{ color: theme.accent }}>P</span>
+                        <span>pause</span>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-              <div>
-                ALT{" "}
-                <span style={{ color: theme.accent }}>
-                  {Math.round(hud.altitude)}
-                </span>
-              </div>
+              )}
             </div>
           )}
 
@@ -2721,51 +2893,6 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
             </div>
           )}
 
-          {/* Controls hint */}
-          {!isMobile && (
-            <div className="absolute bottom-28 left-3 text-[8px] leading-loose text-muted sm:left-4 sm:text-[9px]">
-              {flyPaused ? (
-                <>
-                  <div>
-                    <span className="text-cream">Drag</span> orbit
-                  </div>
-                  <div>
-                    <span className="text-cream">Scroll</span> zoom
-                  </div>
-                  <div>
-                    <span className="text-cream">WASD</span> resume
-                  </div>
-                  <div>
-                    <span style={{ color: theme.accent }}>ESC</span> exit
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <span className="text-cream">Mouse</span> steer
-                  </div>
-                  <div>
-                    <span className="text-cream">Shift</span> boost
-                  </div>
-                  <div>
-                    <span className="text-cream">Alt</span> slow
-                  </div>
-                  <div>
-                    <span className="text-cream">Scroll</span> base speed
-                  </div>
-                  <div>
-                    <span style={{ color: theme.accent }}>R</span> return to city
-                  </div>
-                  <div>
-                    <span style={{ color: theme.accent }}>P</span> pause
-                  </div>
-                  <div>
-                    <span style={{ color: theme.accent }}>ESC</span> pause
-                  </div>
-                </>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -3909,6 +4036,8 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
                       Fly
                       <span className="block text-[8px] opacity-60 normal-case">Collect PX</span>
                     </button>
+                    {/* Force Push Happy Hour badge on the Fly button */}
+                    <ForcePushFlyBadge />
                     {/* Feature 2: First-Fly Tooltip */}
                     {showFlyHint && (
                       <div className="absolute bottom-full left-1/2 z-30 mb-3 -translate-x-1/2 animate-[fade-in_0.3s_ease-out]">

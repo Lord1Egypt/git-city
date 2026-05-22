@@ -29,7 +29,8 @@ import LocalizedFireworks from "./LocalizedFireworks";
 import WallpaperParallax from "./WallpaperParallax";
 import ThemeSkyFX from "./ThemeSkyFX";
 import RemotePilots from "./RemotePilots";
-import type { RemotePilot } from "@/lib/useFlyPresence";
+import type { RemotePilot, ActiveProjectile, SelfPvpState } from "@/lib/useFlyPresence";
+import ProjectileSwarm from "./ProjectileSwarm";
 import { usePerfMode } from "@/lib/perfMode";
 
 // ─── Theme Definitions ───────────────────────────────────────
@@ -605,7 +606,7 @@ const _idealLook = new THREE.Vector3();
 const _blendedPos = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
 
-function VehicleFlight({ onExit, onHud, onPause, pauseSignal = 0, hasOverlay = false, startPaused = false, vehicleType = "airplane", posRef, cityRadius = 3500, isMobile = false, onJoystickState, boostActive = false, brakeActive = false, onFlyMove }: { onExit: () => void; onHud: (s: number, a: number, x: number, z: number, yaw: number) => void; onPause: (paused: boolean) => void; pauseSignal?: number; hasOverlay?: boolean; startPaused?: boolean; vehicleType?: string; posRef?: React.MutableRefObject<THREE.Vector3>; cityRadius?: number; isMobile?: boolean; onJoystickState?: (state: { baseX: number; baseY: number; dx: number; dy: number } | null) => void; boostActive?: boolean; brakeActive?: boolean; onFlyMove?: (x: number, y: number, z: number, yaw: number, bank: number) => void }) {
+function VehicleFlight({ onExit, onHud, onPause, pauseSignal = 0, hasOverlay = false, startPaused = false, vehicleType = "airplane", posRef, cityRadius = 3500, isMobile = false, onJoystickState, boostActive = false, brakeActive = false, onFlyMove, onShoot, canShoot = false }: { onExit: () => void; onHud: (s: number, a: number, x: number, z: number, yaw: number) => void; onPause: (paused: boolean) => void; pauseSignal?: number; hasOverlay?: boolean; startPaused?: boolean; vehicleType?: string; posRef?: React.MutableRefObject<THREE.Vector3>; cityRadius?: number; isMobile?: boolean; onJoystickState?: (state: { baseX: number; baseY: number; dx: number; dy: number } | null) => void; boostActive?: boolean; brakeActive?: boolean; onFlyMove?: (x: number, y: number, z: number, yaw: number, bank: number) => void; onShoot?: (x: number, y: number, z: number, dirX: number, dirY: number, dirZ: number) => void; canShoot?: boolean }) {
   const { camera } = useThree();
   const ref = useRef<THREE.Group>(null);
   const orbitRef = useRef<any>(null);
@@ -862,6 +863,93 @@ function VehicleFlight({ onExit, onHud, onPause, pauseSignal = 0, hasOverlay = f
       window.removeEventListener("keyup", up);
     };
   }, [camera, onExit, onPause]);
+
+  // ─── PvP shoot input (mouse click + F key, autofire while held) ─
+  // canShoot is read through a ref so toggling it never tears down the
+  // listeners (that was making the gun "stop firing" after pause/resume).
+  const canShootRef = useRef(canShoot);
+  canShootRef.current = canShoot;
+  const onShootRef = useRef(onShoot);
+  onShootRef.current = onShoot;
+  useEffect(() => {
+    const SHOT_COOLDOWN_MS = 150; // ~6.6 shots/sec; server caps at 7/s
+    const lastShotRef = { current: 0 };
+    let mouseDown = false;
+    let keyDown = false;
+    let intervalId: number | null = null;
+
+    const fire = () => {
+      if (paused.current) return;
+      if (!canShootRef.current) return;
+      const handler = onShootRef.current;
+      if (!handler) return;
+      const now = Date.now();
+      if (now - lastShotRef.current < SHOT_COOLDOWN_MS) return;
+      lastShotRef.current = now;
+      const cosP = Math.cos(pitch.current);
+      const dirX = -Math.sin(yaw.current) * cosP;
+      const dirY = Math.sin(pitch.current);
+      const dirZ = -Math.cos(yaw.current) * cosP;
+      const spawnX = pos.current.x + dirX * 30;
+      const spawnY = pos.current.y + dirY * 30;
+      const spawnZ = pos.current.z + dirZ * 30;
+      handler(spawnX, spawnY, spawnZ, dirX, dirY, dirZ);
+    };
+
+    const startAutofire = () => {
+      fire(); // immediate first shot
+      if (intervalId !== null) return;
+      intervalId = window.setInterval(() => {
+        if (!mouseDown && !keyDown) {
+          if (intervalId !== null) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          return;
+        }
+        fire();
+      }, SHOT_COOLDOWN_MS);
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && t.closest("button, a, input, [data-ui]")) return;
+      if (e.button !== 0) return;
+      mouseDown = true;
+      startAutofire();
+    };
+    const onMouseUp = () => {
+      mouseDown = false;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "KeyF") return;
+      if (e.repeat) return; // ignore native key-repeat, our interval drives autofire
+      keyDown = true;
+      startAutofire();
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "KeyF") keyDown = false;
+    };
+    // If the window loses focus, stop holding so we don't autofire forever.
+    const onBlur = () => {
+      mouseDown = false;
+      keyDown = false;
+    };
+
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      if (intervalId !== null) clearInterval(intervalId);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -2143,6 +2231,12 @@ interface Props {
   onCompareCinematicEnd?: () => void;
   onFlyMove?: (x: number, y: number, z: number, yaw: number, bank: number) => void;
   flyPilotsRef?: React.MutableRefObject<Map<string, RemotePilot>>;
+  flyProjectilesRef?: React.MutableRefObject<Map<string, ActiveProjectile>>;
+  flySelfStateRef?: React.MutableRefObject<SelfPvpState>;
+  flySelfId?: string | null;
+  flyOnShoot?: (x: number, y: number, z: number, dirX: number, dirY: number, dirZ: number) => void;
+  flyOnReportHit?: (targetId: string) => void;
+  flyPvpEnabled?: boolean;
   onCameraMove?: (x: number, z: number, tx: number, tz: number) => void;
 }
 
@@ -2167,10 +2261,15 @@ function CityExposure({ cityEnergy }: { cityEnergy: number }) {
 // Downtown has no plaza, so district plazas start at index 0
 const RABBIT_PLAZA_INDICES = [0, 1, 3, 6, 9];
 
-export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, flyVehicle, onExitFly, onCollect, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, flyStartPaused, isMobile, onJoystickState, flyBoostActive, flyBrakeActive, skyAds, onAdClick, onAdViewed, introMode, onIntroEnd, raidPhase, raidData, raidAttacker, raidDefender, onRaidPhaseComplete, onLandmarkClick, onEArcadeClick, onSponsorClick, sponsorFocusPos, activeSponsorSlug, resolvedSponsors, rabbitSighting, onRabbitCaught, rabbitCinematic, onRabbitCinematicEnd, rabbitCinematicTarget, ghostPreviewLogin, holdRise, celebrationActive, wallpaperMode, wallpaperSpeed, liveByLogin, cityEnergy, onCompareCinematicEnd, onFlyMove, flyPilotsRef, onCameraMove }: Props) {
+export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, flyVehicle, onExitFly, onCollect, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, flyStartPaused, isMobile, onJoystickState, flyBoostActive, flyBrakeActive, skyAds, onAdClick, onAdViewed, introMode, onIntroEnd, raidPhase, raidData, raidAttacker, raidDefender, onRaidPhaseComplete, onLandmarkClick, onEArcadeClick, onSponsorClick, sponsorFocusPos, activeSponsorSlug, resolvedSponsors, rabbitSighting, onRabbitCaught, rabbitCinematic, onRabbitCinematicEnd, rabbitCinematicTarget, ghostPreviewLogin, holdRise, celebrationActive, wallpaperMode, wallpaperSpeed, liveByLogin, cityEnergy, onCompareCinematicEnd, onFlyMove, flyPilotsRef, flyProjectilesRef, flySelfStateRef, flySelfId, flyOnShoot, flyOnReportHit, flyPvpEnabled, onCameraMove }: Props) {
   const sponsors = resolvedSponsors ?? [];
   const [isCompareCinematicPlaying, setIsCompareCinematicPlaying] = useState(false);
   const prevComparePairRef = useRef<string>("");
+
+  // During PvP, every city interaction is suppressed — clicks must only
+  // shoot. Landmarks, sponsor buildings, ads, the arcade entrance and
+  // the founder spire would otherwise pause flight or open overlays.
+  const blockCityClicks = flyMode && flyPvpEnabled === true;
 
   useEffect(() => {
     // Determine if we just entered a new comparison
@@ -2316,20 +2415,31 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
 
           {!introMode && flyMode && (
             <>
-              <VehicleFlight onExit={onExitFly} onHud={onHud ?? (() => { })} onPause={onPause ?? (() => { })} pauseSignal={flyPauseSignal} hasOverlay={flyHasOverlay} startPaused={flyStartPaused} vehicleType={flyVehicle} posRef={flyPosRef} cityRadius={cityRadius} isMobile={isMobile} onJoystickState={onJoystickState} boostActive={flyBoostActive} brakeActive={flyBrakeActive} onFlyMove={onFlyMove} />
+              <VehicleFlight onExit={onExitFly} onHud={onHud ?? (() => { })} onPause={onPause ?? (() => { })} pauseSignal={flyPauseSignal} hasOverlay={flyHasOverlay} startPaused={flyStartPaused} vehicleType={flyVehicle} posRef={flyPosRef} cityRadius={cityRadius} isMobile={isMobile} onJoystickState={onJoystickState} boostActive={flyBoostActive} brakeActive={flyBrakeActive} onFlyMove={onFlyMove} onShoot={flyOnShoot} canShoot={flyPvpEnabled === true} />
               <SkyCollectibles playerPosRef={flyPosRef} accentColor={accentColor ?? "#6090e0"} onCollect={onCollect ?? (() => { })} cityRadius={cityRadius} />
             </>
           )}
 
           {/* Remote pilots visible in both explore and fly mode */}
           {flyPilotsRef && <RemotePilots pilotsRef={flyPilotsRef} />}
+
+          {/* PvP projectile swarm (only in fly mode) */}
+          {flyMode && flyProjectilesRef && flyPilotsRef && flySelfStateRef && flyOnReportHit && (
+            <ProjectileSwarm
+              projectilesRef={flyProjectilesRef}
+              pilotsRef={flyPilotsRef}
+              selfStateRef={flySelfStateRef}
+              selfId={flySelfId ?? null}
+              reportHit={flyOnReportHit}
+            />
+          )}
         </>
       )}
 
       <Ground key={`ground-${themeIndex}`} color={t.groundColor} grid1={t.grid1} grid2={t.grid2} />
 
       <EArcadeLandmark
-        onClick={onEArcadeClick ?? (() => { })}
+        onClick={blockCityClicks ? () => { } : (onEArcadeClick ?? (() => { }))}
         themeAccent={t.building.accent}
         themeWindowLit={t.building.windowLit}
         themeFace={t.building.face}
@@ -2338,14 +2448,14 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
         <SponsoredLandmark
           key={s.slug}
           config={s}
-          onClick={() => onSponsorClick?.(s.slug)}
+          onClick={blockCityClicks ? () => { } : () => onSponsorClick?.(s.slug)}
           themeAccent={t.building.accent}
           themeWindowLit={t.building.windowLit}
           themeFace={t.building.face}
           dimmed={!!activeSponsorSlug && activeSponsorSlug !== s.slug}
         />
       ))}
-      <FounderSpire onClick={onLandmarkClick ?? (() => { })} />
+      <FounderSpire onClick={blockCityClicks ? () => { } : (onLandmarkClick ?? (() => { }))} />
 
       {!wallpaperMode && celebrationActive && <CelebrationEffect cityRadius={cityRadius} />}
 
@@ -2382,7 +2492,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
           focusedBuildingB={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidAttacker?.login ?? null) : focusedBuildingB}
           hideEffectsFor={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidAttacker?.login ?? null) : null}
           accentColor={t.building.accent}
-          onBuildingClick={onBuildingClick}
+          onBuildingClick={blockCityClicks ? undefined : onBuildingClick}
           onFocusInfo={onFocusInfo}
           introMode={introMode}
           flyMode={flyMode}
@@ -2407,11 +2517,11 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
 
       {!wallpaperMode && skyAds && skyAds.length > 0 && (
         <>
-          <SkyAds ads={skyAds} cityRadius={cityRadius} flyMode={flyMode} onAdClick={onAdClick} onAdViewed={onAdViewed} />
+          <SkyAds ads={skyAds} cityRadius={cityRadius} flyMode={flyMode} onAdClick={blockCityClicks ? undefined : onAdClick} onAdViewed={onAdViewed} />
           <BuildingAds
             ads={skyAds}
             buildings={buildings}
-            onAdClick={onAdClick}
+            onAdClick={blockCityClicks ? undefined : onAdClick}
             onAdViewed={onAdViewed}
             focusedBuilding={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidDefender?.login ?? focusedBuilding) : focusedBuilding}
             focusedBuildingB={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidAttacker?.login ?? null) : focusedBuildingB}
