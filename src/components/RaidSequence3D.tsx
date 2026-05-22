@@ -39,290 +39,568 @@ const easeOutBack = (t: number) => {
 
 // ─── Vehicle Components (all face -Z for correct lookAt) ─────
 
-function AirplaneMesh() {
-  const propRef = useRef<THREE.Group>(null);
+function CRTTerminalMesh() {
+  const screenRef = useRef<THREE.MeshStandardMaterial>(null);
+  const ledRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  useFrame((_, delta) => {
-    if (propRef.current) propRef.current.rotation.z += delta * 30;
-  });
-
-  return (
-    <group>
-      {/* Fuselage */}
-      <mesh>
-        <boxGeometry args={[1.2, 0.9, 5]} />
-        <meshStandardMaterial color="#e0e0e0" emissive="#aaa" emissiveIntensity={0.4} />
-      </mesh>
-      {/* Nose taper */}
-      <mesh position={[0, 0, -3]}>
-        <boxGeometry args={[0.8, 0.6, 1.2]} />
-        <meshStandardMaterial color="#ccc" emissive="#999" emissiveIntensity={0.3} />
-      </mesh>
-      {/* Nose tip */}
-      <mesh position={[0, 0, -3.7]}>
-        <boxGeometry args={[0.5, 0.4, 0.5]} />
-        <meshStandardMaterial color="#bbb" emissive="#888" emissiveIntensity={0.3} />
-      </mesh>
-      {/* Cockpit glass */}
-      <mesh position={[0, 0.55, -1.2]}>
-        <boxGeometry args={[0.7, 0.35, 1]} />
-        <meshStandardMaterial color="#3399dd" emissive="#2277bb" emissiveIntensity={0.8} />
-      </mesh>
-      {/* Main wings */}
-      <mesh position={[0, -0.1, 0]}>
-        <boxGeometry args={[8, 0.12, 2]} />
-        <meshStandardMaterial color="#d8d8d8" emissive="#999" emissiveIntensity={0.3} />
-      </mesh>
-      {/* Wing tips */}
-      <mesh position={[-4.2, 0.15, 0.3]}>
-        <boxGeometry args={[0.6, 0.5, 0.8]} />
-        <meshStandardMaterial color="#cc4444" emissive="#993333" emissiveIntensity={0.5} />
-      </mesh>
-      <mesh position={[4.2, 0.15, 0.3]}>
-        <boxGeometry args={[0.6, 0.5, 0.8]} />
-        <meshStandardMaterial color="#cc4444" emissive="#993333" emissiveIntensity={0.5} />
-      </mesh>
-      {/* Tail vertical stabilizer */}
-      <mesh position={[0, 0.9, 2.4]}>
-        <boxGeometry args={[0.12, 1.3, 1]} />
-        <meshStandardMaterial color="#cc4444" emissive="#993333" emissiveIntensity={0.5} />
-      </mesh>
-      {/* Tail horizontal stabilizers */}
-      <mesh position={[0, 0.35, 2.4]}>
-        <boxGeometry args={[3, 0.1, 0.8]} />
-        <meshStandardMaterial color="#d8d8d8" emissive="#999" emissiveIntensity={0.3} />
-      </mesh>
-      {/* Propeller hub */}
-      <mesh position={[0, 0, -4]}>
-        <boxGeometry args={[0.3, 0.3, 0.2]} />
-        <meshStandardMaterial color="#555" emissive="#333" emissiveIntensity={0.3} />
-      </mesh>
-      {/* Spinning propeller */}
-      <group ref={propRef} position={[0, 0, -4.1]}>
-        <mesh>
-          <boxGeometry args={[3, 0.25, 0.06]} />
-          <meshStandardMaterial color="#666" emissive="#555" emissiveIntensity={0.4} />
-        </mesh>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <boxGeometry args={[3, 0.25, 0.06]} />
-          <meshStandardMaterial color="#666" emissive="#555" emissiveIntensity={0.4} />
-        </mesh>
-      </group>
-      {/* Engine glow */}
-      <pointLight position={[0, 0, 2.8]} color="#ff8844" intensity={3} distance={10} />
-    </group>
-  );
-}
-
-function HelicopterMesh() {
-  const rotorRef = useRef<THREE.Group>(null);
-  const tailRotorRef = useRef<THREE.Mesh>(null);
-
-  useFrame((_, delta) => {
-    if (rotorRef.current) rotorRef.current.rotation.y += delta * 20;
-    if (tailRotorRef.current) tailRotorRef.current.rotation.z += delta * 25;
-  });
-
-  return (
-    <group>
-      {/* Body */}
-      <mesh>
-        <boxGeometry args={[1.8, 1.6, 4]} />
-        <meshStandardMaterial color="#556677" emissive="#334455" emissiveIntensity={0.5} />
-      </mesh>
-      {/* Nose */}
-      <mesh position={[0, -0.2, -2.3]}>
-        <boxGeometry args={[1.4, 1, 1]} />
-        <meshStandardMaterial color="#4a5a6a" emissive="#334455" emissiveIntensity={0.5} />
-      </mesh>
-      {/* Cockpit glass */}
-      <mesh position={[0, 0.2, -2.5]}>
-        <boxGeometry args={[1.2, 0.6, 0.6]} />
-        <meshStandardMaterial color="#44aadd" emissive="#3388bb" emissiveIntensity={0.8} />
-      </mesh>
-      {/* Tail boom */}
-      <mesh position={[0, 0.3, 3]}>
-        <boxGeometry args={[0.5, 0.5, 2.5]} />
-        <meshStandardMaterial color="#445566" emissive="#334455" emissiveIntensity={0.4} />
-      </mesh>
-      {/* Tail fin */}
-      <mesh position={[0, 0.9, 4]}>
-        <boxGeometry args={[0.1, 1, 0.6]} />
-        <meshStandardMaterial color="#cc5555" emissive="#993333" emissiveIntensity={0.5} />
-      </mesh>
-      {/* Skids */}
-      <mesh position={[-0.8, -1.2, 0]}>
-        <boxGeometry args={[0.15, 0.15, 3.5]} />
-        <meshStandardMaterial color="#444" emissive="#222" emissiveIntensity={0.3} />
-      </mesh>
-      <mesh position={[0.8, -1.2, 0]}>
-        <boxGeometry args={[0.15, 0.15, 3.5]} />
-        <meshStandardMaterial color="#444" emissive="#222" emissiveIntensity={0.3} />
-      </mesh>
-      {/* Skid struts */}
-      <mesh position={[-0.8, -0.7, -0.8]}>
-        <boxGeometry args={[0.12, 1, 0.12]} />
-        <meshStandardMaterial color="#444" emissive="#222" emissiveIntensity={0.3} />
-      </mesh>
-      <mesh position={[0.8, -0.7, -0.8]}>
-        <boxGeometry args={[0.12, 1, 0.12]} />
-        <meshStandardMaterial color="#444" emissive="#222" emissiveIntensity={0.3} />
-      </mesh>
-      <mesh position={[-0.8, -0.7, 0.8]}>
-        <boxGeometry args={[0.12, 1, 0.12]} />
-        <meshStandardMaterial color="#444" emissive="#222" emissiveIntensity={0.3} />
-      </mesh>
-      <mesh position={[0.8, -0.7, 0.8]}>
-        <boxGeometry args={[0.12, 1, 0.12]} />
-        <meshStandardMaterial color="#444" emissive="#222" emissiveIntensity={0.3} />
-      </mesh>
-      {/* Rotor mast */}
-      <mesh position={[0, 1.1, 0]}>
-        <boxGeometry args={[0.2, 0.5, 0.2]} />
-        <meshStandardMaterial color="#555" emissive="#333" emissiveIntensity={0.3} />
-      </mesh>
-      {/* Main rotor */}
-      <group ref={rotorRef} position={[0, 1.4, 0]}>
-        <mesh>
-          <boxGeometry args={[7, 0.08, 0.4]} />
-          <meshStandardMaterial color="#888" emissive="#666" emissiveIntensity={0.4} />
-        </mesh>
-        <mesh rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[7, 0.08, 0.4]} />
-          <meshStandardMaterial color="#888" emissive="#666" emissiveIntensity={0.4} />
-        </mesh>
-      </group>
-      {/* Tail rotor */}
-      <mesh ref={tailRotorRef} position={[0.3, 0.9, 4.1]}>
-        <boxGeometry args={[0.06, 1.5, 0.06]} />
-        <meshStandardMaterial color="#888" emissive="#666" emissiveIntensity={0.4} />
-      </mesh>
-    </group>
-  );
-}
-
-function DroneMesh() {
-  const rotorsRef = useRef<THREE.Group[]>([]);
-
-  useFrame((_, delta) => {
-    rotorsRef.current.forEach((r) => {
-      if (r) r.rotation.y += delta * 25;
-    });
-  });
-
-  return (
-    <group>
-      {/* Center body */}
-      <mesh>
-        <boxGeometry args={[1.5, 0.4, 1.5]} />
-        <meshStandardMaterial color="#222" emissive="#111" emissiveIntensity={0.5} />
-      </mesh>
-      {/* Camera eye */}
-      <mesh position={[0, -0.25, -0.5]}>
-        <boxGeometry args={[0.4, 0.2, 0.4]} />
-        <meshStandardMaterial color="#00ccff" emissive="#00aaff" emissiveIntensity={2} toneMapped={false} />
-      </mesh>
-      {/* Arms + motors + rotors */}
-      {([
-        [-1.8, 0, -1.8],
-        [1.8, 0, -1.8],
-        [-1.8, 0, 1.8],
-        [1.8, 0, 1.8],
-      ] as [number, number, number][]).map((pos, i) => (
-        <group key={i}>
-          <mesh position={[pos[0] * 0.5, 0, pos[2] * 0.5]}>
-            <boxGeometry args={[
-              Math.abs(pos[0]) > 0 ? Math.abs(pos[0]) : 0.15,
-              0.15,
-              Math.abs(pos[2]) > 0 ? 0.15 : Math.abs(pos[2]),
-            ]} />
-            <meshStandardMaterial color="#333" emissive="#222" emissiveIntensity={0.4} />
-          </mesh>
-          <mesh position={pos}>
-            <boxGeometry args={[0.5, 0.3, 0.5]} />
-            <meshStandardMaterial color="#333" emissive="#222" emissiveIntensity={0.4} />
-          </mesh>
-          <group
-            position={[pos[0], 0.2, pos[2]]}
-            ref={(el) => { if (el) rotorsRef.current[i] = el; }}
-          >
-            <mesh>
-              <boxGeometry args={[2, 0.05, 0.2]} />
-              <meshStandardMaterial color="#00ccff" emissive="#00aadd" emissiveIntensity={1.5} toneMapped={false} />
-            </mesh>
-            <mesh rotation={[0, Math.PI / 2, 0]}>
-              <boxGeometry args={[2, 0.05, 0.2]} />
-              <meshStandardMaterial color="#00ccff" emissive="#00aadd" emissiveIntensity={1.5} toneMapped={false} />
-            </mesh>
-          </group>
-          <pointLight position={[pos[0], 0.3, pos[2]]} color="#00ccff" intensity={1} distance={5} />
-        </group>
-      ))}
-    </group>
-  );
-}
-
-function RocketMesh() {
-  const flameRef = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    if (flameRef.current) {
-      const flicker = 0.8 + Math.sin(clock.elapsedTime * 20) * 0.2 + Math.sin(clock.elapsedTime * 33) * 0.15;
-      flameRef.current.scale.set(flicker, flicker, 1 + Math.sin(clock.elapsedTime * 15) * 0.3);
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (screenRef.current) {
+      screenRef.current.emissiveIntensity = 2.2 + Math.sin(t * 18) * 0.25 + Math.sin(t * 3) * 0.15;
+    }
+    if (ledRef.current) {
+      ledRef.current.emissiveIntensity = 1.5 + Math.sin(t * 2) * 0.5;
     }
   });
 
   return (
     <group>
-      {/* Nose cone */}
-      <mesh position={[0, 0, -3]} rotation={[Math.PI / 2, 0, 0]}>
-        <coneGeometry args={[0.7, 1.8, 6]} />
-        <meshStandardMaterial color="#cc3333" emissive="#aa2222" emissiveIntensity={0.8} />
-      </mesh>
-      <mesh position={[0, 0, -1.5]}>
-        <boxGeometry args={[1.2, 1.2, 1.5]} />
-        <meshStandardMaterial color="#dddddd" emissive="#aaa" emissiveIntensity={0.4} />
-      </mesh>
+      {/* Main CRT housing (front of vehicle = -Z, screen faces forward) */}
       <mesh>
-        <boxGeometry args={[1.4, 1.4, 3]} />
-        <meshStandardMaterial color="#eeeeee" emissive="#aaa" emissiveIntensity={0.4} />
+        <boxGeometry args={[3.2, 2.6, 3.6]} />
+        <meshStandardMaterial color="#d4c4a8" emissive="#6b5d44" emissiveIntensity={0.25} />
       </mesh>
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[1.45, 1.45, 0.4]} />
-        <meshStandardMaterial color="#cc3333" emissive="#992222" emissiveIntensity={0.6} />
+      {/* Top bevel */}
+      <mesh position={[0, 1.35, 0]}>
+        <boxGeometry args={[3, 0.12, 3.4]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
       </mesh>
-      <mesh position={[0, 0, 1.8]}>
-        <boxGeometry args={[1.3, 1.3, 0.8]} />
-        <meshStandardMaterial color="#888" emissive="#555" emissiveIntensity={0.4} />
+      {/* Bottom bevel */}
+      <mesh position={[0, -1.35, 0]}>
+        <boxGeometry args={[3, 0.12, 3.4]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
       </mesh>
-      {/* Fins */}
-      {([
-        [0, -0.8, 2, 0],
-        [0, 0.8, 2, 0],
-        [-0.8, 0, 2, Math.PI / 2],
-        [0.8, 0, 2, Math.PI / 2],
-      ] as [number, number, number, number][]).map(([x, y, z, rot], i) => (
-        <mesh key={i} position={[x, y, z]} rotation={[0, 0, rot]}>
-          <boxGeometry args={[0.1, 1.5, 1.2]} />
-          <meshStandardMaterial color="#cc3333" emissive="#992222" emissiveIntensity={0.6} />
+      {/* Bezel (black frame around screen) */}
+      <mesh position={[0, 0.1, -1.82]}>
+        <boxGeometry args={[2.8, 2.1, 0.08]} />
+        <meshStandardMaterial color="#1a1a1a" emissive="#000000" emissiveIntensity={0} />
+      </mesh>
+      {/* The screen itself (glowing green Matrix vibe) */}
+      <mesh position={[0, 0.1, -1.85]}>
+        <boxGeometry args={[2.4, 1.7, 0.05]} />
+        <meshStandardMaterial
+          ref={screenRef}
+          color="#0a3a1a"
+          emissive="#00ff66"
+          emissiveIntensity={2.2}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* Scanline overlay (subtle dark band across screen) */}
+      <mesh position={[0, 0.1, -1.87]}>
+        <boxGeometry args={[2.4, 0.04, 0.02]} />
+        <meshStandardMaterial color="#000000" transparent opacity={0.5} />
+      </mesh>
+      {/* Brand label below screen */}
+      <mesh position={[0, -1.05, -1.82]}>
+        <boxGeometry args={[2.6, 0.35, 0.05]} />
+        <meshStandardMaterial color="#a89878" emissive="#4a3d28" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Power LED (red, blinking) */}
+      <mesh position={[1.05, -1.05, -1.82]}>
+        <boxGeometry args={[0.12, 0.12, 0.06]} />
+        <meshStandardMaterial
+          ref={ledRef}
+          color="#ff2200"
+          emissive="#ff3300"
+          emissiveIntensity={1.5}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* Power button */}
+      <mesh position={[-1.05, -1.05, -1.82]}>
+        <boxGeometry args={[0.18, 0.18, 0.06]} />
+        <meshStandardMaterial color="#2a2a2a" emissive="#1a1a1a" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Bottom face: 3 control knobs */}
+      <mesh position={[-0.5, -1.05, -1.82]}>
+        <boxGeometry args={[0.16, 0.16, 0.05]} />
+        <meshStandardMaterial color="#3a3a3a" emissive="#1a1a1a" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[-0.15, -1.05, -1.82]}>
+        <boxGeometry args={[0.16, 0.16, 0.05]} />
+        <meshStandardMaterial color="#3a3a3a" emissive="#1a1a1a" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0.2, -1.05, -1.82]}>
+        <boxGeometry args={[0.16, 0.16, 0.05]} />
+        <meshStandardMaterial color="#3a3a3a" emissive="#1a1a1a" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Back vents (heat sink ridges) */}
+      <mesh position={[0, 0.6, 1.81]}>
+        <boxGeometry args={[2.4, 0.08, 0.05]} />
+        <meshStandardMaterial color="#3a3326" emissive="#1a1612" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, 0.3, 1.81]}>
+        <boxGeometry args={[2.4, 0.08, 0.05]} />
+        <meshStandardMaterial color="#3a3326" emissive="#1a1612" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, 0, 1.81]}>
+        <boxGeometry args={[2.4, 0.08, 0.05]} />
+        <meshStandardMaterial color="#3a3326" emissive="#1a1612" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, -0.3, 1.81]}>
+        <boxGeometry args={[2.4, 0.08, 0.05]} />
+        <meshStandardMaterial color="#3a3326" emissive="#1a1612" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, -0.6, 1.81]}>
+        <boxGeometry args={[2.4, 0.08, 0.05]} />
+        <meshStandardMaterial color="#3a3326" emissive="#1a1612" emissiveIntensity={0.2} />
+      </mesh>
+      {/* VGA cable tail (trails behind) */}
+      <mesh position={[0, -0.4, 2.2]}>
+        <boxGeometry args={[0.18, 0.18, 0.8]} />
+        <meshStandardMaterial color="#222" emissive="#111" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, -0.4, 2.9]}>
+        <boxGeometry args={[0.12, 0.12, 0.6]} />
+        <meshStandardMaterial color="#333" emissive="#222" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Base/stand (pedestal under monitor) */}
+      <mesh position={[0, -1.55, 0]}>
+        <boxGeometry args={[1.4, 0.25, 1.4]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, -1.78, 0]}>
+        <boxGeometry args={[2, 0.2, 2]} />
+        <meshStandardMaterial color="#a89878" emissive="#4a3d28" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Left rabbit-ear antenna (angled outward) */}
+      <mesh position={[-0.9, 2.2, 0.3]} rotation={[0, 0, -0.35]}>
+        <boxGeometry args={[0.06, 1.8, 0.06]} />
+        <meshStandardMaterial color="#999" emissive="#666" emissiveIntensity={0.3} />
+      </mesh>
+      {/* Right rabbit-ear antenna (angled outward) */}
+      <mesh position={[0.9, 2.2, 0.3]} rotation={[0, 0, 0.35]}>
+        <boxGeometry args={[0.06, 1.8, 0.06]} />
+        <meshStandardMaterial color="#999" emissive="#666" emissiveIntensity={0.3} />
+      </mesh>
+      {/* Antenna base nubs */}
+      <mesh position={[-0.7, 1.4, 0.3]}>
+        <boxGeometry args={[0.15, 0.15, 0.15]} />
+        <meshStandardMaterial color="#555" emissive="#333" emissiveIntensity={0.3} />
+      </mesh>
+      <mesh position={[0.7, 1.4, 0.3]}>
+        <boxGeometry args={[0.15, 0.15, 0.15]} />
+        <meshStandardMaterial color="#555" emissive="#333" emissiveIntensity={0.3} />
+      </mesh>
+      {/* Screen glow light (green, in front of monitor) */}
+      <pointLight position={[0, 0.1, -3]} color="#00ff66" intensity={4} distance={14} />
+      {/* Subtle ambient warm light from CRT phosphor */}
+      <pointLight position={[0, 0, 0]} color="#aaffaa" intensity={0.8} distance={6} />
+    </group>
+  );
+}
+
+function MechanicalKeyboardMesh() {
+  const keycapsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  const ledRef = useRef<THREE.MeshStandardMaterial>(null);
+
+  // 5 rows x 14 cols layout (representative mechanical keyboard)
+  const keycaps = useMemo(() => {
+    const list: { x: number; z: number; idx: number }[] = [];
+    const rows = 5;
+    const cols = 14;
+    const spacingX = 0.42;
+    const spacingZ = 0.42;
+    const startX = -((cols - 1) * spacingX) / 2;
+    const startZ = -((rows - 1) * spacingZ) / 2;
+    let idx = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        list.push({ x: startX + c * spacingX, z: startZ + r * spacingZ, idx: idx++ });
+      }
+    }
+    return list;
+  }, []);
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    keycapsRef.current.forEach((mat, i) => {
+      if (!mat) return;
+      const k = keycaps[i];
+      // Single-color wave (green Matrix) rolling across the keyboard
+      const phase = (k.x + k.z) * 1.5 + t * 2.5;
+      mat.emissiveIntensity = 0.5 + Math.max(0, Math.sin(phase)) * 1.2;
+    });
+    if (ledRef.current) {
+      ledRef.current.emissiveIntensity = 1.5 + Math.sin(t * 2) * 0.5;
+    }
+  });
+
+  return (
+    <group>
+      {/* Chassis (matte beige body, matching CRT palette) */}
+      <mesh position={[0, -0.2, 0]}>
+        <boxGeometry args={[6.4, 0.5, 2.4]} />
+        <meshStandardMaterial color="#d4c4a8" emissive="#6b5d44" emissiveIntensity={0.25} />
+      </mesh>
+      {/* Top plate (darker beige inset) */}
+      <mesh position={[0, 0.06, 0]}>
+        <boxGeometry args={[6.2, 0.08, 2.2]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Keycaps grid (beige caps with subtle green legend glow) */}
+      {keycaps.map((k) => (
+        <mesh key={k.idx} position={[k.x, 0.24, k.z]}>
+          <boxGeometry args={[0.34, 0.22, 0.34]} />
+          <meshStandardMaterial
+            ref={(el) => { if (el) keycapsRef.current[k.idx] = el; }}
+            color="#a89878"
+            emissive="#00ff66"
+            emissiveIntensity={0.5}
+            toneMapped={false}
+          />
         </mesh>
       ))}
-      {/* Engine flame */}
-      <mesh ref={flameRef} position={[0, 0, 2.5]}>
-        <boxGeometry args={[0.6, 0.6, 1.2]} />
-        <meshStandardMaterial color="#ff6600" emissive="#ff4400" emissiveIntensity={3} toneMapped={false} />
+      {/* Spacebar (wider keycap at bottom-front) */}
+      <mesh position={[0, 0.24, 1.05]}>
+        <boxGeometry args={[3.4, 0.22, 0.34]} />
+        <meshStandardMaterial color="#a89878" emissive="#5a4d36" emissiveIntensity={0.3} />
       </mesh>
-      <pointLight position={[0, 0, 3]} color="#ff6600" intensity={8} distance={15} />
+      {/* Caps Lock LED (single green indicator, blinking) */}
+      <mesh position={[2.85, 0.18, -0.85]}>
+        <boxGeometry args={[0.1, 0.06, 0.1]} />
+        <meshStandardMaterial
+          ref={ledRef}
+          color="#0a3a1a"
+          emissive="#00ff66"
+          emissiveIntensity={1.5}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* USB-C braided cable (curling out the back) */}
+      <mesh position={[0, 0.05, 1.45]}>
+        <boxGeometry args={[0.18, 0.18, 0.4]} />
+        <meshStandardMaterial color="#2a2a2a" emissive="#111" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, 0.05, 1.85]}>
+        <boxGeometry args={[0.14, 0.14, 0.5]} />
+        <meshStandardMaterial color="#333" emissive="#111" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0.2, 0.1, 2.3]}>
+        <boxGeometry args={[0.12, 0.12, 0.5]} />
+        <meshStandardMaterial color="#444" emissive="#111" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0.5, 0.2, 2.7]}>
+        <boxGeometry args={[0.12, 0.12, 0.5]} />
+        <meshStandardMaterial color="#444" emissive="#222" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Feet (small dark pads underneath) */}
+      <mesh position={[-2.8, -0.5, -1]}>
+        <boxGeometry args={[0.3, 0.1, 0.3]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+      <mesh position={[2.8, -0.5, -1]}>
+        <boxGeometry args={[0.3, 0.1, 0.3]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+      <mesh position={[-2.8, -0.5, 1]}>
+        <boxGeometry args={[0.3, 0.1, 0.3]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+      <mesh position={[2.8, -0.5, 1]}>
+        <boxGeometry args={[0.3, 0.1, 0.3]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+      {/* Soft green ambient light (only color, matching CRT screen) */}
+      <pointLight position={[0, 0.5, 0]} color="#00ff66" intensity={1.2} distance={5} />
+    </group>
+  );
+}
+
+function PCTowerMesh() {
+  const powerLedRef = useRef<THREE.MeshStandardMaterial>(null);
+  const hddLedRef = useRef<THREE.MeshStandardMaterial>(null);
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (powerLedRef.current) {
+      powerLedRef.current.emissiveIntensity = 1.4 + Math.sin(t * 2) * 0.3;
+    }
+    if (hddLedRef.current) {
+      // Random HDD activity flicker (irregular bursts)
+      const burst = Math.sin(t * 13) > 0.3 ? 1 + Math.random() * 0.8 : 0.15;
+      hddLedRef.current.emissiveIntensity = burst * 1.6;
+    }
+  });
+
+  return (
+    <group>
+      {/* Main tower body (vertical beige case, matching CRT housing) */}
+      <mesh position={[0, 0.5, 0]}>
+        <boxGeometry args={[2.2, 4, 2.6]} />
+        <meshStandardMaterial color="#d4c4a8" emissive="#6b5d44" emissiveIntensity={0.25} />
+      </mesh>
+      {/* Top bevel */}
+      <mesh position={[0, 2.55, 0]}>
+        <boxGeometry args={[2, 0.12, 2.4]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Bottom bevel */}
+      <mesh position={[0, -1.55, 0]}>
+        <boxGeometry args={[2, 0.12, 2.4]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Front panel inset (slightly recessed darker area) */}
+      <mesh position={[0, 0.5, -1.32]}>
+        <boxGeometry args={[1.9, 3.7, 0.05]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
+      </mesh>
+      {/* CD-ROM drive (top slot, horizontal) */}
+      <mesh position={[0, 1.7, -1.35]}>
+        <boxGeometry args={[1.7, 0.5, 0.06]} />
+        <meshStandardMaterial color="#1a1a1a" emissive="#0a0a0a" emissiveIntensity={0.2} />
+      </mesh>
+      {/* CD-ROM tray slot (the thin opening) */}
+      <mesh position={[0, 1.65, -1.37]}>
+        <boxGeometry args={[1.5, 0.06, 0.04]} />
+        <meshStandardMaterial color="#000" />
+      </mesh>
+      {/* CD-ROM eject button */}
+      <mesh position={[0.65, 1.78, -1.37]}>
+        <boxGeometry args={[0.1, 0.06, 0.04]} />
+        <meshStandardMaterial color="#3a3a3a" />
+      </mesh>
+      {/* CD-ROM label/brand */}
+      <mesh position={[-0.6, 1.78, -1.37]}>
+        <boxGeometry args={[0.3, 0.08, 0.04]} />
+        <meshStandardMaterial color="#2a2a2a" />
+      </mesh>
+      {/* Floppy drive (middle slot, 3.5") */}
+      <mesh position={[0, 0.95, -1.35]}>
+        <boxGeometry args={[1.4, 0.3, 0.06]} />
+        <meshStandardMaterial color="#1a1a1a" emissive="#0a0a0a" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Floppy slot opening */}
+      <mesh position={[-0.1, 0.95, -1.37]}>
+        <boxGeometry args={[1.1, 0.06, 0.04]} />
+        <meshStandardMaterial color="#000" />
+      </mesh>
+      {/* Floppy eject button (square) */}
+      <mesh position={[0.55, 0.95, -1.37]}>
+        <boxGeometry args={[0.1, 0.1, 0.04]} />
+        <meshStandardMaterial color="#3a3a3a" />
+      </mesh>
+      {/* Floppy activity LED (small, green) */}
+      <mesh position={[0.55, 1.08, -1.37]}>
+        <boxGeometry args={[0.06, 0.04, 0.04]} />
+        <meshStandardMaterial color="#0a3a1a" emissive="#00ff66" emissiveIntensity={0.6} toneMapped={false} />
+      </mesh>
+      {/* Brand label area (small text panel) */}
+      <mesh position={[0, 0.3, -1.36]}>
+        <boxGeometry args={[1.6, 0.18, 0.04]} />
+        <meshStandardMaterial color="#a89878" emissive="#4a3d28" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Power button (big square with bevel) */}
+      <mesh position={[0, -0.4, -1.36]}>
+        <boxGeometry args={[0.5, 0.5, 0.08]} />
+        <meshStandardMaterial color="#2a2a2a" emissive="#1a1a1a" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Power button inner */}
+      <mesh position={[0, -0.4, -1.4]}>
+        <boxGeometry args={[0.3, 0.3, 0.04]} />
+        <meshStandardMaterial color="#3a3a3a" />
+      </mesh>
+      {/* Power LED (large, green, slow pulse) */}
+      <mesh position={[-0.7, -0.4, -1.37]}>
+        <boxGeometry args={[0.14, 0.14, 0.06]} />
+        <meshStandardMaterial
+          ref={powerLedRef}
+          color="#0a3a1a"
+          emissive="#00ff66"
+          emissiveIntensity={1.4}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* HDD activity LED (small, green, random flicker) */}
+      <mesh position={[0.7, -0.4, -1.37]}>
+        <boxGeometry args={[0.1, 0.1, 0.06]} />
+        <meshStandardMaterial
+          ref={hddLedRef}
+          color="#0a3a1a"
+          emissive="#00ff66"
+          emissiveIntensity={0.3}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* Reset button (small) */}
+      <mesh position={[-0.7, -0.8, -1.37]}>
+        <boxGeometry args={[0.12, 0.12, 0.04]} />
+        <meshStandardMaterial color="#3a3a3a" />
+      </mesh>
+      {/* Bottom vents (5 horizontal slots) */}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <mesh key={i} position={[0, -1.05 - i * 0.05, -1.36]}>
+          <boxGeometry args={[1.7, 0.025, 0.04]} />
+          <meshStandardMaterial color="#1a1a1a" />
+        </mesh>
+      ))}
+      {/* Side vents (left) */}
+      {[0, 1, 2, 3].map((i) => (
+        <mesh key={`vl${i}`} position={[-1.11, 0.5 + i * 0.4, 0]}>
+          <boxGeometry args={[0.04, 0.06, 1.5]} />
+          <meshStandardMaterial color="#3a3326" emissive="#1a1612" emissiveIntensity={0.2} />
+        </mesh>
+      ))}
+      {/* Side vents (right) */}
+      {[0, 1, 2, 3].map((i) => (
+        <mesh key={`vr${i}`} position={[1.11, 0.5 + i * 0.4, 0]}>
+          <boxGeometry args={[0.04, 0.06, 1.5]} />
+          <meshStandardMaterial color="#3a3326" emissive="#1a1612" emissiveIntensity={0.2} />
+        </mesh>
+      ))}
+      {/* Back cables */}
+      <mesh position={[0.5, 0, 1.4]}>
+        <boxGeometry args={[0.15, 0.15, 0.6]} />
+        <meshStandardMaterial color="#222" emissive="#111" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0.5, 0.1, 1.8]}>
+        <boxGeometry args={[0.12, 0.12, 0.5]} />
+        <meshStandardMaterial color="#333" emissive="#111" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[-0.5, 0, 1.4]}>
+        <boxGeometry args={[0.18, 0.18, 0.5]} />
+        <meshStandardMaterial color="#222" emissive="#111" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Feet (4 small pads) */}
+      <mesh position={[-0.9, -1.7, -1]}>
+        <boxGeometry args={[0.2, 0.1, 0.2]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+      <mesh position={[0.9, -1.7, -1]}>
+        <boxGeometry args={[0.2, 0.1, 0.2]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+      <mesh position={[-0.9, -1.7, 1]}>
+        <boxGeometry args={[0.2, 0.1, 0.2]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+      <mesh position={[0.9, -1.7, 1]}>
+        <boxGeometry args={[0.2, 0.1, 0.2]} />
+        <meshStandardMaterial color="#222" />
+      </mesh>
+      {/* Lighting (subtle front glow only, like the CRT) */}
+      <pointLight position={[0, 0, -2]} color="#00ff66" intensity={2} distance={7} />
+    </group>
+  );
+}
+
+function HackerRigMesh() {
+  const steamRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (steamRef.current) {
+      steamRef.current.position.y = 0.7 + Math.sin(t * 1.5) * 0.05;
+      const mat = steamRef.current.material as THREE.MeshStandardMaterial;
+      mat.opacity = 0.25 + Math.sin(t * 1.5) * 0.1;
+    }
+  });
+
+  return (
+    <group>
+      {/* Desk surface (compact beige wood, matching CRT housing) */}
+      <mesh position={[0, -0.1, 0]}>
+        <boxGeometry args={[4, 0.18, 2.4]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Desk edge trim */}
+      <mesh position={[0, -0.01, -1.18]}>
+        <boxGeometry args={[4, 0.06, 0.04]} />
+        <meshStandardMaterial color="#a89878" emissive="#4a3d28" emissiveIntensity={0.2} />
+      </mesh>
+      <mesh position={[0, -0.01, 1.18]}>
+        <boxGeometry args={[4, 0.06, 0.04]} />
+        <meshStandardMaterial color="#a89878" emissive="#4a3d28" emissiveIntensity={0.2} />
+      </mesh>
+
+      {/* CRT terminal in the center-back (scaled down, sits on desk, screen faces the keyboard) */}
+      <group position={[0, 0.95, -0.55]} scale={0.45} rotation={[0, Math.PI, 0]}>
+        <CRTTerminalMesh />
+      </group>
+
+      {/* Mechanical keyboard in the front (scaled down, sits on desk) */}
+      <group position={[0, 0.05, 0.6]} scale={0.3}>
+        <MechanicalKeyboardMesh />
+      </group>
+
+      {/* Mousepad to the right of the keyboard */}
+      <mesh position={[1.15, 0.0, 0.6]}>
+        <boxGeometry args={[0.55, 0.02, 0.5]} />
+        <meshStandardMaterial color="#1a1a1a" emissive="#0a0a0a" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Mouse body (small, dark, slightly curved silhouette) */}
+      <mesh position={[1.15, 0.07, 0.6]}>
+        <boxGeometry args={[0.18, 0.08, 0.28]} />
+        <meshStandardMaterial color="#1a1a1a" emissive="#0a0a0a" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Mouse scroll wheel hint (tiny detail on top) */}
+      <mesh position={[1.15, 0.12, 0.52]}>
+        <boxGeometry args={[0.04, 0.02, 0.06]} />
+        <meshStandardMaterial color="#3a3a3a" />
+      </mesh>
+      {/* Mouse USB cable trailing back */}
+      <mesh position={[1.15, 0.06, 0.78]}>
+        <boxGeometry args={[0.04, 0.04, 0.12]} />
+        <meshStandardMaterial color="#222" emissive="#111" emissiveIntensity={0.2} />
+      </mesh>
+
+      {/* Floppy disk stack on left side (4 disks) */}
+      {[0, 1, 2, 3].map((i) => (
+        <group key={i}>
+          {/* Disk body */}
+          <mesh position={[-1.5, 0.05 + i * 0.09, 0.2]}>
+            <boxGeometry args={[0.75, 0.07, 0.75]} />
+            <meshStandardMaterial
+              color={i % 2 === 0 ? "#1a1a1a" : "#2a2a2a"}
+              emissive="#0a0a0a"
+              emissiveIntensity={0.2}
+            />
+          </mesh>
+          {/* Metal shutter */}
+          <mesh position={[-1.5, 0.05 + i * 0.09, -0.05]}>
+            <boxGeometry args={[0.35, 0.075, 0.18]} />
+            <meshStandardMaterial color="#888" emissive="#555" emissiveIntensity={0.3} />
+          </mesh>
+          {/* Label area (beige sticker) */}
+          <mesh position={[-1.5, 0.09 + i * 0.09, 0.32]}>
+            <boxGeometry args={[0.6, 0.005, 0.35]} />
+            <meshStandardMaterial color="#d4c4a8" emissive="#6b5d44" emissiveIntensity={0.2} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Coffee mug on right side, behind the mouse (beige, matching CRT housing) */}
+      <mesh position={[1.6, 0.25, -0.4]}>
+        <boxGeometry args={[0.42, 0.55, 0.42]} />
+        <meshStandardMaterial color="#d4c4a8" emissive="#6b5d44" emissiveIntensity={0.25} />
+      </mesh>
+      {/* Mug handle */}
+      <mesh position={[1.88, 0.27, -0.4]}>
+        <boxGeometry args={[0.1, 0.28, 0.1]} />
+        <meshStandardMaterial color="#b8a888" emissive="#5a4d36" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Coffee inside (dark surface, faint green reflection) */}
+      <mesh position={[1.6, 0.5, -0.4]}>
+        <boxGeometry args={[0.36, 0.02, 0.36]} />
+        <meshStandardMaterial color="#1a0e05" emissive="#0a2a14" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Steam (subtle white puff that floats) */}
+      <mesh ref={steamRef} position={[1.6, 0.7, -0.4]}>
+        <boxGeometry args={[0.2, 0.3, 0.2]} />
+        <meshStandardMaterial color="#ffffff" emissive="#aaffaa" emissiveIntensity={0.3} transparent opacity={0.25} />
+      </mesh>
+
     </group>
   );
 }
 
 export function VehicleMesh({ type }: { type: string }) {
   switch (type) {
-    case "raid_helicopter": return <HelicopterMesh />;
-    case "raid_drone": return <DroneMesh />;
-    case "raid_rocket": return <RocketMesh />;
-    default: return <AirplaneMesh />;
+    case "raid_helicopter": return <MechanicalKeyboardMesh />;
+    case "raid_drone": return <PCTowerMesh />;
+    case "raid_rocket": return <HackerRigMesh />;
+    default: return <CRTTerminalMesh />;
   }
 }
 

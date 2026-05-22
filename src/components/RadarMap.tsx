@@ -302,7 +302,7 @@ export default function RadarMap({
             </g>
           )}
 
-          {/* Player / airplane (fly mode) */}
+          {/* Player / vehicle (fly mode) */}
           {flyMode && (
             <g>
               <circle

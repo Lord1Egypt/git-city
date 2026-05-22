@@ -34,9 +34,9 @@ export const ITEM_NAMES: Record<string, string> = {
   particle_aura: "Particle Aura",
   streak_freeze: "Streak Freeze",
   // Raid vehicles
-  raid_helicopter: "Helicopter",
-  raid_drone: "Stealth Drone",
-  raid_rocket: "Rocket",
+  raid_helicopter: "Mech Keyboard",
+  raid_drone: "PC Tower",
+  raid_rocket: "Hacker Rig",
   // Raid tags
   tag_neon: "Neon Tag",
   tag_fire: "Fire Tag",
@@ -69,9 +69,9 @@ export const ITEM_EMOJIS: Record<string, string> = {
   neon_outline: "🔮", particle_aura: "✨",
   streak_freeze: "🧊",
   // Raid
-  raid_helicopter: "🚁",
-  raid_drone: "🛸",
-  raid_rocket: "🚀",
+  raid_helicopter: "⌨️",
+  raid_drone: "🗄️",
+  raid_rocket: "🖥️",
   tag_neon: "🌈",
   tag_fire: "🔥",
   tag_gold: "🥇",

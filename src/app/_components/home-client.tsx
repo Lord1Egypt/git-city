@@ -1091,7 +1091,7 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
   }, []);
 
   // ESC: layered dismissal
-  // During fly mode: only close overlays (profile card) — AirplaneFlight handles pause/exit
+  // During fly mode: only close overlays (profile card) — VehicleFlight handles pause/exit
   // Outside fly mode: compare → share modal → profile card → focus → explore mode
   useEffect(() => {
     if (flyMode && !selectedBuilding && !pillModalOpen && !founderMessageOpen && !eArcadeOpen && !activeSponsor) return;
@@ -2300,7 +2300,7 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
         onHud={(s, a, x, z, yaw) => {
           setHud({ speed: s, altitude: a });
           setPlayerYaw(yaw);
-          // Look-ahead: ~40u ahead of airplane = center of screen
+          // Look-ahead: ~40u ahead of vehicle = center of screen
           const mapX = x - Math.sin(yaw) * 40;
           const mapZ = z - Math.cos(yaw) * 40;
           setPlayerPos({ x: mapX, z: mapZ });

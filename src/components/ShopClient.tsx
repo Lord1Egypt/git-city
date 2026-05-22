@@ -1759,7 +1759,7 @@ export default function ShopClient({
             {/* --- Vehicles Sub-Section --- */}
             <p className="mb-1.5 text-[9px] uppercase tracking-wider text-muted">Vehicles</p>
             <div className="grid grid-cols-2 gap-3 mb-0">
-              {/* Airplane - free default */}
+              {/* CRT Terminal - free default */}
               <button
                 onClick={() => handleSetRaidVehicle("airplane")}
                 className={[
@@ -1776,7 +1776,7 @@ export default function ShopClient({
                   )}
                 </div>
                 <div className="flex items-center justify-between px-2 py-1.5">
-                  <span className="text-[10px] text-cream">✈️ Airplane</span>
+                  <span className="text-[10px] text-cream">📟 CRT Terminal</span>
                   <span className="text-[10px]" style={{ color: ACCENT }}>✓</span>
                 </div>
               </button>

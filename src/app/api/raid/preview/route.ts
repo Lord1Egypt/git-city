@@ -159,23 +159,23 @@ export async function POST(request: Request) {
     };
   });
 
-  // Build available vehicles list (always includes default airplane)
+  // Build available vehicles list (always includes the default vehicle, id "airplane" = CRT Terminal)
   const VEHICLE_META: Record<string, { name: string; emoji: string }> = {
-    airplane: { name: "Airplane", emoji: "✈️" },
-    raid_helicopter: { name: "Helicopter", emoji: "🚁" },
-    raid_drone: { name: "Stealth Drone", emoji: "🛸" },
-    raid_rocket: { name: "Rocket", emoji: "🚀" },
+    airplane: { name: "CRT Terminal", emoji: "📟" },
+    raid_helicopter: { name: "Mech Keyboard", emoji: "⌨️" },
+    raid_drone: { name: "PC Tower", emoji: "🗄️" },
+    raid_rocket: { name: "Hacker Rig", emoji: "🖥️" },
   };
 
   const ownedVehicleIds = new Set((vehiclePurchases ?? []).map((p) => p.item_id));
   const available_vehicles = [
-    { item_id: "airplane", name: "Airplane", emoji: "✈️" },
+    { item_id: "airplane", name: "CRT Terminal", emoji: "📟" },
     ...Array.from(ownedVehicleIds)
       .filter((id) => VEHICLE_META[id])
       .map((id) => ({ item_id: id, ...VEHICLE_META[id] })),
   ];
 
-  // Use saved selection, fallback to airplane
+  // Use saved selection, fallback to the default vehicle (id "airplane")
   const savedLoadout = (raidLoadoutRow?.config as { vehicle?: string } | null) ?? {};
   let vehicle = savedLoadout.vehicle ?? "airplane";
   // Validate saved vehicle is still owned
