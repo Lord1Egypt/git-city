@@ -1,0 +1,53 @@
+name: Deploy migrations to production
+
+# Solo-dev flow: pushing to `main` deploys any pending migrations to prod.
+# A validation job first applies every migration to a throwaway local Supabase
+# stack, so a broken migration fails CI *before* it can ever touch production.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_ACCESS_TOKEN  – personal token from supabase.com/dashboard/account/tokens
+#   SUPABASE_DB_PASSWORD   – the production database password
+#   SUPABASE_PROJECT_ID    – kxuhnbmureteruqbiubi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/deploy-migrations.yml"
+  workflow_dispatch: {} # lets you run it manually from the Actions tab
+
+concurrency:
+  group: supabase-migrations
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate migrations apply from scratch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # Spins up the full local stack (Postgres + auth roles + extensions) and
+      # applies every migration in order from scratch. Fails the job — and
+      # blocks the deploy below — if any migration errors.
+      - run: supabase start
+      - run: supabase stop
+
+  deploy:
+    name: Push migrations to production
+    needs: validate
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+      # Applies only the migrations that prod's history doesn't have yet.
+      - run: supabase db push
