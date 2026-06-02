@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { trackSponsorshipCtaClick } from "@/lib/himetrica";
-import { SPONSORS } from "@/lib/sponsors/registry";
 
 const ACCENT = "#c8e64a";
 const CREAM = "#e8dcc8";
@@ -11,7 +10,7 @@ const CREAM = "#e8dcc8";
 const FAQ = [
   {
     q: "How do you measure success?",
-    a: "Every format is tracked. Impressions, clicks, click-to-visit rate, time spent. You get a real-time dashboard plus a weekly summary email. For Themed Weeks, you also get screenshots, social mentions, and a final case study report.",
+    a: "Every format is tracked. Impressions, clicks, click-to-visit rate, time spent. You get a real-time dashboard plus a weekly summary email. For Sponsored Events, you also get UTM-attributed signups, redemption code claims, raid leaderboard stats, and a final case study report.",
   },
   {
     q: "What if my product is B2B and niche?",
@@ -19,7 +18,7 @@ const FAQ = [
   },
   {
     q: "How long does a custom build take?",
-    a: "Standard Landmark: 2 to 3 weeks from contract sign. Themed Week: 2 to 4 weeks depending on scope. Annual Partnership starts with the first activation, then iterates from there.",
+    a: "Standard Landmark: 2 to 3 weeks from contract sign. Sponsored Event: 2 to 4 weeks depending on scope. Annual Partnership starts with the first activation, then iterates from there.",
   },
   {
     q: "Can I customize the landmark beyond colors?",
@@ -27,34 +26,55 @@ const FAQ = [
   },
   {
     q: "Is there a contract?",
-    a: "For Landmark and Pixel Drop, simple SOW with monthly invoicing. For Themed Week and Annual, custom MSA with deliverables and timeline. No agency overhead either way.",
+    a: "For Landmark and Pixel Drop, simple SOW with monthly invoicing. For Sponsored Event and Annual, custom MSA with deliverables and timeline. No agency overhead either way.",
   },
   {
     q: "What is the refund policy?",
-    a: "Sky Ads: cancel anytime, no questions. Landmark: prorated refund if I miss a delivery milestone. Themed Week and Annual: defined in the SOW per project.",
+    a: "Sky Ads: cancel anytime, no questions. Landmark: prorated refund if I miss a delivery milestone. Sponsored Event and Annual: defined in the SOW per project.",
   },
 ];
 
 const NUMBERS = [
-  { n: "70K", l: "Devs in the city" },
-  { n: "40K", l: "Logged in via GitHub" },
-  { n: "5M", l: "Views in 2 months" },
-  { n: "5K", l: "Stars on GitHub" },
-  { n: "GitHub", l: "Reposted this month" },
+  { n: "82K", l: "Buildings indexed" },
+  { n: "45K", l: "Connected via GitHub" },
+  { n: "6.6K", l: "Monthly active devs" },
+  { n: "1.8K", l: "Raid emails /mo" },
+  { n: "GitHub", l: "Reposted in April" },
 ];
 
 const CITY_STATS = [
-  { value: "70,000", label: "Buildings in the city" },
-  { value: "40,000", label: "Connected via GitHub OAuth" },
-  { value: "5M+", label: "Social views in 2 months" },
-  { value: "5,000+", label: "GitHub repo stars" },
+  { value: "82,297", label: "Buildings indexed live from GitHub" },
+  { value: "45,437", label: "Claimed via GitHub OAuth" },
+  { value: "6,684", label: "Monthly active developers" },
+  { value: "16,784", label: "Paying customers" },
 ];
 
 const AGGREGATE = [
-  { value: "7.9M+", label: "Combined GitHub stars across all devs" },
-  { value: "1.8M+", label: "Combined followers across all devs" },
-  { value: "290K+", label: "Public repositories represented" },
-  { value: "1,000+", label: "New developers joining per day (average)" },
+  { value: "15.9M+", label: "Combined GitHub stars across all devs" },
+  { value: "5.4M+", label: "Combined followers across all devs" },
+  { value: "2.2M+", label: "Public repositories represented" },
+  { value: "171/day", label: "New developers joining (30-day avg)" },
+];
+
+const SENIORITY = [
+  { value: "879", label: "Devs with 1k+ GitHub contributions, active last 30d" },
+  { value: "80", label: "Devs with 5k+ contributions, active last 30d" },
+  { value: "21", label: "Devs with 10k+ contributions, active last 30d" },
+  { value: "11", label: "OSS celebrities (1k+ followers), active last 30d" },
+];
+
+const LANG_SHARE = [
+  { value: "51.4%", label: "JavaScript · TypeScript · HTML · CSS" },
+  { value: "12.6%", label: "Python" },
+  { value: "9.7%", label: "Java · C# · C++ · C" },
+  { value: "3.6%", label: "Go · Rust · Kotlin · Dart" },
+];
+
+const LOOP_ACTIVITY = [
+  { value: "1,900", label: "Raids run last 30 days" },
+  { value: "1,799", label: "Unique devs receiving raid alert emails" },
+  { value: "22,400", label: "Building visits" },
+  { value: "7,982", label: "Daily logins (check-ins)" },
 ];
 
 const TOP_LANGS = ["TypeScript", "Python", "JavaScript", "Go", "Rust", "Java"];
@@ -92,7 +112,7 @@ const STEPS = [
 
 const FORMAT_OPTIONS = [
   "Landmark",
-  "Themed Week",
+  "Sponsored Event",
   "Annual Partnership",
   "Pixel Drop",
   "Not sure yet",
@@ -105,8 +125,6 @@ const BUDGET_OPTIONS = [
   "$100K+",
   "Not sure",
 ];
-
-const SPONSOR_ORDER = ["firecrawl", "guaracloud", "solana-hackathon"];
 
 /* ─────────────── main component ─────────────── */
 export default function SponsorshipLanding() {
@@ -180,10 +198,6 @@ export default function SponsorshipLanding() {
     }
   }
 
-  const sponsorCards = SPONSOR_ORDER
-    .map((slug) => SPONSORS.find((s) => s.slug === slug))
-    .filter((s): s is (typeof SPONSORS)[number] => Boolean(s));
-
   return (
     <>
       {/* ── Hero ── */}
@@ -192,10 +206,13 @@ export default function SponsorshipLanding() {
           For brands
         </p>
         <h1 className="mt-4 text-3xl text-cream sm:text-5xl lg:text-6xl">
-          Put your brand where 40,000 developers already hang out
+          Put your brand where 45,000 developers already hang out
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-sm leading-relaxed text-muted normal-case sm:text-base">
-          70,000 GitHub buildings. 40,000 connected. They race in the arcade, raid each other, claim their tower. Show up where they already live.
+          82,000 GitHub buildings. 45,000 connected via OAuth. 879 senior contributors active monthly. They race in the arcade, raid each other, claim their tower. If you&apos;re at a devtool — web, AI, or dev infra — these are the developers you want.
+        </p>
+        <p className="mx-auto mt-3 max-w-2xl text-xs text-dim normal-case sm:text-sm">
+          Solo dev. No agency. No committees. You talk to the person who builds it.
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <button
@@ -238,20 +255,49 @@ export default function SponsorshipLanding() {
         </div>
       </section>
 
+      {/* ── GitHub feature (social proof early) ── */}
+      <section className="pb-16 sm:pb-20">
+        <a
+          href="https://x.com/github/status/2048494014383505661"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block border-[3px] p-5 transition-all sm:p-7"
+          style={{
+            borderColor: ACCENT,
+            boxShadow: "4px 4px 0 0 #5a7a00",
+          }}
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[10px] normal-case sm:text-xs" style={{ color: ACCENT }}>
+              Featured organically by GitHub
+            </p>
+            <p className="text-[10px] text-dim normal-case sm:text-xs">
+              April 2026 · view post &nearr;
+            </p>
+          </div>
+          <p className="mt-4 text-xl text-cream sm:text-2xl lg:text-3xl">
+            GitHub reposted Git City on X and Instagram.
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-muted normal-case sm:text-base">
+            Organic. Zero marketing spend. Zero outreach. The product spoke for itself.
+          </p>
+        </a>
+      </section>
+
       {/* ── The problem ── */}
       <section className="pb-16 sm:pb-20">
         <h2 className="mb-8 text-2xl text-cream sm:text-3xl">
-          Conferences last 3 days. YouTube sponsors last 24 hours. Now what?
+          Conferences last 3 days. Hackathons last 48 hours. Now what?
         </h2>
         <div className="space-y-4 text-sm leading-relaxed text-muted normal-case sm:text-base">
           <p>
-            DevRel is fragmented. Hackathons last 48 hours. The clock runs out before the launch lands.
+            DevRel is fragmented. The launch window closes before devs even hear about it.
           </p>
           <p>
             Developers install ad blockers by default. Display CPMs cross $20 with click-through under 1%.
           </p>
           <p>
-            Experience wins. Roblox proved it: Chipotle&apos;s Boorito Maze hit 8M visits. Vans World hit 40M visits.
+            Experiences win. The YC AI Hackathons (2025) pooled $180k+ in credits from Vercel, MongoDB, Anthropic, and OpenAI — devs built real things, sponsors got real signups. Supabase sponsored the Vercel AI Accelerator with $40k in credits, not cash. Both teams won.
           </p>
         </div>
         <div
@@ -259,7 +305,7 @@ export default function SponsorshipLanding() {
           style={{ borderColor: ACCENT }}
         >
           <p className="text-sm normal-case sm:text-base" style={{ color: ACCENT }}>
-            Git City is the dev-native version. 40K real developers, already inside, already coming back.
+            Git City is the always-on version. 45K real developers, already inside, already coming back every week.
           </p>
         </div>
       </section>
@@ -296,23 +342,23 @@ export default function SponsorshipLanding() {
               "Activity feed mention on launch",
               "Live dashboard with clicks, visits, time spent",
             ]}
-            ctaLabel="Talk to me"
+            ctaLabel="Reserve a landmark"
             onSelect={scrollToContact}
             featured
           />
           <FormatCard
-            name="Themed Week"
-            tagline="Campaign takeover"
-            description="The city wears your brand for 1 to 2 weeks."
-            price="Custom pricing"
+            name="Sponsored Event"
+            tagline="Branded raid season"
+            description="A 2-week branded season layered onto the city. Raid leaderboard, three cosmetic tiers, sponsored landmark, in-game quest tied to your CTA."
+            price="Bronze $5K · Gold $12K · Title $35K"
             bullets={[
-              "Skybox tinted in your brand colors",
-              "Building skins shift across the city",
-              "Branded race minigame in the arcade",
-              "Exclusive cosmetic drop",
-              "In-city event with countdown and rewards",
+              "Branded raid season + dedicated leaderboard",
+              "Three cosmetic tiers: free badge (quest completers), paid shop variant, prestige variant (top 100 raiders)",
+              "Event pillar, aircraft, billboards, activity feed branded for the window",
+              "Branded raid alert emails (~1,800 sent during a typical window)",
+              "Live sponsor dashboard plus wrap report",
             ]}
-            ctaLabel="Talk to me"
+            ctaLabel="Plan a season"
             onSelect={scrollToContact}
           />
           <FormatCard
@@ -322,11 +368,11 @@ export default function SponsorshipLanding() {
             price="Custom pricing"
             bullets={[
               "Permanent prime landmark",
-              "2 to 4 themed weeks per year",
+              "2 to 4 sponsored events per year",
               "Co-marketing across my channels",
               "First look on every new inventory I ship",
             ]}
-            ctaLabel="Talk to me"
+            ctaLabel="Become a partner"
             onSelect={scrollToContact}
           />
           <div className="lg:col-span-2">
@@ -339,7 +385,7 @@ export default function SponsorshipLanding() {
                 "Activity feed feature on launch day",
                 "Recurring monthly option",
               ]}
-              ctaLabel="Talk to me"
+              ctaLabel="Drop pixels"
               onSelect={scrollToContact}
             />
           </div>
@@ -350,7 +396,7 @@ export default function SponsorshipLanding() {
       <section className="pb-16 sm:pb-20">
         <h2 className="mb-3 text-2xl text-cream sm:text-3xl">Who&apos;s already inside</h2>
         <p className="mb-8 text-sm leading-relaxed text-muted normal-case sm:text-base">
-          40,000 connected. 7.9M GitHub stars combined. 1.8M followers combined. The most engaged dev audience that&apos;s not LinkedIn or Hacker News.
+          45,437 connected. 15.9M GitHub stars combined. 5.4M followers combined. 2.2M public repositories represented. The most engaged dev audience that&apos;s not LinkedIn or Hacker News.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -397,41 +443,91 @@ export default function SponsorshipLanding() {
         </div>
       </section>
 
-      {/* ── Brands inside ── */}
+      {/* ── Audience quality ── */}
       <section className="pb-16 sm:pb-20">
-        <h2 className="mb-3 text-2xl text-cream sm:text-3xl">Brands already in the city</h2>
+        <p className="text-[10px] text-dim normal-case sm:text-xs" style={{ color: ACCENT }}>
+          Quality, not just volume
+        </p>
+        <h2 className="mt-2 mb-3 text-2xl text-cream sm:text-3xl">
+          The 879 senior devs your DevRel wants
+        </h2>
         <p className="mb-8 text-sm leading-relaxed text-muted normal-case sm:text-base">
-          Active sponsors right now.
+          Active in the last 30 days. Verified via GitHub OAuth. Every visitor is a real developer with a public commit history.
         </p>
 
-        <div className="grid gap-4 sm:gap-5 lg:grid-cols-3">
-          {sponsorCards.map((sponsor) => (
-            <div
-              key={sponsor.slug}
-              className="border-[3px] border-border bg-bg-raised p-5 sm:p-6"
-            >
-              <p
-                className="text-[10px] normal-case sm:text-xs"
-                style={{ color: sponsor.accent }}
-              >
-                Active sponsor
-              </p>
-              <p className="mt-3 text-base text-cream sm:text-lg">{sponsor.name}</p>
-              <p className="mt-2 text-xs leading-relaxed text-muted normal-case sm:text-sm">
-                {sponsor.tagline}
-              </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="border-[3px] border-border bg-bg-raised p-5 sm:p-6">
+            <p className="mb-4 text-xs text-dim">Seniority</p>
+            <div className="space-y-3">
+              {SENIORITY.map((s) => (
+                <div key={s.label} className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-muted normal-case">{s.label}</span>
+                  <span className="text-base sm:text-lg" style={{ color: ACCENT }}>
+                    {s.value}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+          <div className="border-[3px] border-border bg-bg-raised p-5 sm:p-6">
+            <p className="mb-4 text-xs text-dim">Primary language · claimed devs</p>
+            <div className="space-y-3">
+              {LANG_SHARE.map((s) => (
+                <div key={s.label} className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-muted normal-case">{s.label}</span>
+                  <span className="text-base sm:text-lg" style={{ color: ACCENT }}>
+                    {s.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
+      </section>
 
-        <div
-          className="mt-6 border-[3px] p-5 sm:p-6"
-          style={{ borderColor: ACCENT }}
-        >
-          <p className="text-base text-cream sm:text-lg">Featured officially by GitHub</p>
-          <p className="mt-3 text-sm leading-relaxed text-muted normal-case">
-            GitHub reposted Git City on X and Instagram in April 2026. Organic, zero marketing spend.
-          </p>
+      {/* ── Retention engine ── */}
+      <section className="pb-16 sm:pb-20">
+        <p className="text-[10px] text-dim normal-case sm:text-xs" style={{ color: ACCENT }}>
+          Why devs keep coming back
+        </p>
+        <h2 className="mt-2 mb-3 text-2xl text-cream sm:text-3xl">
+          The retention engine
+        </h2>
+        <p className="mb-8 text-sm leading-relaxed text-muted normal-case sm:text-base">
+          Sponsored events plug into a loop that already runs. Streaks, raids, dailies, weekly digests — every action triggers an email or notification that brings devs back.
+        </p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="border-[3px] border-border bg-bg-raised p-5 sm:p-6">
+            <p className="mb-4 text-xs text-dim">Loop activity, last 30 days</p>
+            <div className="space-y-3">
+              {LOOP_ACTIVITY.map((s) => (
+                <div key={s.label} className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-muted normal-case">{s.label}</span>
+                  <span className="text-base sm:text-lg" style={{ color: ACCENT }}>
+                    {s.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="border-[3px] border-border bg-bg-raised p-5 sm:p-6">
+            <p className="mb-4 text-xs text-dim">Automated comeback triggers</p>
+            <ul className="space-y-3 text-sm leading-relaxed text-muted normal-case">
+              <li>
+                <span className="text-cream">Raid alert emails</span> on every attack, batched every 60 minutes.
+              </li>
+              <li>
+                <span className="text-cream">Streak milestones</span> at 7, 30, 100, and 365 days.
+              </li>
+              <li>
+                <span className="text-cream">Weekly digest</span> every Monday at 10:00 UTC.
+              </li>
+              <li>
+                <span className="text-cream">Daily missions</span>, achievements, and a live activity feed.
+              </li>
+            </ul>
+          </div>
         </div>
       </section>
 
