@@ -61,19 +61,27 @@ const ActiveBuildingEffects = memo(function ActiveBuildingEffects({
 // ─── Spatial Grid (same structure as CityScene) ────────────────
 
 interface GridIndex {
-  cells: Map<string, number[]>;
+  // Integer-keyed cells (cx * 4096 + cz). Skipping string keys saves a
+  // template-literal allocation per visited cell — at ~3Hz over hundreds of
+  // cells that was a steady GC drip.
+  cells: Map<number, number[]>;
   cellSize: number;
 }
 
+// Reused result buffer — callers iterate immediately and never store the ref.
+const _gridResultPool: number[] = [];
+
 function querySpatialGrid(grid: GridIndex, x: number, z: number, radius: number): number[] {
-  const result: number[] = [];
+  const result = _gridResultPool;
+  result.length = 0;
   const minCx = Math.floor((x - radius) / grid.cellSize);
   const maxCx = Math.floor((x + radius) / grid.cellSize);
   const minCz = Math.floor((z - radius) / grid.cellSize);
   const maxCz = Math.floor((z + radius) / grid.cellSize);
   for (let cx = minCx; cx <= maxCx; cx++) {
+    const row = cx * 4096;
     for (let cz = minCz; cz <= maxCz; cz++) {
-      const arr = grid.cells.get(`${cx},${cz}`);
+      const arr = grid.cells.get(row + cz);
       if (arr) {
         for (let i = 0; i < arr.length; i++) {
           result.push(arr[i]);
@@ -141,7 +149,7 @@ export default function EffectsLayer({
   const loginToIdx = useMemo(() => {
     const map = new Map<string, number>();
     for (let i = 0; i < buildings.length; i++) {
-      map.set(buildings[i].login.toLowerCase(), i);
+      map.set(buildings[i].loginLower, i);
     }
     return map;
   }, [buildings]);
@@ -271,7 +279,7 @@ export default function EffectsLayer({
       {activeIndices.map((idx) => {
         const b = buildings[idx];
         if (!b) return null;
-        const loginLower = b.login.toLowerCase();
+        const loginLower = b.loginLower;
         if (hideLower === loginLower) return null;
         const isFocused = focusedLower === loginLower || focusedBLower === loginLower;
         const isDimmed = !!focusedLower && !isFocused;

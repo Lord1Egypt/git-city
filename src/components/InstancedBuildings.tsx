@@ -184,12 +184,6 @@ interface InstancedBuildingsProps {
   dimAll?: boolean;
 }
 
-// Rise animation tracking
-interface RiseState {
-  startTime: number;
-  idx: number;
-}
-
 const RISE_DURATION = 0.85; // seconds
 const MAX_RISE_TOTAL = 4; // cap total stagger to 4s regardless of building count
 
@@ -215,11 +209,11 @@ export default memo(function InstancedBuildings({
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = buildings.length;
 
-  // Lookup for login -> index (lowercased)
+  // Lookup for login -> index (uses precomputed loginLower)
   const loginToIdx = useMemo(() => {
     const map = new Map<string, number>();
     for (let i = 0; i < buildings.length; i++) {
-      map.set(buildings[i].login.toLowerCase(), i);
+      map.set(buildings[i].loginLower, i);
     }
     return map;
   }, [buildings]);
@@ -310,11 +304,20 @@ export default memo(function InstancedBuildings({
   // Live presence attribute (updated dynamically)
   const liveData = useMemo(() => new Float32Array(count), [count]);
 
-  // Rise animation state
-  const risingRef = useRef<RiseState[]>([]);
+  // Rise animation state — zero-alloc model:
+  //   riseStartTime: when we first kicked off the staggered rise
+  //   staggerDelay : delay between successive buildings
+  //   firstActive  : lowest index whose rise has not yet completed (monotonic)
+  //   lastStarted  : index just past the latest building whose startTime has passed
+  // Because stagger times are monotonic and rise duration is constant, buildings
+  // finish in the order they started, so we never need a queue/array. Each
+  // frame we advance two integer cursors and update arr[i] only for the
+  // currently-rising window [firstActive, lastStarted). Allocates nothing.
+  const riseStartTime = useRef(-1);
+  const riseStaggerDelay = useRef(0);
+  const riseFirstActive = useRef(0);
+  const riseLastStarted = useRef(0);
   const riseInitialized = useRef(false);
-  // hasPlayedRise uses the module-level flag (hasPlayedRiseGlobal) so the
-  // animation survives component remounts from Next.js navigation.
   const holdRiseRef = useRef(holdRise);
   holdRiseRef.current = holdRise;
 
@@ -369,12 +372,15 @@ export default memo(function InstancedBuildings({
       for (let i = 0; i < count; i++) riseData[i] = 1;
       riseAttr.needsUpdate = true;
       riseInitialized.current = true;
-      risingRef.current = [];
+      riseFirstActive.current = count;
+      riseLastStarted.current = count;
     } else {
       // First mount this session: play the staggered rise animation
       hasPlayedRiseGlobal = true;
       riseInitialized.current = false;
-      risingRef.current = [];
+      riseStartTime.current = -1;
+      riseFirstActive.current = 0;
+      riseLastStarted.current = 0;
     }
 
     mesh.count = count;
@@ -416,7 +422,13 @@ export default memo(function InstancedBuildings({
     material.uniforms.uFocusedIdB.value = idB !== undefined ? idB : -1.0;
   }, [focusedBuilding, focusedBuildingB, dimAll, loginToIdx, material]);
 
-  // Update live presence glow
+  // Track which indices we previously lit so we can clear just those next
+  // pass — iterating the 80k building array on every heartbeat was 80k
+  // toLowerCase() calls plus 80k Map.has() probes per realtime tick, which
+  // is the GC firehose that ate frames once a handful of people came online.
+  const litIndicesRef = useRef<number[]>([]);
+
+  // Update live presence glow (O(live count), not O(buildings))
   useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
@@ -424,15 +436,26 @@ export default memo(function InstancedBuildings({
     if (!liveAttr) return;
     const arr = liveAttr.array as Float32Array;
 
-    for (let i = 0; i < count; i++) {
-      const login = buildings[i].login.toLowerCase();
-      // Creator gets an overdriven glow (1.5 overshoots the mix, extra bright)
-      arr[i] = liveByLogin?.has(login) ? (login === "srizzon" ? 1.5 : 1.0) : 0.0;
-    }
-    liveAttr.needsUpdate = true;
-  }, [liveByLogin, buildings, count]);
+    // Clear last frame's lit slots
+    const lit = litIndicesRef.current;
+    for (let i = 0; i < lit.length; i++) arr[lit[i]] = 0;
+    lit.length = 0;
 
-  // Rise animation + staggered init
+    if (liveByLogin && liveByLogin.size > 0) {
+      for (const login of liveByLogin.keys()) {
+        const key = login.toLowerCase();
+        const idx = loginToIdx.get(key);
+        if (idx === undefined) continue;
+        // Creator gets an overdriven glow (1.5 overshoots the mix, extra bright)
+        arr[idx] = key === "srizzon" ? 1.5 : 1.0;
+        lit.push(idx);
+      }
+    }
+
+    liveAttr.needsUpdate = true;
+  }, [liveByLogin, loginToIdx]);
+
+  // Rise animation + staggered init (zero allocation per frame)
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
     if (!mesh) return;
@@ -440,57 +463,60 @@ export default memo(function InstancedBuildings({
     // Hold rise animation until loading screen is done
     if (holdRiseRef.current) return;
 
-    // Initialize rise animation queue (staggered)
     const now = clock.elapsedTime;
+
+    // First tick after init: lock in the start time + stagger
     if (!riseInitialized.current) {
       riseInitialized.current = true;
-      const staggerDelay = Math.min(0.003, MAX_RISE_TOTAL / Math.max(1, count));
-      const queue: RiseState[] = [];
-      for (let i = 0; i < count; i++) {
-        queue.push({
-          startTime: now + i * staggerDelay,
-          idx: i,
-        });
-      }
-      risingRef.current = queue;
+      riseStartTime.current = now;
+      riseStaggerDelay.current = Math.min(0.003, MAX_RISE_TOTAL / Math.max(1, count));
+      riseFirstActive.current = 0;
+      riseLastStarted.current = 0;
     }
 
-    // Early exit if nothing is rising (avoids array allocation per frame)
-    const rising = risingRef.current;
-    if (rising.length === 0) return;
+    // Nothing rising anymore (everyone reached t=1)
+    if (riseFirstActive.current >= count) return;
 
     const riseAttr = mesh.geometry.getAttribute("aRise") as THREE.InstancedBufferAttribute;
     if (!riseAttr) return;
     const arr = riseAttr.array as Float32Array;
 
-    // Process rising buildings
-    let anyChanged = false;
-    const nextRising: RiseState[] = [];
+    const startTime = riseStartTime.current;
+    const stagger = riseStaggerDelay.current;
+    const elapsedSinceRise = now - startTime;
 
-    for (let r = 0; r < rising.length; r++) {
-      const state = rising[r];
-      const elapsed = now - state.startTime;
-      if (elapsed < 0) {
-        // Not started yet - keep this and all remaining in queue
-        for (let j = r; j < rising.length; j++) {
-          nextRising.push(rising[j]);
-        }
-        break;
-      }
-      const progress = Math.min(1, elapsed / RISE_DURATION);
-      // Ease-out cubic
-      const t = 1 - Math.pow(1 - progress, 3);
-      arr[state.idx] = t;
-      anyChanged = true;
+    // Advance lastStarted: every building whose startTime has passed is in the window.
+    // Monotonic stagger means a single while-loop covers any new starters this tick.
+    let lastStarted = riseLastStarted.current;
+    while (lastStarted < count && elapsedSinceRise >= lastStarted * stagger) {
+      lastStarted++;
+    }
+    riseLastStarted.current = lastStarted;
 
-      if (progress < 1) {
-        nextRising.push(state);
-      }
+    let wrote = false;
+
+    // Lock in finished buildings (monotonic — once locked, never revisited).
+    let firstActive = riseFirstActive.current;
+    while (firstActive < lastStarted) {
+      const localElapsed = elapsedSinceRise - firstActive * stagger;
+      if (localElapsed < RISE_DURATION) break;
+      arr[firstActive] = 1;
+      firstActive++;
+      wrote = true;
+    }
+    riseFirstActive.current = firstActive;
+
+    // Update only the currently-animating window [firstActive, lastStarted).
+    for (let i = firstActive; i < lastStarted; i++) {
+      const localElapsed = elapsedSinceRise - i * stagger;
+      const progress = localElapsed / RISE_DURATION;
+      // Ease-out cubic: 1 - (1-p)^3
+      const one = 1 - progress;
+      arr[i] = 1 - one * one * one;
+      wrote = true;
     }
 
-    risingRef.current = nextRising;
-
-    if (anyChanged) {
+    if (wrote) {
       riseAttr.needsUpdate = true;
     }
   });

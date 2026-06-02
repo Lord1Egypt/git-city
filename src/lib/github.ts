@@ -64,6 +64,12 @@ export interface TopRepo {
 
 export interface CityBuilding {
   login: string;
+  // Precomputed lowercase login. Lots of code paths (live presence, raycast
+  // resolution, focus lookup) need this and were calling `.toLowerCase()`
+  // inside per-frame or per-heartbeat loops over all 80k buildings. Caching
+  // it on the building once at layout time eliminates a tidal wave of
+  // ephemeral strings.
+  loginLower: string;
   rank: number;
   contributions: number;
   total_stars: number;
@@ -513,6 +519,7 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
 
       buildings.push({
         login: dev.github_login,
+        loginLower: dev.github_login.toLowerCase(),
         rank: dev.rank ?? globalDevIndex + i + 1,
         contributions: (dev.contributions_total && dev.contributions_total > 0) ? dev.contributions_total : dev.contributions,
         total_stars: dev.total_stars,

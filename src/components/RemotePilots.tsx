@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { VehicleMesh } from "./RaidSequence3D";
@@ -54,6 +54,15 @@ function RemotePilotMesh({
     const tex = new THREE.CanvasTexture(canvas);
     return tex;
   }, [pilot.login]);
+
+  // CanvasTexture lives on the GPU; <spriteMaterial> auto-disposes itself but
+  // NOT the texture we hand it via map={...}, so without this cleanup every
+  // pilot that joins/leaves leaks GPU memory.
+  useEffect(() => {
+    return () => {
+      labelSprite.dispose();
+    };
+  }, [labelSprite]);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
@@ -140,12 +149,27 @@ export default function RemotePilots({
   selfPosRef?: React.MutableRefObject<{ x: number; z: number }>;
 }) {
   const [tick, setTick] = useState(0);
-  const prevKeysRef = useRef("");
+  // Cheap membership compare: avoid joining keys into a fresh string every
+  // frame (which allocated like crazy when there were several pilots online).
+  // We mirror the live key set into knownKeysRef and only re-render when it
+  // actually differs. Hot path is a size check + at most N Set.has lookups.
+  const knownKeysRef = useRef<Set<string>>(new Set());
 
   useFrame(() => {
-    const keys = Array.from(pilotsRef.current.keys()).join(",");
-    if (keys !== prevKeysRef.current) {
-      prevKeysRef.current = keys;
+    const current = pilotsRef.current;
+    const known = knownKeysRef.current;
+    let changed = current.size !== known.size;
+    if (!changed) {
+      for (const k of current.keys()) {
+        if (!known.has(k)) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      known.clear();
+      for (const k of current.keys()) known.add(k);
       setTick((t) => t + 1);
     }
   });

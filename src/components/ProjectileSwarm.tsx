@@ -59,8 +59,11 @@ export default function ProjectileSwarm({ projectilesRef, pilotsRef, selfStateRe
       const nextX = p.x + p.dirX * PROJECTILE_SPEED * delta;
       const nextY = p.y + p.dirY * PROJECTILE_SPEED * delta;
       const nextZ = p.z + p.dirZ * PROJECTILE_SPEED * delta;
-      const updated: ActiveProjectile = { ...p, x: nextX, y: nextY, z: nextZ };
-      projectilesRef.current.set(pid, updated);
+      // Mutate in place — spreading into a fresh object every frame for
+      // every projectile (up to 64) was a steady allocation drip during PvP.
+      p.x = nextX;
+      p.y = nextY;
+      p.z = nextZ;
 
       // ─── Core voxel + outer halo (oriented along velocity) ─────
       if (coreIdx < MAX_PROJECTILES) {

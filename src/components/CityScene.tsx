@@ -27,17 +27,19 @@ export interface FocusInfo {
 // ─── Spatial Grid ───────────────────────────────────────────────
 
 interface GridIndex {
-  cells: Map<string, number[]>;
+  // Integer-keyed (cx * 4096 + cz) — matches the query side. City sits well
+  // inside ±2k cells either way so this stays comfortably in V8 SMI range.
+  cells: Map<number, number[]>;
   cellSize: number;
 }
 
 function buildSpatialGrid(buildings: CityBuilding[], cellSize: number): GridIndex {
-  const cells = new Map<string, number[]>();
+  const cells = new Map<number, number[]>();
   for (let i = 0; i < buildings.length; i++) {
     const b = buildings[i];
     const cx = Math.floor(b.position[0] / cellSize);
     const cz = Math.floor(b.position[2] / cellSize);
-    const key = `${cx},${cz}`;
+    const key = cx * 4096 + cz;
     let arr = cells.get(key);
     if (!arr) {
       arr = [];
@@ -57,7 +59,7 @@ interface BuildingLookup {
 function buildLookup(buildings: CityBuilding[]): BuildingLookup {
   const indexByLogin = new Map<string, number>();
   for (let i = 0; i < buildings.length; i++) {
-    indexByLogin.set(buildings[i].login.toLowerCase(), i);
+    indexByLogin.set(buildings[i].loginLower, i);
   }
   return { indexByLogin };
 }

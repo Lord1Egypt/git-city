@@ -23,21 +23,33 @@ export default function LiveDots({ buildings, liveByLogin }: LiveDotsProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const creatorMeshRef = useRef<THREE.Mesh>(null);
 
-  // Split live buildings into regular and creator
+  // Split live buildings into regular and creator.
+  // Builds a tiny loginLower → index map once per buildings prop, then walks
+  // the (small) live set instead of iterating all 80k buildings on every
+  // realtime heartbeat — the old version was the bulk of the heartbeat cost.
+  const loginToIdx = useMemo(() => {
+    const map = new Map<string, number>();
+    for (let i = 0; i < buildings.length; i++) {
+      map.set(buildings[i].loginLower, i);
+    }
+    return map;
+  }, [buildings]);
+
   const { regularIndices, creatorIndex } = useMemo(() => {
     const regular: number[] = [];
     let creator: number | null = null;
-    for (let i = 0; i < buildings.length; i++) {
-      const login = buildings[i].login.toLowerCase();
-      if (!liveByLogin.has(login)) continue;
-      if (login === CREATOR_LOGIN) {
-        creator = i;
+    for (const login of liveByLogin.keys()) {
+      const key = login.toLowerCase();
+      const idx = loginToIdx.get(key);
+      if (idx === undefined) continue;
+      if (key === CREATOR_LOGIN) {
+        creator = idx;
       } else {
-        regular.push(i);
+        regular.push(idx);
       }
     }
     return { regularIndices: regular, creatorIndex: creator };
-  }, [buildings, liveByLogin]);
+  }, [loginToIdx, liveByLogin]);
 
   const count = regularIndices.length;
 

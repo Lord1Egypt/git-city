@@ -1,29 +1,11 @@
 "use client";
 
+import "@/lib/silenceThreeClockWarning";
 import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import {
-  NeonOutline,
-  ParticleAura,
-  SpotlightEffect,
-  RooftopFire,
-  Helipad,
-  AntennaArray,
-  RooftopGarden,
-  Spire,
-  Billboards,
-  Flag,
-  NeonTrim,
-  SatelliteDish,
-  CrownItem,
-  PoolParty,
-  HologramRing,
-  LightningAura,
-  LEDBanner,
-  GitHubStar,
-} from "./BuildingEffects";
+import { buildingItemVisual } from "./cosmetics/itemRenderers";
 import { ClaimedGlow } from "./Building3D";
 import type { BuildingDims } from "./ShopClient";
 import { ZONE_ITEMS } from "@/lib/zones";
@@ -109,46 +91,9 @@ function EffectForItem({
   dims: BuildingDims;
   billboardImages?: string[];
 }) {
-  switch (itemId) {
-    case "neon_outline":
-      return <NeonOutline {...dims} />;
-    case "particle_aura":
-      return <ParticleAura {...dims} />;
-    case "spotlight":
-      return <SpotlightEffect {...dims} />;
-    case "rooftop_fire":
-      return <RooftopFire {...dims} />;
-    case "helipad":
-      return <Helipad {...dims} />;
-    case "antenna_array":
-      return <AntennaArray {...dims} />;
-    case "rooftop_garden":
-      return <RooftopGarden {...dims} />;
-    case "spire":
-      return <Spire {...dims} />;
-    case "billboard":
-      return <Billboards {...dims} images={billboardImages ?? []} />;
-    case "flag":
-      return <Flag {...dims} />;
-    case "neon_trim":
-      return <NeonTrim {...dims} color={ACCENT} />;
-    case "satellite_dish":
-      return <SatelliteDish {...dims} color={ACCENT} />;
-    case "crown_item":
-      return <CrownItem height={dims.height} color={ACCENT} />;
-    case "pool_party":
-      return <PoolParty {...dims} />;
-    case "hologram_ring":
-      return <HologramRing {...dims} color={ACCENT} />;
-    case "lightning_aura":
-      return <LightningAura {...dims} color={ACCENT} />;
-    case "led_banner":
-      return <LEDBanner {...dims} color={ACCENT} />;
-    case "github_star":
-      return <GitHubStar {...dims} />;
-    default:
-      return null;
-  }
+  // Delegates to the shared item→visual dispatch so the shop matches the
+  // live city exactly (single source of truth in cosmetics/itemRenderers).
+  return <>{buildingItemVisual(itemId, { ...dims, color: ACCENT, billboardImages })}</>;
 }
 
 // ─── Ground ──────────────────────────────────────────────────

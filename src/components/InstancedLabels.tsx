@@ -149,12 +149,17 @@ const _labelPos = new THREE.Vector3();
 const GRID_CELL_SIZE = 100;
 
 class SpatialGrid2D {
-  private cells: Map<string, number[]> = new Map();
+  // Integer-keyed (cx * 4096 + cz) and a reused result buffer so queryRadius
+  // does not allocate inside useFrame.
+  private cells: Map<number, number[]> = new Map();
+  private resultPool: number[] = [];
 
   constructor(buildings: CityBuilding[], count: number) {
     for (let i = 0; i < count; i++) {
       const b = buildings[i];
-      const key = `${Math.floor(b.position[0] / GRID_CELL_SIZE)},${Math.floor(b.position[2] / GRID_CELL_SIZE)}`;
+      const cx = Math.floor(b.position[0] / GRID_CELL_SIZE);
+      const cz = Math.floor(b.position[2] / GRID_CELL_SIZE);
+      const key = cx * 4096 + cz;
       let cell = this.cells.get(key);
       if (!cell) {
         cell = [];
@@ -168,10 +173,12 @@ class SpatialGrid2D {
     const cr = Math.ceil(radius / GRID_CELL_SIZE);
     const cx = Math.floor(x / GRID_CELL_SIZE);
     const cz = Math.floor(z / GRID_CELL_SIZE);
-    const result: number[] = [];
+    const result = this.resultPool;
+    result.length = 0;
     for (let dx = -cr; dx <= cr; dx++) {
+      const row = (cx + dx) * 4096;
       for (let dz = -cr; dz <= cr; dz++) {
-        const cell = this.cells.get(`${cx + dx},${cz + dz}`);
+        const cell = this.cells.get(row + (cz + dz));
         if (cell) {
           for (let i = 0; i < cell.length; i++) result.push(cell[i]);
         }
@@ -284,9 +291,9 @@ export default memo(function InstancedLabels({
     mesh.count = count;
   }, [buildings, count, material, uvData, alphaData, posData]);
 
-  // Pre-compute lowercased logins (avoid 1000+ toLowerCase calls per tick)
+  // Use the precomputed loginLower already cached on each building.
   const loginsLower = useMemo(
-    () => buildings.slice(0, count).map((b) => b.login.toLowerCase()),
+    () => buildings.slice(0, count).map((b) => b.loginLower),
     [buildings, count]
   );
 
