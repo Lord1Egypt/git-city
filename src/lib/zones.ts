@@ -2,7 +2,7 @@
 // Single source of truth — imported by Building3D, ShopClient, loadout API, ShopPreview
 
 export const ZONE_ITEMS: Record<string, string[]> = {
-  crown: ["flag", "helipad", "spire", "satellite_dish", "crown_item", "github_star"],
+  crown: ["flag", "helipad", "spire", "satellite_dish", "crown_item", "github_star", "companion_duck", "duck_combatant", "duck_gold_animated"],
   roof: ["antenna_array", "rooftop_garden", "rooftop_fire", "pool_party"],
   aura: ["neon_trim", "spotlight", "hologram_ring", "lightning_aura", "neon_outline", "particle_aura"],
 };
@@ -47,6 +47,9 @@ export const ITEM_NAMES: Record<string, string> = {
   raid_boost_large: "EMP Device",
   white_rabbit: "White Rabbit",
   github_star: "GitHub Star",
+  companion_duck: "Companion Duck",
+  duck_combatant: "Combatant Duck",
+  duck_gold_animated: "Golden Slayer Duck",
 };
 
 // Correct mapping: item_id → achievement that unlocks it (from migration 007 seed)
