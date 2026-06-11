@@ -8,7 +8,8 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { PREVIEW_THEMES, PreviewSky, PreviewGround, PreviewLights, PreviewBuilding, PreviewVehicle } from "@/components/cosmetics/previewScene";
-import { buildingItemVisual, classifyItem, PREVIEW_BD, PREVIEW_VIEWS, type PreviewKind } from "@/components/cosmetics/itemRenderers";
+import { cosmeticVisual, classifyItem, PREVIEW_BD, PREVIEW_VIEWS, type PreviewKind } from "@/components/cosmetics/itemRenderers";
+import type { Cosmetic } from "@/lib/cosmetics/types";
 import ThumbnailFactory, { type ThumbItem } from "@/components/cosmetics/ThumbnailFactory";
 import RaidTag3D from "@/components/RaidTag3D";
 
@@ -30,7 +31,19 @@ interface CosmeticItem {
   price_pixels: number | null;
   is_active: boolean;
   metadata: Record<string, unknown> | null;
+  // Catalog/render metadata (migration 101)
+  shop_section?: string | null;
+  render_kind?: string | null;
+  render_spec?: Record<string, unknown> | null;
+  set_id?: string | null;
+  season_id?: string | null;
+  tags?: string[] | null;
+  thumbnail_url?: string | null;
+  available_from?: string | null;
+  available_until?: string | null;
 }
+
+interface Taxonomy { id: string; name: string }
 
 const RARITY_ORDER: Record<string, number> = { legendary: 4, epic: 3, rare: 2, common: 1 };
 const RARITY_STYLES: Record<string, string> = {
@@ -44,6 +57,15 @@ const RARITY_HEX: Record<string, string> = {
   common: "#9aa0aa", rare: "#38bdf8", epic: "#c084fc", legendary: "#fbbf24",
 };
 function rarityHex(r: string | null): string { return RARITY_HEX[r ?? ""] ?? "#3b414d"; }
+
+// ISO → value for <input type="datetime-local"> (local time, no seconds).
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const TABS: { key: PreviewKind; label: string }[] = [
   { key: "building", label: "Cosmetics" },
@@ -66,6 +88,8 @@ type SortKey = "name" | "rarity" | "zone" | "price" | "status";
 
 export default function CosmeticsGallery() {
   const [items, setItems] = useState<CosmeticItem[]>([]);
+  const [sets, setSets] = useState<Taxonomy[]>([]);
+  const [seasons, setSeasons] = useState<Taxonomy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -88,6 +112,11 @@ export default function CosmeticsGallery() {
 
   // Price draft (in pixels). USD is fixed-derived: 100 pixels = $1.00.
   const [priceDraft, setPriceDraft] = useState("");
+  const [specDraft, setSpecDraft] = useState("");
+  const [tagsDraft, setTagsDraft] = useState("");
+  const [specError, setSpecError] = useState<string | null>(null);
+  const [metaDraft, setMetaDraft] = useState("");
+  const [metaError, setMetaError] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -95,6 +124,8 @@ export default function CosmeticsGallery() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
       setItems(data.items ?? []);
+      setSets(data.sets ?? []);
+      setSeasons(data.seasons ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -161,7 +192,7 @@ export default function CosmeticsGallery() {
     return () => window.removeEventListener("keydown", onKey);
   }, [filtered, selectedId, tab]);
 
-  async function patchItem(id: string, patch: { is_active?: boolean; rarity?: string | null; price_usd_cents?: number; price_pixels?: number | null }) {
+  async function patchItem(id: string, patch: Record<string, unknown>) {
     setItems((arr) => arr.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     try {
       await fetch(`/api/admin/cosmetics/${id}`, {
@@ -173,6 +204,59 @@ export default function CosmeticsGallery() {
       fetchItems(); // resync on failure
     }
   }
+
+  // Create a new (draft) cosmetic, then select it for editing.
+  async function createCosmetic() {
+    const id = window.prompt("New cosmetic id (lowercase a-z 0-9 _):")?.trim();
+    if (!id) return;
+    const res = await fetch("/api/admin/cosmetics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name: id, render_kind: "asset", zone: "roof" }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setError(data.error ?? "Create failed"); return; }
+    await fetchItems();
+    setTab("building");
+    setSelectedId(id);
+  }
+
+  // Save an offscreen-baked PNG as a cosmetic's card thumbnail (Storage).
+  const saveThumbnailData = useCallback(async (id: string, dataUrl: string) => {
+    const res = await fetch(`/api/admin/cosmetics/${id}/thumbnail`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl }),
+    });
+    const data = await res.json();
+    if (res.ok) setItems((arr) => arr.map((x) => (x.id === id ? { ...x, thumbnail_url: data.thumbnail_url } : x)));
+    else setError(data.error ?? "Thumbnail save failed");
+    return res.ok;
+  }, []);
+
+  function saveThumbnail(id: string) {
+    const dataUrl = thumbs[id];
+    if (dataUrl) saveThumbnailData(id, dataUrl);
+  }
+
+  // Bake & upload every cosmetic's thumbnail in one pass. The factory already
+  // generates them progressively into `thumbs`; this uploads the ones we have
+  // and flips on auto-upload so the rest save as they finish rendering.
+  const [autoBake, setAutoBake] = useState(false);
+  async function bakeAll() {
+    setAutoBake(true);
+    for (const it of visualItems) {
+      const url = thumbs[it.id];
+      if (url) await saveThumbnailData(it.id, url);
+    }
+  }
+
+  // Thumbnail generated by the offscreen factory: cache it, and upload too when
+  // a "bake all" pass is running.
+  const handleThumb = useCallback((id: string, url: string) => {
+    setThumbs((t) => ({ ...t, [id]: url }));
+    if (autoBake) saveThumbnailData(id, url);
+  }, [autoBake, saveThumbnailData]);
 
   const selected = tab !== "utility" ? items.find((i) => i.id === selectedId) ?? null : null;
   const kind: PreviewKind = selected ? classifyItem(selected) : "building";
@@ -191,14 +275,19 @@ export default function CosmeticsGallery() {
   // Card thumbnails: generated once per visual item by the offscreen factory.
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const visualItems = useMemo<ThumbItem[]>(
-    () => items.filter((i) => classifyItem(i) !== "utility").map((i) => ({ id: i.id, zone: i.zone })),
+    () => items.filter((i) => classifyItem(i) !== "utility").map((i) => ({ id: i.id, zone: i.zone, shop_section: i.shop_section, render_kind: i.render_kind, render_spec: i.render_spec })),
     [items]
   );
   const nextThumb = visualItems.find((i) => !thumbs[i.id]) ?? null;
 
-  // Reset the price draft when switching items.
+  // Reset the editable drafts when switching items.
   useEffect(() => {
     setPriceDraft(selected ? String(selected.price_pixels ?? selected.price_usd_cents ?? 0) : "");
+    setSpecDraft(selected ? JSON.stringify(selected.render_spec ?? { key: selected.id }, null, 2) : "");
+    setTagsDraft(selected ? (selected.tags ?? []).join(", ") : "");
+    setSpecError(null);
+    setMetaDraft(selected ? JSON.stringify(selected.metadata ?? {}, null, 2) : "");
+    setMetaError(null);
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetView = useCallback(() => {
@@ -217,15 +306,21 @@ export default function CosmeticsGallery() {
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h1 className="text-sm text-cream">Cosmetics</h1>
-          <p className="text-[11px] text-muted">
-            {items.length} total · <span className="text-lime">{liveCount} live</span>
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-[11px] text-muted">
+              {items.length} total · <span className="text-lime">{liveCount} live</span> · {items.filter((i) => i.thumbnail_url).length}/{items.filter((i) => classifyItem(i) !== "utility").length} thumbs
+            </p>
+            <button onClick={bakeAll} className={`border-2 px-2.5 py-1 text-[10px] uppercase ${autoBake ? "border-lime bg-lime/10 text-lime" : "border-border text-muted hover:border-cream hover:text-cream"}`}>
+              {autoBake ? "Baking…" : "Bake all"}
+            </button>
+            <button onClick={createCosmetic} className="border-2 border-lime px-2.5 py-1 text-[10px] uppercase text-lime hover:bg-lime/10">+ New</button>
+          </div>
         </div>
 
         {error && <div className="mt-4 border border-red-800/30 bg-red-900/20 px-3 py-2 text-xs text-red-400">{error}</div>}
 
         {/* Offscreen: generates one card thumbnail at a time (WebGL ctx limit) */}
-        <ThumbnailFactory next={nextThumb} onThumb={(id, url) => setThumbs((t) => ({ ...t, [id]: url }))} />
+        <ThumbnailFactory next={nextThumb} onThumb={handleThumb} />
 
         {/* Tabs by kind */}
         <div className="mt-4 flex flex-wrap gap-1 border-b border-border">
@@ -385,7 +480,15 @@ export default function CosmeticsGallery() {
                       {(kind === "building" || kind === "tag") && showBuilding && (
                         <PreviewBuilding theme={theme} faceOverride={selected.id === "custom_color" ? theme.accent : undefined} />
                       )}
-                      {kind === "building" && buildingItemVisual(selected.id, { width: PREVIEW_BD.width, height: PREVIEW_BD.height, depth: PREVIEW_BD.depth, color: theme.accent, billboardImages: [] })}
+                      {kind === "building" && cosmeticVisual(
+                        {
+                          id: selected.id,
+                          slot: (selected.zone ?? null) as Cosmetic["slot"],
+                          render_kind: (selected.render_kind ?? "code") as Cosmetic["render_kind"],
+                          render_spec: (selected.render_spec ?? { key: selected.id }) as unknown as Cosmetic["render_spec"],
+                        },
+                        { width: PREVIEW_BD.width, height: PREVIEW_BD.height, depth: PREVIEW_BD.depth, color: theme.accent, billboardImages: [] }
+                      )}
                       {kind === "tag" && (
                         <RaidTag3D width={PREVIEW_BD.width} height={PREVIEW_BD.height} depth={PREVIEW_BD.depth} attackerLogin="preview" tagStyle={selected.id} />
                       )}
@@ -507,6 +610,125 @@ export default function CosmeticsGallery() {
                         </div>
                         <p className="mt-1 text-[9px] normal-case text-dim">Fixed rate: 100 pixels = $1.00. USD is set automatically.</p>
                       </div>
+                    </div>
+
+                    {/* ── Catalog / render (migration 101) ── */}
+                    <div className="mt-4 space-y-3 border-t border-border/60 pt-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Slot</label>
+                          <select value={selected.zone ?? ""} onChange={(e) => patchItem(selected.id, { zone: e.target.value || null })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
+                            <option value="">none</option>
+                            {["crown", "roof", "aura", "faces"].map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Render kind</label>
+                          <select value={selected.render_kind ?? "code"} onChange={(e) => patchItem(selected.id, { render_kind: e.target.value })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
+                            {["code", "asset", "template"].map((k) => <option key={k} value={k}>{k}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Shop section</label>
+                          <select value={selected.shop_section ?? ""} onChange={(e) => patchItem(selected.id, { shop_section: e.target.value || null })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
+                            <option value="">none</option>
+                            {["building", "battle", "boost"].map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">render_spec (JSON)</label>
+                        <textarea
+                          value={specDraft}
+                          onChange={(e) => setSpecDraft(e.target.value)}
+                          onBlur={() => {
+                            try {
+                              const parsed = JSON.parse(specDraft || "{}");
+                              setSpecError(null);
+                              patchItem(selected.id, { render_spec: parsed });
+                            } catch { setSpecError("invalid JSON"); }
+                          }}
+                          rows={4}
+                          spellCheck={false}
+                          className="w-full resize-y border border-border bg-bg px-2 py-1.5 font-mono text-[10px] normal-case text-cream outline-none focus:border-lime"
+                        />
+                        {specError ? (
+                          <p className="mt-1 text-[9px] text-red-400 normal-case">{specError}</p>
+                        ) : (
+                          <p className="mt-1 text-[9px] text-dim normal-case">asset: {`{model,attach,offset,scale,tint,animation}`} · template: {`{template,params}`} · code: {`{key}`}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">metadata (JSON)</label>
+                        <textarea
+                          value={metaDraft}
+                          onChange={(e) => setMetaDraft(e.target.value)}
+                          onBlur={() => {
+                            try {
+                              const parsed = JSON.parse(metaDraft || "{}");
+                              setMetaError(null);
+                              patchItem(selected.id, { metadata: parsed });
+                            } catch { setMetaError("invalid JSON"); }
+                          }}
+                          rows={3}
+                          spellCheck={false}
+                          className="w-full resize-y border border-border bg-bg px-2 py-1.5 font-mono text-[10px] normal-case text-cream outline-none focus:border-lime"
+                        />
+                        {metaError ? (
+                          <p className="mt-1 text-[9px] text-red-400 normal-case">{metaError}</p>
+                        ) : (
+                          <p className="mt-1 text-[9px] text-dim normal-case">vehicle: {`{"type":"raid_vehicle","emoji":"🏦"}`} · boost: {`{"type":"raid_boost","bonus":10}`}</p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Set</label>
+                          <select value={selected.set_id ?? ""} onChange={(e) => patchItem(selected.id, { set_id: e.target.value })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
+                            <option value="">none</option>
+                            {sets.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Season</label>
+                          <select value={selected.season_id ?? ""} onChange={(e) => patchItem(selected.id, { season_id: e.target.value })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
+                            <option value="">none</option>
+                            {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Tags (comma-separated)</label>
+                        <input
+                          value={tagsDraft}
+                          onChange={(e) => setTagsDraft(e.target.value)}
+                          onBlur={() => patchItem(selected.id, { tags: tagsDraft.split(",").map((t) => t.trim()).filter(Boolean) })}
+                          placeholder="neon, glow, animated"
+                          className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] normal-case text-cream outline-none focus:border-lime"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Available from</label>
+                          <input type="datetime-local" value={toLocalInput(selected.available_from)} onChange={(e) => patchItem(selected.id, { available_from: e.target.value ? new Date(e.target.value).toISOString() : null })} className="w-full border border-border bg-bg px-2 py-1.5 text-[10px] text-cream outline-none focus:border-lime" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Available until</label>
+                          <input type="datetime-local" value={toLocalInput(selected.available_until)} onChange={(e) => patchItem(selected.id, { available_until: e.target.value ? new Date(e.target.value).toISOString() : null })} className="w-full border border-border bg-bg px-2 py-1.5 text-[10px] text-cream outline-none focus:border-lime" />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => saveThumbnail(selected.id)}
+                        disabled={!thumbs[selected.id]}
+                        className="w-full border border-border px-3 py-1.5 text-[10px] uppercase text-muted hover:border-cream hover:text-cream disabled:opacity-40"
+                      >
+                        {selected.thumbnail_url ? "Re-bake thumbnail" : "Bake & save thumbnail"}
+                      </button>
                     </div>
 
                     {/* Primary action */}
