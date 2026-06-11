@@ -51,6 +51,11 @@ body {
   box-shadow: 4px 4px 0 0 #5a7a00;
 }
 
+/* Tailwind v4 preflight sets cursor: default on buttons — restore clickable affordance */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 .btn-press {
   transition: transform 0.05s, box-shadow 0.05s;
 }
