@@ -10,6 +10,7 @@ import type { ViewerContext } from "@/lib/cosmetics/viewer";
 import type { ThumbItem } from "./ThumbnailFactory";
 import { classifyItem } from "./itemRenderers";
 import CurrencyIcon from "@/components/CurrencyIcon";
+import { PixelSelect } from "@/components/ui/PixelSelect";
 
 const CosmeticStage = dynamic(() => import("./CosmeticStage"), {
   ssr: false,
@@ -441,9 +442,12 @@ function BoostCard({ item, owned, viewer, busy, onBuyPixels, onBuyMoney, onTopUp
 
 function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="border-2 border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
-      {options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-    </select>
+    <PixelSelect
+      value={String(value)}
+      onChange={(v) => onChange(v)}
+      options={options.map(([v, label]) => ({ value: v, label }))}
+      className="w-36"
+    />
   );
 }
 

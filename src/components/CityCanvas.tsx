@@ -2342,7 +2342,7 @@ interface Props {
   onCameraMove?: (x: number, z: number, tx: number, tz: number) => void;
   bossPreview?:
     | { variant: BossVariant; mode: "static"; phase: BossPhase }
-    | { variant: BossVariant; mode: "live"; eventId?: string; maxHp?: number; serverAuthoritative?: boolean }
+    | { variant: BossVariant; mode: "live"; eventId?: string; maxHp?: number; serverAuthoritative?: boolean; tuning?: import("@/lib/events/schema").BossTuning }
     | null;
   flyBossStateRef?: React.MutableRefObject<import("@/lib/useFlyPresence").BossLiveState>;
   flyEngageBoss?: (maxHp: number) => void;
@@ -2795,6 +2795,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
           projectilesRef={flyProjectilesRef}
           serverAuthoritative={bossPreview.serverAuthoritative}
           maxHp={bossPreview.maxHp}
+          tuning={bossPreview.tuning}
           bossStateRef={flyBossStateRef}
           engageBoss={flyEngageBoss}
           sendBossHit={flySendBossHit}

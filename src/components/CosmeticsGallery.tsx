@@ -12,6 +12,7 @@ import { cosmeticVisual, classifyItem, PREVIEW_BD, PREVIEW_VIEWS, type PreviewKi
 import type { Cosmetic } from "@/lib/cosmetics/types";
 import ThumbnailFactory, { type ThumbItem } from "@/components/cosmetics/ThumbnailFactory";
 import RaidTag3D from "@/components/RaidTag3D";
+import { PixelSelect } from "@/components/ui/PixelSelect";
 
 // ─── Cosmetics Gallery (admin) ─────────────────────────────────
 // Locker-style management + validation tool. Items are split into tabs by
@@ -299,7 +300,6 @@ export default function CosmeticsGallery() {
   }, [view]);
 
   const liveCount = items.filter((i) => i.is_active).length;
-  const selectClass = "border border-border bg-bg px-2 py-1 text-[11px] text-cream outline-none focus:border-lime";
 
   return (
     <div className="min-h-screen bg-bg p-4 text-cream sm:p-6 lg:p-8">
@@ -347,27 +347,41 @@ export default function CosmeticsGallery() {
             className="min-w-[160px] flex-1 border border-border bg-bg px-3 py-1.5 text-xs text-cream outline-none focus:border-lime"
           />
           {tab === "building" && (
-            <select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className={selectClass}>
-              {zones.map((z) => <option key={z} value={z}>{z === "all" ? "all zones" : z}</option>)}
-            </select>
+            <PixelSelect
+              value={String(zoneFilter)}
+              onChange={(v) => setZoneFilter(v)}
+              options={zones.map((z) => ({ value: z, label: z === "all" ? "all zones" : z }))}
+              ariaLabel="Zone filter"
+              className="w-36"
+            />
           )}
-          <select value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)} className={selectClass}>
-            <option value="all">all rarity</option>
-            {RARITIES.map((r) => <option key={r} value={r}>{r}</option>)}
-            <option value="none">none</option>
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectClass}>
-            <option value="all">all status</option>
-            <option value="live">live</option>
-            <option value="draft">draft</option>
-          </select>
-          <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className={selectClass}>
-            <option value="zone">sort: zone</option>
-            <option value="name">sort: name</option>
-            <option value="rarity">sort: rarity</option>
-            <option value="price">sort: price</option>
-            <option value="status">sort: status</option>
-          </select>
+          <PixelSelect
+            value={String(rarityFilter)}
+            onChange={(v) => setRarityFilter(v)}
+            options={[{ value: "all", label: "all rarity" }, ...RARITIES.map((r) => ({ value: r, label: r })), { value: "none", label: "none" }]}
+            ariaLabel="Rarity filter"
+            className="w-36"
+          />
+          <PixelSelect
+            value={String(statusFilter)}
+            onChange={(v) => setStatusFilter(v)}
+            options={[{ value: "all", label: "all status" }, { value: "live", label: "live" }, { value: "draft", label: "draft" }]}
+            ariaLabel="Status filter"
+            className="w-36"
+          />
+          <PixelSelect
+            value={String(sortKey)}
+            onChange={(v) => setSortKey(v as SortKey)}
+            options={[
+              { value: "zone", label: "sort: zone" },
+              { value: "name", label: "sort: name" },
+              { value: "rarity", label: "sort: rarity" },
+              { value: "price", label: "sort: price" },
+              { value: "status", label: "sort: status" },
+            ]}
+            ariaLabel="Sort key"
+            className="w-36"
+          />
           <button onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} className="border border-border px-2 py-1 text-[11px] text-muted hover:text-cream">
             {sortDir === "asc" ? "↑" : "↓"}
           </button>
@@ -394,14 +408,13 @@ export default function CosmeticsGallery() {
                     </div>
                     <div className="flex shrink-0 items-center gap-3 text-[10px]">
                       <span className="text-dim">{sourceLabel(it)}</span>
-                      <select
-                        value={it.rarity ?? ""}
-                        onChange={(e) => patchItem(it.id, { rarity: e.target.value || null })}
-                        className="border border-border bg-bg px-1.5 py-1 text-[10px] text-cream outline-none focus:border-lime"
-                      >
-                        <option value="">none</option>
-                        {RARITIES.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </select>
+                      <PixelSelect
+                        value={String(it.rarity ?? "")}
+                        onChange={(v) => patchItem(it.id, { rarity: v || null })}
+                        options={[{ value: "", label: "none" }, ...RARITIES.map((r) => ({ value: r, label: r }))]}
+                        ariaLabel="Rarity"
+                        className="w-28"
+                      />
                       <button
                         onClick={() => patchItem(it.id, { is_active: !it.is_active })}
                         className={`border px-2 py-0.5 uppercase ${it.is_active ? "border-lime/40 text-lime" : "border-border text-muted hover:text-cream"}`}
@@ -578,14 +591,13 @@ export default function CosmeticsGallery() {
                     <div className="mt-3 space-y-3">
                       <div>
                         <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Rarity</label>
-                        <select
-                          value={selected.rarity ?? ""}
-                          onChange={(e) => patchItem(selected.id, { rarity: e.target.value || null })}
-                          className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime"
-                        >
-                          <option value="">none</option>
-                          {RARITIES.map((r) => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                        <PixelSelect
+                          value={String(selected.rarity ?? "")}
+                          onChange={(v) => patchItem(selected.id, { rarity: v || null })}
+                          options={[{ value: "", label: "none" }, ...RARITIES.map((r) => ({ value: r, label: r }))]}
+                          ariaLabel="Rarity"
+                          className="w-full"
+                        />
                       </div>
                       <div>
                         <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Price (pixels)</label>
@@ -617,23 +629,33 @@ export default function CosmeticsGallery() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Slot</label>
-                          <select value={selected.zone ?? ""} onChange={(e) => patchItem(selected.id, { zone: e.target.value || null })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
-                            <option value="">none</option>
-                            {["crown", "roof", "aura", "faces"].map((s) => <option key={s} value={s}>{s}</option>)}
-                          </select>
+                          <PixelSelect
+                            value={String(selected.zone ?? "")}
+                            onChange={(v) => patchItem(selected.id, { zone: v || null })}
+                            options={[{ value: "", label: "none" }, ...["crown", "roof", "aura", "faces"].map((s) => ({ value: s, label: s }))]}
+                            ariaLabel="Slot"
+                            className="w-full"
+                          />
                         </div>
                         <div>
                           <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Render kind</label>
-                          <select value={selected.render_kind ?? "code"} onChange={(e) => patchItem(selected.id, { render_kind: e.target.value })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
-                            {["code", "asset", "template"].map((k) => <option key={k} value={k}>{k}</option>)}
-                          </select>
+                          <PixelSelect
+                            value={String(selected.render_kind ?? "code")}
+                            onChange={(v) => patchItem(selected.id, { render_kind: v })}
+                            options={["code", "asset", "template"].map((k) => ({ value: k, label: k }))}
+                            ariaLabel="Render kind"
+                            className="w-full"
+                          />
                         </div>
                         <div>
                           <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Shop section</label>
-                          <select value={selected.shop_section ?? ""} onChange={(e) => patchItem(selected.id, { shop_section: e.target.value || null })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
-                            <option value="">none</option>
-                            {["building", "battle", "boost"].map((s) => <option key={s} value={s}>{s}</option>)}
-                          </select>
+                          <PixelSelect
+                            value={String(selected.shop_section ?? "")}
+                            onChange={(v) => patchItem(selected.id, { shop_section: v || null })}
+                            options={[{ value: "", label: "none" }, ...["building", "battle", "boost"].map((s) => ({ value: s, label: s }))]}
+                            ariaLabel="Shop section"
+                            className="w-full"
+                          />
                         </div>
                       </div>
 
@@ -686,17 +708,23 @@ export default function CosmeticsGallery() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Set</label>
-                          <select value={selected.set_id ?? ""} onChange={(e) => patchItem(selected.id, { set_id: e.target.value })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
-                            <option value="">none</option>
-                            {sets.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                          </select>
+                          <PixelSelect
+                            value={String(selected.set_id ?? "")}
+                            onChange={(v) => patchItem(selected.id, { set_id: v })}
+                            options={[{ value: "", label: "none" }, ...sets.map((s) => ({ value: s.id, label: s.name }))]}
+                            ariaLabel="Set"
+                            className="w-full"
+                          />
                         </div>
                         <div>
                           <label className="mb-1 block text-[9px] uppercase tracking-wide text-dim">Season</label>
-                          <select value={selected.season_id ?? ""} onChange={(e) => patchItem(selected.id, { season_id: e.target.value })} className="w-full border border-border bg-bg px-2 py-1.5 text-[11px] text-cream outline-none focus:border-lime">
-                            <option value="">none</option>
-                            {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                          </select>
+                          <PixelSelect
+                            value={String(selected.season_id ?? "")}
+                            onChange={(v) => patchItem(selected.id, { season_id: v })}
+                            options={[{ value: "", label: "none" }, ...seasons.map((s) => ({ value: s.id, label: s.name }))]}
+                            ariaLabel="Season"
+                            className="w-full"
+                          />
                         </div>
                       </div>
 

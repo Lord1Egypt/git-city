@@ -32,6 +32,7 @@ import CityPulse from "@/components/activity/CityPulse";
 import { type FeedEvent } from "@/components/activity/feed";
 import { ITEM_NAMES, ITEM_EMOJIS } from "@/lib/zones";
 import PixelEmblem from "@/components/profile/PixelEmblem";
+import { PixelSelect } from "@/components/ui/PixelSelect";
 import { useStreakCheckin } from "@/lib/useStreakCheckin";
 import { useLiveUsers } from "@/lib/useLiveUsers";
 import { useCodingPresence } from "@/lib/useCodingPresence";
@@ -481,7 +482,7 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
   // Polls /api/events/active so the boss appears/disappears with the
   // scheduled window managed by the lifecycle cron.
   const [liveEvent, setLiveEvent] = useState<
-    { id: string; maxHp: number; variant: "duck" | "cafetopia"; participants: number } | null
+    { id: string; maxHp: number; variant: "duck" | "cafetopia"; participants: number; tuning?: import("@/lib/events/schema").BossTuning } | null
   >(null);
   const [liveLeaderboard, setLiveLeaderboard] = useState<
     { rank: number; login: string; damage: number; minions: number }[]
@@ -497,7 +498,7 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
           const variant = (data.event.theme_config?.variant === "cafetopia" ? "cafetopia" : "duck") as
             | "duck"
             | "cafetopia";
-          setLiveEvent({ id: data.event.id, maxHp: data.event.boss_max_hp, variant, participants: data.participants ?? 0 });
+          setLiveEvent({ id: data.event.id, maxHp: data.event.boss_max_hp, variant, participants: data.participants ?? 0, tuning: data.event.boss_config ?? undefined });
           setLiveLeaderboard(Array.isArray(data.leaderboard) ? data.leaderboard : []);
         } else {
           setLiveEvent(null);
@@ -533,7 +534,7 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
   //   live event from API  → real server-authoritative event
   const bossPreview = useMemo(():
     | { variant: "duck" | "cafetopia"; mode: "static"; phase: 1 | 2 | 3 | 4 }
-    | { variant: "duck" | "cafetopia"; mode: "live"; eventId?: string; maxHp?: number; serverAuthoritative?: boolean }
+    | { variant: "duck" | "cafetopia"; mode: "live"; eventId?: string; maxHp?: number; serverAuthoritative?: boolean; tuning?: import("@/lib/events/schema").BossTuning }
     | null => {
     const v = searchParams.get("boss");
     if (v === "duck" || v === "cafetopia") {
@@ -547,7 +548,7 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
     }
     // Production: a real scheduled event is live
     if (liveEvent) {
-      return { variant: liveEvent.variant, mode: "live", eventId: liveEvent.id, maxHp: liveEvent.maxHp, serverAuthoritative: true };
+      return { variant: liveEvent.variant, mode: "live", eventId: liveEvent.id, maxHp: liveEvent.maxHp, serverAuthoritative: true, tuning: liveEvent.tuning };
     }
     return null;
   }, [searchParams, liveEvent]);
@@ -5296,25 +5297,29 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
                   ) : (
                     <div className="border-2 border-yellow-500/30 bg-yellow-500/5 p-3 space-y-2">
                       <div className="flex gap-2">
-                        <select
-                          value={dropPlantRarity}
-                          onChange={(e) => setDropPlantRarity(e.target.value)}
-                          className="flex-1 border border-border bg-bg px-2 py-1 text-[9px] text-cream outline-none"
-                        >
-                          <option value="common">Common 10pts</option>
-                          <option value="rare">Rare 50pts</option>
-                          <option value="epic">Epic 200pts</option>
-                          <option value="legendary">Legendary 500pts</option>
-                        </select>
-                        <select
-                          value={dropPlantDuration}
-                          onChange={(e) => setDropPlantDuration(Number(e.target.value))}
-                          className="border border-border bg-bg px-2 py-1 text-[9px] text-cream outline-none"
-                        >
-                          <option value={24}>24h</option>
-                          <option value={48}>48h</option>
-                          <option value={72}>72h</option>
-                        </select>
+                        <PixelSelect
+                          value={String(dropPlantRarity)}
+                          onChange={(v) => setDropPlantRarity(v)}
+                          ariaLabel="Drop rarity"
+                          className="flex-1"
+                          options={[
+                            { value: "common", label: "Common 10pts" },
+                            { value: "rare", label: "Rare 50pts" },
+                            { value: "epic", label: "Epic 200pts" },
+                            { value: "legendary", label: "Legendary 500pts" },
+                          ]}
+                        />
+                        <PixelSelect
+                          value={String(dropPlantDuration)}
+                          onChange={(v) => setDropPlantDuration(Number(v))}
+                          ariaLabel="Drop duration"
+                          className="w-24"
+                          options={[
+                            { value: "24", label: "24h" },
+                            { value: "48", label: "48h" },
+                            { value: "72", label: "72h" },
+                          ]}
+                        />
                       </div>
                       <input
                         type="number"
@@ -5326,16 +5331,14 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
                         max={500}
                       />
                       {dropPlantRarity === "legendary" && (
-                        <select
-                          value={dropPlantItem}
-                          onChange={(e) => setDropPlantItem(e.target.value)}
-                          className="w-full border border-border bg-bg px-2 py-1 text-[9px] text-cream outline-none"
-                        >
-                          <option value="">Select item reward...</option>
-                          {dropPlantItems.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
-                          ))}
-                        </select>
+                        <PixelSelect
+                          value={String(dropPlantItem)}
+                          onChange={(v) => setDropPlantItem(v)}
+                          placeholder="Select item reward..."
+                          ariaLabel="Item reward"
+                          className="w-full"
+                          options={dropPlantItems.map((item) => ({ value: item.id, label: item.name }))}
+                        />
                       )}
                       {dropPlantResult && (
                         <p className={`text-[9px] ${dropPlantResult === "Planted!" ? "text-lime" : "text-red-400"}`}>{dropPlantResult}</p>
