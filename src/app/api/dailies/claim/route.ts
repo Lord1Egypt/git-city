@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { rateLimit } from "@/lib/rate-limit";
 import { getDailyMissions, getTodayStr } from "@/lib/dailies";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { checkAchievements } from "@/lib/achievements";
 
 export async function POST() {
@@ -135,6 +136,18 @@ export async function POST() {
     },
     githubLogin,
   );
+
+  const phDailies = getPostHogClient();
+  phDailies.capture({
+    distinctId: githubLogin,
+    event: "dailies_completed",
+    properties: {
+      streak: claimResult.streak,
+      total_completions: claimResult.total,
+      freeze_granted: freezeGranted,
+    },
+  });
+  await phDailies.shutdown();
 
   return NextResponse.json({
     ok: true,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export async function POST() {
   const supabase = await createServerSupabase();
@@ -58,6 +59,22 @@ export async function POST() {
 
   // Delete the developer row (removes the building from the city entirely)
   await admin.from("developers").delete().eq("id", devId);
+
+  const githubLoginForPh = (
+    user.user_metadata?.user_name ??
+    user.user_metadata?.preferred_username ??
+    ""
+  ).toLowerCase();
+
+  if (githubLoginForPh) {
+    const phDelete = getPostHogClient();
+    phDelete.capture({
+      distinctId: githubLoginForPh,
+      event: "account_deleted",
+      properties: { developer_id: devId },
+    });
+    await phDelete.shutdown();
+  }
 
   // Delete the auth user
   await admin.auth.admin.deleteUser(user.id);

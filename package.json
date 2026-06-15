@@ -56,6 +56,8 @@
     "next": "16.2.3",
     "partykit": "^0.0.115",
     "partysocket": "^1.1.16",
+    "posthog-js": "^1.386.8",
+    "posthog-node": "^5.37.1",
     "postprocessing": "^6.38.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",

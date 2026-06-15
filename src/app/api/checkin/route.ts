@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { rateLimit } from "@/lib/rate-limit";
 import { checkAchievements } from "@/lib/achievements";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { ITEM_NAMES } from "@/lib/zones";
 import { touchLastActive } from "@/lib/notification-helpers";
 import { sendStreakMilestoneNotification } from "@/lib/notification-senders/streak";
@@ -281,6 +282,27 @@ export async function POST() {
         reward: streakReward?.item_id ?? null,
       },
     });
+
+    const phCheckin = getPostHogClient();
+    phCheckin.capture({
+      distinctId: githubLogin,
+      event: "daily_checkin_completed",
+      properties: {
+        streak: checkinResult.streak,
+        longest_streak: checkinResult.longest,
+        was_frozen: checkinResult.was_frozen ?? false,
+        streak_reward: streakReward?.item_id ?? null,
+      },
+    });
+    phCheckin.identify({
+      distinctId: githubLogin,
+      properties: {
+        github_login: githubLogin,
+        developer_id: dev.id,
+        current_streak: checkinResult.streak,
+      },
+    });
+    await phCheckin.shutdown();
   }
 
   // Refresh weekly contributions from GitHub (fire-and-forget, non-blocking)

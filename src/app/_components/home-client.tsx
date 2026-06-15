@@ -74,6 +74,7 @@ import {
   trackEArcadeClicked,
   trackLandmarkClicked,
 } from "@/lib/himetrica";
+import posthog from "posthog-js";
 
 // San Francisco map asset (baked from OSM). Fetched once, shared by every
 // layout recompute. Falls back to undefined (procedural layout) if missing.
@@ -935,14 +936,23 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
       setSession(s);
       if (s) {
         const login = (s.user?.user_metadata?.user_name ?? s.user?.user_metadata?.preferred_username ?? "").toLowerCase();
-        if (login) identifyUser({ github_login: login, email: s.user?.email ?? undefined });
+        if (login) {
+          identifyUser({ github_login: login, email: s.user?.email ?? undefined });
+          posthog.identify(login, { github_login: login, email: s.user?.email });
+        }
       }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, s: Session | null) => {
       setSession(s);
       if (s && event !== "TOKEN_REFRESHED") {
         const login = (s.user?.user_metadata?.user_name ?? s.user?.user_metadata?.preferred_username ?? "").toLowerCase();
-        if (login) identifyUser({ github_login: login, email: s.user?.email ?? undefined });
+        if (login) {
+          identifyUser({ github_login: login, email: s.user?.email ?? undefined });
+          posthog.identify(login, { github_login: login, email: s.user?.email });
+        }
+      }
+      if (event === "SIGNED_OUT") {
+        posthog.reset();
       }
     });
     return () => subscription.unsubscribe();

@@ -95,3 +95,4 @@ scripts/.osm-cache/
 # Raw Kenney asset-kit downloads. We commit only the GLBs we use (public/models);
 # the unpacked kit folders stay local.
 kenney/
+.env.local

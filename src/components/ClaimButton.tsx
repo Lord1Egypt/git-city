@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createBrowserSupabase } from "@/lib/supabase";
+import posthog from "posthog-js";
 
 interface Props {
   githubLogin: string;
@@ -44,7 +45,10 @@ export default function ClaimButton({ githubLogin, claimed }: Props) {
     setLoading(true);
     try {
       const res = await fetch("/api/claim", { method: "POST" });
-      if (res.ok) setIsClaimed(true);
+      if (res.ok) {
+        setIsClaimed(true);
+        posthog.capture("building_claimed", { github_login: githubLogin });
+      }
     } finally {
       setLoading(false);
     }

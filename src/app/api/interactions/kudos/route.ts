@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { rateLimit } from "@/lib/rate-limit";
 import { checkAchievements } from "@/lib/achievements";
+import { getPostHogClient } from "@/lib/posthog-server";
 import { touchLastActive } from "@/lib/notification-helpers";
 import { trackDailyMission } from "@/lib/dailies";
 
@@ -151,6 +152,18 @@ export async function POST(request: Request) {
       gifts_received: 0,
       kudos_streak: newKudosStreak,
     }, githubLogin);
+  }
+
+  if (!insertError) {
+    const phKudos = getPostHogClient();
+    phKudos.capture({
+      distinctId: githubLogin,
+      event: "kudos_given",
+      properties: {
+        receiver: receiver_login,
+      },
+    });
+    await phKudos.shutdown();
   }
 
   return NextResponse.json({ ok: true });
