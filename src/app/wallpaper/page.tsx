@@ -12,6 +12,7 @@ import {
   type CityBridge,
 } from "@/lib/github";
 import { usePerfMode } from "@/lib/perfMode";
+import { fetchCitySnapshot } from "@/lib/city-snapshot-client";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), { ssr: false });
 
@@ -43,19 +44,11 @@ function WallpaperInner() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let allDevs: any[] = [];
 
-    // Try pre-computed snapshot first
-    try {
-      const v = Math.floor(Date.now() / 300_000);
-      const snapshotUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/city-data/snapshot.json?v=${v}`;
-      const snapshotRes = await fetch(snapshotUrl);
-      if (snapshotRes.ok) {
-        const buf = await snapshotRes.arrayBuffer();
-        const ds = new DecompressionStream("gzip");
-        const stream = new Blob([buf]).stream().pipeThrough(ds);
-        const snapshot = await new Response(stream).json();
-        allDevs = snapshot.developers;
-      }
-    } catch { /* fall through to chunked */ }
+    // Try pre-computed snapshot first (self-heals on a fresh environment).
+    const snapshot = await fetchCitySnapshot();
+    if (snapshot) {
+      allDevs = snapshot.developers;
+    }
 
     // Fallback to chunked API
     if (allDevs.length === 0) {

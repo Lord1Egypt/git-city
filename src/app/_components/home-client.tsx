@@ -52,6 +52,7 @@ import { rankFromLevel, tierFromLevel, levelProgress, xpForLevel } from "@/lib/x
 import LoadingScreen, { type LoadingStage } from "@/components/LoadingScreen";
 import RadarMap from "@/components/RadarMap";
 import { getCityCache, setCityCache, clearCityCache } from "@/lib/cityCache";
+import { fetchCitySnapshot } from "@/lib/city-snapshot-client";
 import { usePerfMode } from "@/lib/perfMode";
 import { DEFAULT_SKY_ADS, buildAdLink, trackAdEvent, trackAdEvents, appendClickId, isBuildingAd } from "@/lib/skyAds";
 import { track } from "@vercel/analytics";
@@ -1591,20 +1592,12 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
 
     // Skip snapshot when busting cache — go straight to DB for fresh data
     if (!bustCache) {
-      try {
-        const v = Math.floor(Date.now() / 300_000);
-        const snapshotUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/city-data/snapshot.json?v=${v}`;
-        const snapshotRes = await fetch(snapshotUrl);
-        if (snapshotRes.ok) {
-          const buf = await snapshotRes.arrayBuffer();
-          const ds = new DecompressionStream("gzip");
-          const stream = new Blob([buf]).stream().pipeThrough(ds);
-          const snapshot = await new Response(stream).json();
-          allDevs = snapshot.developers;
-          cityStats = snapshot.stats;
-          dropsPayload = snapshot._d ?? [];
-        }
-      } catch { /* fall through to chunked */ }
+      const snapshot = await fetchCitySnapshot();
+      if (snapshot) {
+        allDevs = snapshot.developers;
+        cityStats = snapshot.stats;
+        dropsPayload = snapshot._d ?? [];
+      }
     }
 
     // Local dev has no storage snapshot — read straight from the DB so the
@@ -1724,21 +1717,14 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let dropsPayload: any[] = [];
 
-        // Try pre-computed snapshot first (single file from Supabase CDN)
-        try {
-          const v = Math.floor(Date.now() / 300_000); // changes every 5 min, aligned with cron
-          const snapshotUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/city-data/snapshot.json?v=${v}`;
-          const snapshotRes = await fetch(snapshotUrl);
-          if (snapshotRes.ok) {
-            const buf = await snapshotRes.arrayBuffer();
-            const ds = new DecompressionStream("gzip");
-            const stream = new Blob([buf]).stream().pipeThrough(ds);
-            const snapshot = await new Response(stream).json();
-            allDevs = snapshot.developers;
-            cityStats = snapshot.stats;
-            dropsPayload = snapshot._d ?? [];
-          }
-        } catch { /* snapshot failed */ }
+        // Try pre-computed snapshot first (single file from Supabase CDN).
+        // Self-heals on a fresh environment: builds the snapshot, then retries.
+        const snapshot = await fetchCitySnapshot();
+        if (snapshot) {
+          allDevs = snapshot.developers;
+          cityStats = snapshot.stats;
+          dropsPayload = snapshot._d ?? [];
+        }
 
         // Local dev has no storage snapshot — read straight from the DB so the
         // city renders without a snapshot-generation step. Local-only.
