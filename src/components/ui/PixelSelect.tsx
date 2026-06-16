@@ -88,15 +88,15 @@ export function PixelSelect({
           open ? "border-lime" : "border-border hover:border-border-light"
         } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
       >
-        <span className={current ? "text-cream" : "text-dim"}>{current?.label ?? placeholder}</span>
-        <span className={`text-[8px] text-muted transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
+        <span className={`min-w-0 flex-1 truncate text-left ${current ? "text-cream" : "text-dim"}`}>{current?.label ?? placeholder}</span>
+        <span className={`shrink-0 text-[8px] text-muted transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
       </button>
 
       {open && (
         <ul
           role="listbox"
           id={listId}
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 list-none overflow-auto border-[3px] border-border-light bg-bg-card shadow-[6px_6px_0_0_rgba(0,0,0,0.5)]"
+          className="scrollbar-thin absolute left-0 right-0 top-full z-50 mt-1 max-h-60 list-none overflow-auto border-[3px] border-border-light bg-bg-card shadow-[6px_6px_0_0_rgba(0,0,0,0.5)]"
         >
           {options.map((o, i) => {
             const sel = o.value === value;

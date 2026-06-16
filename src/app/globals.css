@@ -80,6 +80,24 @@ button:not(:disabled) {
   color: #e8dcc8;
 }
 
+/* ─── App-wide pixel scrollbar ───────────────────────────────────────────
+   Themed scrollbar on every scroll container by default. The .no-scrollbar /
+   .scrollbar-thin utilities below are class-specific, so they still override
+   this per-element where needed. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--color-border-light); }
+*::-webkit-scrollbar-corner { background: transparent; }
+
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .scrollbar-thin::-webkit-scrollbar { width: 4px; }
