@@ -7,13 +7,23 @@ import { TIER_ORDER } from "./achievement-tiers";
 
 export const MAX_FEATURED = 6;
 
-/** Achievement with everything the trophy case renders. */
+/**
+ * An earned emblem with everything the trophy case renders. (Field names kept
+ * `achievement_id`/`unlocked_at` for back-compat — emblem ids equal the old
+ * achievement ids after the backfill, so saved showcases keep resolving.)
+ */
 export interface ShowcaseAchievement {
   achievement_id: string;
   name: string;
   tier: string;
   description: string | null;
   unlocked_at: string | null;
+  /** Glyph key for the data-driven badge. Null falls back to a default glyph. */
+  glyph?: string | null;
+  /** Live count for counter emblems (Veteran "10", placements "3×"). */
+  count?: number;
+  /** Whether to show the count overlay. */
+  is_counter?: boolean;
 }
 
 /** Shape of the developer_customizations row with item_id = "profile". */

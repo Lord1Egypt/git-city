@@ -72,12 +72,15 @@ export default async function DevPage({ params }: Props) {
   const accent = "#c8e64a";
   const shadow = "#5a7a00";
 
-  // Fetch achievements with name/tier/description/unlocked_at from DB
+  // Fetch earned emblems (the Trophy Case source) + their catalog metadata.
+  // The grant's `tier` is the evolved tier (after milestones); name/glyph/etc
+  // come from the catalog. emblem ids == old achievement ids, so saved pins/titles
+  // keep resolving.
   const sb = getSupabaseAdmin();
-  const [{ data: devAchievements }, { data: profileRow }, { data: socialRow }] = await Promise.all([
+  const [{ data: devEmblems }, { data: profileRow }, { data: socialRow }] = await Promise.all([
     sb
-      .from("developer_achievements")
-      .select("achievement_id, unlocked_at, achievements(name, tier, description)")
+      .from("emblem_grants")
+      .select("emblem_id, count, tier, first_earned_at, emblems(name, description, glyph, is_counter, tier)")
       .eq("developer_id", dev.id),
     sb
       .from("developer_customizations")
@@ -93,15 +96,18 @@ export default async function DevPage({ params }: Props) {
       .maybeSingle(),
   ]);
   const socialLinks = sanitizeSocialLinks(socialRow?.config);
-  const achievements: ShowcaseAchievement[] = (devAchievements ?? []).map(
+  const achievements: ShowcaseAchievement[] = (devEmblems ?? []).map(
     (row: Record<string, unknown>) => {
-      const meta = row.achievements as Record<string, unknown> | null;
+      const meta = row.emblems as Record<string, unknown> | null;
       return {
-        achievement_id: row.achievement_id as string,
-        name: (meta?.name as string) ?? (row.achievement_id as string),
-        tier: (meta?.tier as string) ?? "bronze",
+        achievement_id: row.emblem_id as string,
+        name: (meta?.name as string) ?? (row.emblem_id as string),
+        tier: (row.tier as string) ?? (meta?.tier as string) ?? "bronze",
         description: (meta?.description as string) ?? null,
-        unlocked_at: (row.unlocked_at as string) ?? null,
+        unlocked_at: (row.first_earned_at as string) ?? null,
+        glyph: (meta?.glyph as string) ?? null,
+        count: (row.count as number) ?? 1,
+        is_counter: (meta?.is_counter as boolean) ?? false,
       };
     }
   );

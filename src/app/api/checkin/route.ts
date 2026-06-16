@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { rateLimit } from "@/lib/rate-limit";
-import { checkAchievements } from "@/lib/achievements";
+import { evaluateEmblems } from "@/lib/emblems";
 import { getPostHogClient } from "@/lib/posthog-server";
 import { ITEM_NAMES } from "@/lib/zones";
 import { touchLastActive } from "@/lib/notification-helpers";
@@ -223,7 +223,7 @@ export async function POST() {
     const giftsSent = 0;
     const giftsReceived = 0;
 
-    newAchievements = await checkAchievements(dev.id, {
+    newAchievements = await evaluateEmblems(dev.id, {
       contributions: dev.contributions,
       public_repos: dev.public_repos,
       total_stars: dev.total_stars,
@@ -315,10 +315,10 @@ export async function POST() {
     }
   });
 
-  // Count unseen achievements
+  // Count unseen emblems
   const { count: unseenCount } = await sb
-    .from("developer_achievements")
-    .select("achievement_id", { count: "exact", head: true })
+    .from("emblem_grants")
+    .select("emblem_id", { count: "exact", head: true })
     .eq("developer_id", dev.id)
     .eq("seen", false);
 

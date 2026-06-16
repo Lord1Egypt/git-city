@@ -77,8 +77,8 @@ export async function GET(request: NextRequest) {
       ),
       fetchAll<{ developer_id: number; achievement_id: string }>(
         sb,
-        "developer_achievements",
-        "developer_id, achievement_id",
+        "emblem_grants",
+        "developer_id, achievement_id:emblem_id",
       ),
       fetchAll<{ building_id: number; attacker_login: string; tag_style: string; expires_at: string }>(
         sb,

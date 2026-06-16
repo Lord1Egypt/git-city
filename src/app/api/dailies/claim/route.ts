@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { rateLimit } from "@/lib/rate-limit";
 import { getDailyMissions, getTodayStr } from "@/lib/dailies";
 import { getPostHogClient } from "@/lib/posthog-server";
-import { checkAchievements } from "@/lib/achievements";
+import { evaluateEmblems } from "@/lib/emblems";
 
 export async function POST() {
   const supabase = await createServerSupabase();
@@ -122,7 +122,7 @@ export async function POST() {
   });
 
   // Check dailies achievements
-  await checkAchievements(
+  await evaluateEmblems(
     dev.id,
     {
       contributions: dev.contributions ?? 0,

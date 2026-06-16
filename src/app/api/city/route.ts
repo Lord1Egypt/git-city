@@ -56,8 +56,8 @@ export async function GET(request: Request) {
       .in("developer_id", devIds)
       .in("item_id", ["custom_color", "billboard", "loadout"]),
     sb
-      .from("developer_achievements")
-      .select("developer_id, achievement_id")
+      .from("emblem_grants")
+      .select("developer_id, achievement_id:emblem_id")
       .in("developer_id", devIds),
     sb
       .from("raid_tags")

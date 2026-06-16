@@ -1,9 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { fetchCurrentYearBatch, fetchFullContributions } from "@/lib/github-api";
+import { evaluateEmblems } from "@/lib/emblems";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+// Re-evaluate commit (contributions-based) emblems for a dev whose contribution
+// count just changed — so commit emblems unlock without the dev logging in.
+// Only `contributions` is known here; other metrics evaluate at their call sites.
+async function evaluateCommitEmblems(devId: number, contributions: number, login: string) {
+  await evaluateEmblems(
+    devId,
+    {
+      contributions,
+      public_repos: 0,
+      total_stars: 0,
+      referral_count: 0,
+      kudos_count: 0,
+      gifts_sent: 0,
+      gifts_received: 0,
+    },
+    login,
+  );
+}
 
 // ─── Rolling building refresh ────────────────────────────────────────────────
 // Nothing else re-syncs an existing building's GitHub contributions (login only
@@ -146,6 +166,10 @@ export async function GET(request: NextRequest) {
         contributions_cy: fresh,
         fetched_at: nowIso,
       });
+      // Unlock commit emblems offline when the count actually grew.
+      if (newTotal > (r.contributions_total ?? 0)) {
+        await evaluateCommitEmblems(r.id, newTotal, r.github_login);
+      }
       refreshed++;
     }
     await bumpFetched(missIds);
@@ -173,6 +197,7 @@ export async function GET(request: NextRequest) {
           contributions_cy_year: full.current_year,
           fetched_at: nowIso,
         });
+        await evaluateCommitEmblems(r.id, full.contributions_total, r.github_login);
         seeded++;
       }
     };

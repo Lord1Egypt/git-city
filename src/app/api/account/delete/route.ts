@@ -42,6 +42,8 @@ export async function POST() {
     admin.from("developer_kudos").delete().or(`giver_id.eq.${devId},receiver_id.eq.${devId}`),
     admin.from("building_visits").delete().or(`visitor_id.eq.${devId},building_id.eq.${devId}`),
     admin.from("developer_achievements").delete().eq("developer_id", devId),
+    admin.from("emblem_grants").delete().eq("developer_id", devId),
+    admin.from("emblem_grant_events").delete().eq("developer_id", devId),
     admin.from("developer_customizations").delete().eq("developer_id", devId),
     admin.from("purchases").delete().eq("developer_id", devId),
     admin.from("notification_preferences").delete().eq("developer_id", devId),

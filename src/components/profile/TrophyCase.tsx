@@ -10,6 +10,7 @@ import {
   type ShowcaseAchievement,
 } from "@/lib/profile-showcase";
 import PixelEmblem from "./PixelEmblem";
+import EmblemBadge from "./EmblemBadge";
 
 interface Props {
   achievements: ShowcaseAchievement[];
@@ -182,7 +183,13 @@ export default function TrophyCase({ achievements, pinnedIds, isOwner }: Props) 
                 <span className="absolute right-1.5 top-1.5 h-2 w-2 bg-lime" />
               )}
               <div className="flex h-10 items-center justify-center">
-                <PixelEmblem tier={a.tier} size={40} />
+                <EmblemBadge
+                  tier={a.tier}
+                  glyph={a.glyph}
+                  count={a.count}
+                  showCount={!!a.is_counter}
+                  size={40}
+                />
               </div>
               <div className="mt-3 text-[10px] leading-tight text-cream">{a.name}</div>
               <div className="mt-1.5 text-[8px] tracking-wider" style={{ color }}>
@@ -252,7 +259,7 @@ export default function TrophyCase({ achievements, pinnedIds, isOwner }: Props) 
                           style={editing && isPinned ? { borderColor: color } : undefined}
                         >
                           <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                            <PixelEmblem tier={a.tier} size={16} />
+                            <EmblemBadge tier={a.tier} glyph={a.glyph} size={16} />
                           </span>
                           <span className="min-w-0 flex-1 truncate text-[9px] leading-tight text-muted">
                             {a.name}

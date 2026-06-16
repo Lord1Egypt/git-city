@@ -50,7 +50,7 @@ const SELECTOR_OPTS: { value: Selector["type"]; label: string }[] = [
 
 const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
-function railSummary(r: Rail, labelFor: (v: string | null) => string): { who: string; medal?: string; reward: string } {
+function railSummary(r: Rail, labelFor: (v: string | null) => string, emblemLabelFor: (v: string | null) => string): { who: string; medal?: string; reward: string } {
   const s = r.selector;
   let who = "";
   let medal: string | undefined;
@@ -71,6 +71,7 @@ function railSummary(r: Rail, labelFor: (v: string | null) => string): { who: st
   if (r.bundle.pixels > 0) parts.push(`${r.bundle.pixels} px`);
   if (r.bundle.item_id) parts.push(labelFor(r.bundle.item_id));
   if (r.bundle.xp > 0) parts.push(`+${r.bundle.xp} XP`);
+  if (r.bundle.emblem_id) parts.push(`🎖 ${emblemLabelFor(r.bundle.emblem_id)}`);
   return { who, medal, reward: parts.length ? parts.join(" · ") : "nothing" };
 }
 
@@ -108,6 +109,7 @@ export default function AdminEventsPage() {
   const [rails, setRails] = useState<Rail[]>(() => getEventType("boss_raid")!.defaultConfig().rails);
   const [creating, setCreating] = useState(false);
   const [itemOpts, setItemOpts] = useState<Opt[]>(DEFAULT_ITEM_OPTS);
+  const [emblemOpts, setEmblemOpts] = useState<Opt[]>([{ value: "", label: "No emblem" }]);
 
   // Advanced combat tuning (progressive disclosure)
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -139,6 +141,22 @@ export default function AdminEventsPage() {
           setItemOpts([
             { value: "", label: "No item" },
             ...d.items.map((it: { id: string; name: string }) => ({ value: it.id, label: it.name })),
+          ]);
+        }
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    // Active emblems — any can be auto-granted to a reward rail (no deploy).
+    fetch("/api/admin/emblems")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.emblems)) {
+          setEmblemOpts([
+            { value: "", label: "No emblem" },
+            ...d.emblems
+              .filter((e: { active: boolean }) => e.active)
+              .map((e: { id: string; name: string }) => ({ value: e.id, label: e.name })),
           ]);
         }
       })
@@ -349,7 +367,7 @@ export default function AdminEventsPage() {
                 <PixelSelect value={metric} onChange={(v) => setMetric(v as ScoringMetric)} className="w-44"
                   options={[{ value: "damage_dealt", label: "Damage dealt" }, { value: "score", label: "Score" }]} ariaLabel="Scoring metric" />
               </div>
-              <RailsEditor rails={rails} setRails={setRails} itemOpts={itemOpts} />
+              <RailsEditor rails={rails} setRails={setRails} itemOpts={itemOpts} emblemOpts={emblemOpts} />
             </Section>
           </div>
 
@@ -408,9 +426,10 @@ export default function AdminEventsPage() {
 }
 
 // ─── Rails editor: collapsible cards with readable summaries ─────
-function RailsEditor({ rails, setRails, itemOpts }: { rails: Rail[]; setRails: (r: Rail[]) => void; itemOpts: Opt[] }) {
+function RailsEditor({ rails, setRails, itemOpts, emblemOpts }: { rails: Rail[]; setRails: (r: Rail[]) => void; itemOpts: Opt[]; emblemOpts: Opt[] }) {
   const [editing, setEditing] = useState<number | null>(null);
   const labelFor = (v: string | null) => itemOpts.find((o) => o.value === (v ?? ""))?.label ?? v ?? "No item";
+  const emblemLabelFor = (v: string | null) => emblemOpts.find((o) => o.value === (v ?? ""))?.label ?? v ?? "";
 
   const update = (idx: number, patch: Partial<Rail>) => setRails(rails.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   const updateSel = (idx: number, sel: Selector) => update(idx, { selector: sel });
@@ -425,7 +444,7 @@ function RailsEditor({ rails, setRails, itemOpts }: { rails: Rail[]; setRails: (
   return (
     <div className="space-y-2">
       {rails.map((r, idx) => {
-        const sum = railSummary(r, labelFor);
+        const sum = railSummary(r, labelFor, emblemLabelFor);
         const open = editing === idx;
         return (
           <div key={idx} className={`border bg-bg ${open ? "border-lime/40" : "border-border"}`}>
@@ -467,6 +486,12 @@ function RailsEditor({ rails, setRails, itemOpts }: { rails: Rail[]; setRails: (
                     <PixelSelect value={r.bundle.item_id ?? ""} onChange={(v) => updateBundle(idx, { item_id: v || null })}
                       options={itemOpts} ariaLabel="Reward item" />
                   </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[9px] uppercase text-muted">Emblem · auto-granted to everyone on this rail</label>
+                  <PixelSelect value={r.bundle.emblem_id ?? ""} onChange={(v) => updateBundle(idx, { emblem_id: v || null })}
+                    options={emblemOpts} ariaLabel="Reward emblem" />
                 </div>
 
                 <button type="button" onClick={() => removeRail(idx)}

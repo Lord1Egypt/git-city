@@ -46,20 +46,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nothing to save" }, { status: 400 });
   }
 
-  // Unlocked achievements — validates featured ids and feeds the title pool
+  // Earned emblems — validates featured ids and feeds the title pool.
+  // (emblem ids == old achievement ids, so saved pins/titles keep resolving.)
   const { data: unlockedRows } = await admin
-    .from("developer_achievements")
-    .select("achievement_id, unlocked_at, achievements(name, tier, description)")
+    .from("emblem_grants")
+    .select("emblem_id, first_earned_at, tier, emblems(name, description)")
     .eq("developer_id", dev.id);
   const achievements: ShowcaseAchievement[] = (unlockedRows ?? []).map(
     (row: Record<string, unknown>) => {
-      const meta = row.achievements as Record<string, unknown> | null;
+      const meta = row.emblems as Record<string, unknown> | null;
       return {
-        achievement_id: row.achievement_id as string,
-        name: (meta?.name as string) ?? (row.achievement_id as string),
-        tier: (meta?.tier as string) ?? "bronze",
+        achievement_id: row.emblem_id as string,
+        name: (meta?.name as string) ?? (row.emblem_id as string),
+        tier: (row.tier as string) ?? "bronze",
         description: (meta?.description as string) ?? null,
-        unlocked_at: (row.unlocked_at as string) ?? null,
+        unlocked_at: (row.first_earned_at as string) ?? null,
       };
     }
   );

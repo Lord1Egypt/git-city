@@ -30,6 +30,8 @@ export interface Bundle {
   pixels: number;
   item_id: string | null;
   xp: number;
+  /** Optional merit emblem granted to whoever qualifies for this rail. */
+  emblem_id?: string | null;
 }
 
 export interface Rail {
@@ -105,7 +107,13 @@ function validateBundle(input: unknown, ctx: string): Result<Bundle> {
       return { ok: false, error: `${ctx}: item_id must be a string ≤64 chars or null` };
     item_id = input.item_id.trim() || null;
   }
-  return { ok: true, value: { pixels: Math.floor(pixels), item_id, xp: Math.floor(xp) } };
+  let emblem_id: string | null = null;
+  if (input.emblem_id !== undefined && input.emblem_id !== null) {
+    if (typeof input.emblem_id !== "string" || input.emblem_id.length > 64)
+      return { ok: false, error: `${ctx}: emblem_id must be a string ≤64 chars or null` };
+    emblem_id = input.emblem_id.trim() || null;
+  }
+  return { ok: true, value: { pixels: Math.floor(pixels), item_id, xp: Math.floor(xp), ...(emblem_id ? { emblem_id } : {}) } };
 }
 
 function validateSelector(input: unknown, ctx: string): Result<Selector> {

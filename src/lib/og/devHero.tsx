@@ -69,8 +69,8 @@ export async function loadDevForCard(
 
   const [{ data: devAchievements }, { data: profileRow }] = await Promise.all([
     supabase
-      .from("developer_achievements")
-      .select("achievement_id, achievements(name, tier)")
+      .from("emblem_grants")
+      .select("achievement_id:emblem_id, achievements:emblems(name, tier)")
       .eq("developer_id", row.id),
     supabase
       .from("developer_customizations")
