@@ -161,15 +161,21 @@ export async function POST(request: Request) {
 
   // Build available vehicles list from the catalog (data-driven): name/emoji
   // come from the item row, so a new vehicle needs no code here. The default
-  // vehicle (id "airplane" = CRT Terminal) is the free built-in.
-  const ownedVehicleIds = new Set((vehiclePurchases ?? []).map((p) => p.item_id));
-  const available_vehicles = [
-    { item_id: "airplane", name: "CRT Terminal", emoji: "📟" },
-    ...(vehiclePurchases ?? []).map((p) => {
-      const item = p.items as unknown as { name: string; metadata: { emoji?: string } };
-      return { item_id: p.item_id, name: item.name, emoji: item.metadata?.emoji ?? "🖥️" };
-    }),
-  ];
+  // vehicle (id "airplane" = CRT Terminal) is the free built-in. Deduplicate by
+  // item_id so owning multiple copies of the same vehicle (repeat purchases)
+  // only renders one selectable card.
+  const ownedVehicleIds = new Set<string>();
+  const available_vehicles = [{ item_id: "airplane", name: "CRT Terminal", emoji: "📟" }];
+  for (const p of vehiclePurchases ?? []) {
+    if (ownedVehicleIds.has(p.item_id)) continue;
+    ownedVehicleIds.add(p.item_id);
+    const item = p.items as unknown as { name: string; metadata: { emoji?: string } };
+    available_vehicles.push({
+      item_id: p.item_id,
+      name: item.name,
+      emoji: item.metadata?.emoji ?? "🖥️",
+    });
+  }
 
   // Use saved selection, fallback to the default vehicle (id "airplane")
   const savedLoadout = (raidLoadoutRow?.config as { vehicle?: string } | null) ?? {};

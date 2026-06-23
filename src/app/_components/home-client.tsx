@@ -4363,10 +4363,10 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
               )}
 
               {/* Primary actions */}
-              <div className="flex items-center gap-3 sm:gap-4">
+              <div className="grid w-full max-w-md grid-cols-2 gap-3 sm:gap-4">
                 <button
                   onClick={() => setExploreMode(true)}
-                  className="btn-press px-7 py-3 text-xs sm:py-3.5 sm:text-sm text-bg"
+                  className="btn-press flex h-full w-full flex-col items-center justify-center px-4 py-3 text-center text-xs sm:py-3.5 sm:text-sm text-bg"
                   style={{
                     backgroundColor: theme.accent,
                     boxShadow: `4px 4px 0 0 ${theme.shadow}`,
@@ -4374,26 +4374,6 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
                 >
                   Explore City
                   <span className="block text-[8px] opacity-60 normal-case">Browse Buildings</span>
-                </button>
-                <button
-                  onClick={() => {
-                    if (session) {
-                      window.location.href = "/arcade";
-                    } else {
-                      trackEArcadeClicked();
-                      setEArcadeOpen(true);
-                    }
-                  }}
-                  className="btn-press px-7 py-3 text-xs sm:py-3.5 sm:text-sm text-bg"
-                  style={{
-                    backgroundColor: theme.accent,
-                    boxShadow: `4px 4px 0 0 ${theme.shadow}`,
-                  }}
-                >
-                  Lobby
-                  <span className="block text-[8px] opacity-60 normal-case">
-                    {arcadeOnline > 0 ? `${arcadeOnline} online` : "Meet other devs"}
-                  </span>
                 </button>
                 {(
                   <div className="relative">
@@ -4408,7 +4388,7 @@ function HomeContent({ resolvedSponsors }: HomeContentProps) {
                         setFlyElapsedSec(0);
                         try { setFlyPersonalBest(parseInt(localStorage.getItem("gitcity_fly_pb") || "0", 10) || 0); } catch { setFlyPersonalBest(0); }
                       }}
-                      className="btn-press px-7 py-3 text-xs sm:py-3.5 sm:text-sm text-bg"
+                      className="btn-press flex h-full w-full flex-col items-center justify-center px-4 py-3 text-center text-xs sm:py-3.5 sm:text-sm text-bg"
                       style={{
                         backgroundColor: theme.accent,
                         boxShadow: `4px 4px 0 0 ${theme.shadow}`,
