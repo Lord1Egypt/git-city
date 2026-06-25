@@ -104,9 +104,12 @@ function useCountUp(target: number | null, ms = 650): number {
 
 /** Turn a raw ledger row into friendly, sentence-case text (no slugs/IDs). */
 function prettyTx(tx: WalletTx): string {
-  let text = tx.description || tx.source.replace(/_/g, " ");
-  text = text.replace(/\s*to dev\s+\d+/gi, ""); // drop "to dev 12561" tails
-  text = text.replace(/_/g, " ").trim();
+  // A human-written description (e.g. "Purchased 100 PX with GITC") keeps its own
+  // casing. Only the source fallback ("daily_commit") gets normalized to a label.
+  if (tx.description) {
+    return tx.description.replace(/\s*to dev\s+\d+/gi, "").trim();
+  }
+  const text = tx.source.replace(/_/g, " ").trim();
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 }
 
