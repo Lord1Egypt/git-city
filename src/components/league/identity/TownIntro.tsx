@@ -5,17 +5,20 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import CarModel from "@/components/league/drive/CarModel";
-import { WHEEL, M_TO_UNIT } from "@/lib/league-city/drive/tuning";
+import { CAMERA, WHEEL, M_TO_UNIT } from "@/lib/league-city/drive/tuning";
 import { WHEELS } from "@/lib/league-city/drive/vehicle";
-import { carAt, type CarIntro } from "@/lib/league-city/intro";
+import { carAt, type CarIntro, type IntroPose } from "@/lib/league-city/intro";
 
 type Vec3 = [number, number, number];
 
 // Plays the town intro (lib/league-city/intro): a car drives in from far out
 // on the approach with the chase camera behind it; just past the arch the
 // camera lifts on a curve to the scene's frame while the car brakes to a stop,
-// and the orbit controls take over. With `handoff` the camera stays behind the
-// car while it brakes, and the drive takes the car from where it stopped.
+// and the orbit controls take over.
+// With `handoff` the intro is the drive's opening shot instead: the camera
+// settles into the drive camera's exact framing while the car slows to a
+// roll, the drive's own car follows this one (`pose`) and takes its place as
+// soon as it's loaded, and the intro ends with the car still moving.
 
 /** Chase view, city units (drive mode's chase: 7 m back, 2.8 m up). */
 const BACK = 18;
@@ -26,6 +29,13 @@ const WIDE_BACK = 48;
 const WIDE_UP = 32;
 /** Share of the approach spent easing from the opening shot into the chase view. */
 const SETTLE = 0.65;
+/** The drive camera's framing (DriveCamera), where the handoff ends. */
+const DRIVE_BACK = CAMERA.distance * M_TO_UNIT;
+const DRIVE_UP = CAMERA.height * M_TO_UNIT;
+const DRIVE_AHEAD = 6;
+const DRIVE_LOOK_UP = 3;
+/** Car not loaded yet at the handoff: it brakes to a stop over this long and waits. */
+const WAIT_BRAKE = 1.5;
 
 const _want = new THREE.Vector3();
 const _look = new THREE.Vector3();
@@ -35,18 +45,30 @@ const _axisX = new THREE.Vector3(1, 0, 0);
 const _axisY = new THREE.Vector3(0, 1, 0);
 
 const smooth = (u: number) => u * u * (3 - 2 * u);
+const mix = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /**
  * Camera behind a car heading north (−z) at (x, z). `wide` 1 is the opening
  * shot (back, up, looking down at the car), 0 the chase view (low, looking
- * down the road). Portrait screens sit further back.
+ * down the road). `drive` 1 is the drive camera's own framing. Portrait
+ * screens sit further back, until the drive camera takes over.
  */
-function chase(x: number, z: number, pos: THREE.Vector3, look: THREE.Vector3, far = 1, wide = 0) {
-  const back = BACK + (WIDE_BACK - BACK) * wide;
-  const up = UP + (WIDE_UP - UP) * wide;
-  pos.set(x, up * far, z + back * far);
+function chase(x: number, z: number, pos: THREE.Vector3, look: THREE.Vector3, far = 1, wide = 0, drive = 0) {
+  const f = mix(far, 1, drive);
+  const back = mix((BACK + (WIDE_BACK - BACK) * wide) * f, DRIVE_BACK, drive);
+  const up = mix((UP + (WIDE_UP - UP) * wide) * f, DRIVE_UP, drive);
+  pos.set(x, up, z + back);
   // Wide: aim a little past the car, so it sits low in frame with the arch and city above.
-  look.set(x, 6 - 6 * wide, z - AHEAD - 16 * wide);
+  look.set(x, mix(6 - 6 * wide, DRIVE_LOOK_UP, drive), z - mix(AHEAD + 16 * wide, DRIVE_AHEAD, drive));
+}
+
+export interface IntroHandoff {
+  /** Written every frame: where the drive's car should be. */
+  pose: React.MutableRefObject<IntroPose | null>;
+  /** The drive's car is loaded: this one hides, and the intro may end. */
+  ready: boolean;
+  /** Bumped by Skip: jump to the handoff. */
+  skip: number;
 }
 
 export default function TownIntro({
@@ -54,7 +76,8 @@ export default function TownIntro({
   end,
   color,
   ceiling,
-  handoff = false,
+  handoff,
+  poseRef,
   onEnd,
   onTick,
 }: {
@@ -63,8 +86,10 @@ export default function TownIntro({
   color: string;
   /** Height that clears every building: the camera goes up to it before swinging out. */
   ceiling: number;
-  /** The drive takes over at the stop: no rise, the chase view holds to the end. */
-  handoff?: boolean;
+  /** The drive takes the car at the end (see above). */
+  handoff?: IntroHandoff;
+  /** Handoff: written every frame, where the drive's car should be (handoff.pose). */
+  poseRef?: React.MutableRefObject<IntroPose | null>;
   onEnd: () => void;
   /** Seconds into the intro, every frame (the title follows this clock). */
   onTick?: (t: number) => void;
@@ -75,10 +100,13 @@ export default function TownIntro({
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const car = useRef<THREE.Group>(null);
   const wheelRefs = useRef<(THREE.Object3D | null)[]>([]);
-  const state = useRef({ t: 0, ended: false, spin: 0 });
+  const state = useRef({ t: 0, ended: false, spin: 0, skipped: false });
   const cam = useRef({ look: new THREE.Vector3(), fromPos: new THREE.Vector3(), fromLook: new THREE.Vector3() });
   const endPos = useMemo(() => new THREE.Vector3(...end.pos), [end]);
   const endLook = useMemo(() => new THREE.Vector3(...end.look), [end]);
+  const driving = !!handoff;
+  const ready = handoff?.ready ?? false;
+  const skip = handoff?.skip ?? 0;
 
   useEffect(() => {
     chase(intro.x, intro.startZ, _want, _look, far, 1);
@@ -89,17 +117,16 @@ export default function TownIntro({
     chase(intro.x, intro.switchZ, cam.current.fromPos, cam.current.fromLook, far);
   }, [camera, intro, far]);
 
-  // Skipped: cut straight to the city frame, as games do (behind the parked
-  // car when the drive takes over).
+  useEffect(() => {
+    if (skip > 0) state.current.skipped = true;
+  }, [skip]);
+
+  // Skipped: cut straight to the city frame, as games do. When the drive
+  // takes over, the orbit flies home on its own if the drive failed.
   useEffect(
     () => () => {
-      if (state.current.ended) return;
-      if (handoff) {
-        chase(intro.x, intro.stopZ, _want, _look, far);
-        camera.position.copy(_want);
-        camera.lookAt(_look);
-        return;
-      }
+      if (poseRef) poseRef.current = null;
+      if (state.current.ended || driving) return;
       camera.position.copy(endPos);
       camera.lookAt(endLook);
       if (controls) {
@@ -107,20 +134,33 @@ export default function TownIntro({
         controls.update();
       }
     },
-    [camera, controls, endPos, endLook, handoff, intro, far],
+    [camera, controls, endPos, endLook, driving, poseRef],
   );
 
   useFrame((_, delta) => {
     const st = state.current;
     if (st.ended) return;
     const dt = Math.min(delta, 0.05);
+    const handoffAt = intro.cruise + intro.rise;
+    // Skip lands on the handoff, as if the intro had played out.
+    if (driving && st.skipped && st.t < handoffAt) st.t = handoffAt;
     st.t += dt;
     onTick?.(st.t);
-    const { z, speed } = carAt(intro, st.t);
+    let { z, speed } = carAt(intro, st.t);
+    if (driving && st.t > handoffAt) {
+      // Still waiting for the drive's car: roll to a stop and wait.
+      const u = Math.min(st.t - handoffAt, WAIT_BRAKE);
+      const decel = intro.endSpeed / WAIT_BRAKE;
+      z = intro.stopZ - intro.endSpeed * u + (decel * u * u) / 2;
+      speed = intro.endSpeed - decel * u;
+    }
+    if (poseRef) poseRef.current = { x: intro.x, z, speed };
 
-    // The car, heading north; wheels roll with its speed.
+    // The car, heading north; wheels roll with its speed. Hidden once the
+    // drive's car, right where it is, has taken its place.
     const g = car.current;
     if (g) {
+      g.visible = !ready;
       g.position.set(intro.x, 0, z);
       g.rotation.set(0, Math.PI, 0);
       st.spin += (speed * dt) / (WHEEL.radius * M_TO_UNIT);
@@ -135,15 +175,20 @@ export default function TownIntro({
     }
 
     const c = cam.current;
-    if (handoff) {
-      chase(intro.x, z, _want, c.look, far, 1 - smooth(Math.min(1, st.t / (intro.cruise * SETTLE))));
+    if (driving) {
+      // The chase view settles into the drive camera's framing while the car
+      // slows, so when the drive camera takes over nothing moves.
+      const wide = 1 - smooth(Math.min(1, st.t / (intro.cruise * SETTLE)));
+      const settle = smooth(Math.min(1, Math.max(0, (st.t - intro.cruise) / intro.rise)));
+      chase(intro.x, z, _want, c.look, far, wide, settle);
       camera.position.copy(_want);
       camera.lookAt(c.look);
-      if (st.t < intro.cruise + intro.rise) return;
+      if (st.t < handoffAt || !ready) return;
       st.ended = true;
       onEnd();
       return;
     }
+
     if (st.t <= intro.cruise) {
       const wide = 1 - smooth(Math.min(1, st.t / (intro.cruise * SETTLE)));
       chase(intro.x, z, _want, c.look, far, wide);

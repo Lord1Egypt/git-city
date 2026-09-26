@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LOT } from "./grid";
-import { CRUISE, carAt, carIntro, introSeconds } from "./intro";
+import { CRUISE, HANDOFF_SPEED, carAt, carIntro, introSeconds } from "./intro";
 
 describe("carIntro", () => {
   const c = carIntro();
@@ -30,5 +30,13 @@ describe("carIntro", () => {
   it("lasts about 10 seconds", () => {
     expect(introSeconds(c)).toBeGreaterThan(6);
     expect(introSeconds(c)).toBeLessThan(13);
+  });
+
+  it("hands the drive a car that still rolls, where the braking ends", () => {
+    const d = carIntro(LOT / 2, true);
+    const end = d.cruise + d.rise;
+    expect(carAt(d, end).z).toBeCloseTo(d.stopZ);
+    expect(carAt(d, end).speed).toBeCloseTo(HANDOFF_SPEED);
+    expect(d.crossAt).toBeCloseTo(c.crossAt);
   });
 });

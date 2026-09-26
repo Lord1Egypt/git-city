@@ -15,11 +15,11 @@ import { InstancedDecorations } from "@/components/city/decorations";
 import type { CityBuilding, CityDecoration } from "@/lib/github";
 import { LOT, bounds, lotToWorld, rotToRadians, terrainBounds, worldBounds } from "@/lib/league-city/grid";
 import type { CityIdentity, CityObject } from "@/lib/league-city/types";
-import { BRAKE, carIntro } from "@/lib/league-city/intro";
+import { carIntro } from "@/lib/league-city/intro";
 import { approachRoads } from "@/lib/league-city/starter";
 import { APPROACH_LOTS } from "@/lib/league-city/identity-geometry";
 import IdentityLayer from "./identity/IdentityLayer";
-import TownIntro from "./identity/TownIntro";
+import TownIntro, { type IntroHandoff } from "./identity/TownIntro";
 import LeagueToys from "./LeagueToys";
 import LeagueRoads from "./LeagueRoads";
 import LeagueTrees from "./LeagueTrees";
@@ -299,19 +299,15 @@ function HeroFraming({ shiftPx }: { shiftPx?: number }) {
 }
 
 // The intro car drives in through the city's portal; it ends on the orbit's own frame
-// for this screen, so nothing jumps; or, when the drive takes over, behind the parked car.
-function IntroPlayer({ h, objects, color, drive, tallest, onEnd, onTick }: { h: number; objects: CityObject[]; color: string; drive: boolean; tallest: number; onEnd: () => void; onTick?: (t: number) => void }) {
+// for this screen, so nothing jumps; or, when the drive takes over, in the drive camera's view.
+function IntroPlayer({ h, objects, color, handoff, tallest, onEnd, onTick }: { h: number; objects: CityObject[]; color: string; handoff?: IntroHandoff; tallest: number; onEnd: () => void; onTick?: (t: number) => void }) {
   const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
   const [plan] = useState(() => {
     const f = cameraFrame(h, aspect);
     const portal = objects.find((o) => o.item_type === "portal");
-    return { intro: carIntro(portal?.pz ?? undefined, drive ? BRAKE : undefined), end: { pos: f.position.toArray(), look: f.target.toArray() } };
+    return { intro: carIntro(portal?.pz ?? undefined, !!handoff), end: { pos: f.position.toArray(), look: f.target.toArray() } };
   });
-  // The car's code loads while the intro plays, so the drive starts without a gap.
-  useEffect(() => {
-    if (drive) void import("./drive/DriveWorld");
-  }, [drive]);
-  return <TownIntro intro={plan.intro} end={plan.end} color={color} ceiling={tallest + 60} handoff={drive} onEnd={onEnd} onTick={onTick} />;
+  return <TownIntro intro={plan.intro} end={plan.end} color={color} ceiling={tallest + 60} handoff={handoff} poseRef={handoff?.pose} onEnd={onEnd} onTick={onTick} />;
 }
 
 // Grows its children up from the ground each time `k` changes (after
@@ -404,8 +400,8 @@ export interface LeagueSceneProps {
   /** The portal sign was clicked (report the logo). */
   onPortalClick?: () => void;
   /** First-visit intro; the camera is the intro's until onIntroEnd. */
-  /** n: a new number replays it. color: the intro car's paint. drive: the drive takes the car at the end. */
-  intro?: { n: number; color: string; drive?: boolean } | null;
+  /** n: a new number replays it. color: the intro car's paint. handoff: it plays in drive mode and hands you the car. */
+  intro?: { n: number; color: string; handoff?: IntroHandoff } | null;
   onIntroEnd?: () => void;
   /** Seconds into the intro, every frame. */
   onIntroTick?: (t: number) => void;
@@ -473,7 +469,7 @@ export default function LeagueScene({
   const tallest = useMemo(() => buildings.reduce((m, b) => Math.max(m, b.height), 0), [buildings]);
   const initial = useMemo(() => cameraFrame(h), [h]);
   const { theme, key: themeKey, fx: skyFx } = townTheme(identity?.sky ?? DEFAULT_SKY);
-  const playing = !!intro && mode === "view";
+  const playing = !!intro && (mode === "view" || (driving && !!intro.handoff));
   // The main street runs on outside the grid to the portal (drawn and driven, never edited).
   const approach = useMemo(() => approachRoads(objects), [objects]);
   const withApproach = useMemo(() => (approach.length ? [...objects, ...approach] : objects), [objects, approach]);
@@ -536,7 +532,7 @@ export default function LeagueScene({
         />
       )}
 
-      {playing && intro && <IntroPlayer key={intro.n} h={h} objects={objects} color={intro.color} drive={!!intro.drive} tallest={tallest} onEnd={onIntroEnd ?? (() => {})} onTick={onIntroTick} />}
+      {playing && intro && <IntroPlayer key={intro.n} h={h} objects={objects} color={intro.color} handoff={intro.handoff} tallest={tallest} onEnd={onIntroEnd ?? (() => {})} onTick={onIntroTick} />}
       <LeagueGround h={h} theme={theme} />
       {approach.length > 0 && <ApproachGround theme={theme} />}
       <Rise k={riseKey} delay={0}>

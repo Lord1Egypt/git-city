@@ -17,7 +17,8 @@ import { CONE, CRATE } from "@/lib/league-city/toys";
 import type { CityBuilding } from "@/lib/github";
 import type { CityObject } from "@/lib/league-city/types";
 import { buildColliders, colliderKey, type ColliderSpec } from "@/lib/league-city/drive/colliders";
-import { spawnPoint, type Spawn } from "@/lib/league-city/drive/spawn";
+import { spawnPoint } from "@/lib/league-city/drive/spawn";
+import type { IntroPose } from "@/lib/league-city/intro";
 import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { CHASSIS, GRAVITY, M_TO_UNIT, RESPAWN } from "@/lib/league-city/drive/tuning";
 import Car, { type CarApi } from "./Car";
@@ -46,8 +47,12 @@ export interface DriveWorldProps {
   buildings: CityBuilding[];
   h: number;
   viewerDevId: number | null;
-  /** Where the car first appears, when not the spawn (the town intro hands over its car). */
-  start?: Spawn | null;
+  /** The town intro is driving the car (see Car); input and the drive camera wait for it. */
+  scripted?: React.MutableRefObject<IntroPose | null>;
+  /** The intro still has the camera and the controls. */
+  cinematic?: boolean;
+  /** The intro handed the car over: the drive camera starts where it left off. */
+  seamless?: boolean;
   telemetry: DriveTelemetry;
   camera: DriveCameraMode;
   onCameraToggle: () => void;
@@ -201,7 +206,9 @@ export default function DriveWorld({
   buildings,
   h,
   viewerDevId,
-  start,
+  scripted,
+  cinematic = false,
+  seamless = false,
   telemetry,
   camera,
   onCameraToggle,
@@ -228,7 +235,7 @@ export default function DriveWorld({
   const dynamic = useMemo(() => specs.filter((s) => s.body === "dynamic"), [specs]);
   const spawn = useMemo(() => spawnPoint(objects, viewerDevId, h), [objects, viewerDevId, h]);
 
-  const input = useDriveInput(paused);
+  const input = useDriveInput(paused || cinematic);
   const car = useRef<CarApi | null>(null);
   const impact = useRef({ strength: 0, at: 0 });
   const fx = useRef(new Map<string, FxSource>());
@@ -320,7 +327,7 @@ export default function DriveWorld({
           ))}
           <Car
             spawn={spawn}
-            startAt={start ?? undefined}
+            scripted={scripted}
             objects={objects}
             buildings={buildings}
             h={h}
@@ -367,7 +374,7 @@ export default function DriveWorld({
           <Smoke sources={fx} />
           <BoostTrail sources={fx} />
           <DriveAudio car={car} input={input} impact={impact} muted={muted || paused} />
-          <DriveCamera mode={camera} car={car} impact={impact} />
+          {!cinematic && <DriveCamera mode={camera} car={car} impact={impact} seamless={seamless} />}
           <CameraKey input={input} onToggle={onCameraToggle} />
           <Ready onReady={onReady} />
         </Physics>

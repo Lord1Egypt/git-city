@@ -48,8 +48,7 @@ import { HillSignPanel, PlazaPanel, SkyPanel } from "@/components/league/hud/edi
 import ReportPanel from "@/components/league/hud/ReportPanel";
 import { MobileActionBar, MobileTownHeader } from "@/components/league/hud/MobileTownHud";
 import IntroOverlay, { OUTRO_MS } from "@/components/league/hud/IntroOverlay";
-import { BRAKE, carIntro } from "@/lib/league-city/intro";
-import type { Spawn } from "@/lib/league-city/drive/spawn";
+import { carIntro, type IntroPose } from "@/lib/league-city/intro";
 import { townDisplayName } from "@/lib/towns/names";
 import { formatLap } from "@/lib/league-city/race/laps";
 import TransitScreen from "@/components/league/hud/TransitScreen";
@@ -160,6 +159,14 @@ export default function LeagueClient({
   const [mode, setMode] = useState<SceneMode>(startEditing && isAdmin ? "edit" : "view");
   const editing = mode === "edit" || mode === "preview";
   const driving = mode === "drive";
+  // The town intro (below). Where you can drive (desktop) it is the drive's
+  // opening shot, as in Forza Horizon's prologue: drive mode starts with it,
+  // so the car loads while it plays, the car you watch is the one you get, and
+  // you get it still rolling when the bars pull back (skip lands on that
+  // moment). Until then it has the camera and the controls (cinematic).
+  const [intro, setIntro] = useState<{ n: number; color: string; drive: boolean; skip: number } | null>(null);
+  const introPose = useRef<IntroPose | null>(null);
+  const [cinematic, setCinematic] = useState(false);
   useTownVisit(league.slug, !!viewer && viewer.status !== "active" && viewer.status !== "invited", driving);
   const [store] = useState(() => createEditorStore(initEditor(city, !!city.identity.logoUrl)));
   // Identity from the server, with the hill sign side applied optimistically.
@@ -336,12 +343,12 @@ export default function LeagueClient({
     });
   }, []);
   const toggleCamera = useCallback(() => setDriveCamera((c) => (c === "chase" ? "top" : "chase")), []);
-  // Where the car first appears: the intro's parked car, else the spawn.
-  const [driveStart, setDriveStart] = useState<Spawn | null>(null);
-  const enterDrive = (start: Spawn | null = null) => {
+  // The drive started from the intro: its HUD teaches the controls and comes in on your first move.
+  const [firstDrive, setFirstDrive] = useState(false);
+  const enterDrive = useCallback(() => {
     setFocused(null);
     setPanel(null);
-    setDriveStart(start);
+    setFirstDrive(false);
     setDriveReady(false);
     setTelemetry({ speed: 0, boosting: false, near: null, held: null, gotAt: 0 });
     setPaused(false);
@@ -351,7 +358,7 @@ export default function LeagueClient({
       // storage blocked: sound stays on
     }
     setMode("drive");
-  };
+  }, []);
   const autoDrove = useRef(false);
   useEffect(() => {
     if (!startDriving || autoDrove.current) return;
@@ -359,21 +366,25 @@ export default function LeagueClient({
     window.history.replaceState(null, "", `/town/${league.slug}`);
     // After the first paint, from a callback: the scene mounts in view mode first.
     if (isDesktop()) window.setTimeout(enterDrive, 0);
-  }, [startDriving, league.slug]);
+  }, [startDriving, league.slug, enterDrive]);
   const exitDrive = useCallback(() => {
     setMode((m) => (m === "drive" ? "view" : m));
+    setFirstDrive(false);
     setDrivers([]);
     setCrownView(null);
   }, []);
   const onDriveReady = useCallback(() => setDriveReady(true), []);
   const onDriveFail = useCallback(() => {
     setMode((m) => (m === "drive" ? "view" : m));
+    // Mid-intro: the orbit flies home and the city's HUD comes back.
+    setIntro(null);
+    setCinematic(false);
     setViewNotice({ kind: "error", message: "Couldn't start the car.", seq: Date.now() });
   }, []);
 
   // Esc pauses; Esc again on the pause menu leaves the car.
   useEffect(() => {
-    if (!driving) return;
+    if (!driving || cinematic) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.preventDefault();
@@ -383,7 +394,7 @@ export default function LeagueClient({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [driving, paused, exitDrive, focused]);
+  }, [driving, cinematic, paused, exitDrive, focused]);
 
   // Live city while driving: pick up an admin's changes (walls, buildings, props).
   useEffect(() => {
@@ -412,7 +423,9 @@ export default function LeagueClient({
       driving
         ? {
             viewerDevId,
-            start: driveStart,
+            scripted: introPose,
+            cinematic,
+            seamless: firstDrive,
             telemetry,
             camera: driveCamera,
             onCameraToggle: toggleCamera,
@@ -428,7 +441,7 @@ export default function LeagueClient({
             onCrown: setCrownView,
           }
         : undefined,
-    [driving, viewerDevId, driveStart, telemetry, driveCamera, toggleCamera, muted, paused, onDriveReady, onDriveFail, league.slug, driverName],
+    [driving, viewerDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, paused, onDriveReady, onDriveFail, league.slug, driverName],
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
@@ -448,10 +461,8 @@ export default function LeagueClient({
   // ─── Intro ─────────────────────────────────────────────────
   // First visit to each town (localStorage, like the home), the ▶ button
   // replays it, Esc or the Skip button skips. A car drives in through the
-  // portal (TownIntro); the overlay adds the fade, letterbox and title. Where
-  // you can drive (desktop), it ends in the car: the drive takes it from where
-  // it stopped, as a game hands you the controls after its opening shot.
-  const [intro, setIntro] = useState<{ n: number; color: string; drive: boolean } | null>(null);
+  // portal (TownIntro); the overlay adds the fade, letterbox and title (the
+  // state lives up by the drive's, which it can start).
   const [hudEnter, setHudEnter] = useState(false);
 
   // ─── Cover ─────────────────────────────────────────────────
@@ -493,11 +504,10 @@ export default function LeagueClient({
   // Seconds into the intro, from the scene: the title follows it.
   const introClock = useRef(0);
   // When the intro car passes under the arch: the title's beat.
-  const introPlan = useMemo(
-    () => carIntro([...es.objects.values()].find((o) => o.item_type === "portal")?.pz ?? undefined, BRAKE),
+  const introCrossAt = useMemo(
+    () => carIntro([...es.objects.values()].find((o) => o.item_type === "portal")?.pz ?? undefined).crossAt,
     [es.objects],
   );
-  const introCrossAt = introPlan.crossAt;
   const onIntroTick = useCallback((t: number) => {
     introClock.current = t;
   }, []);
@@ -506,8 +516,14 @@ export default function LeagueClient({
     setPanel(null);
     introClock.current = 0;
     setHudEnter(false);
-    setIntro((prev) => ({ n: (prev?.n ?? 0) + 1, color: carColor(driverName), drive: isDesktop() }));
-  }, [driverName]);
+    const drive = isDesktop();
+    introPose.current = null;
+    if (drive) {
+      enterDrive();
+      setCinematic(true);
+    }
+    setIntro((prev) => ({ n: (prev?.n ?? 0) + 1, color: carColor(driverName), drive, skip: 0 }));
+  }, [driverName, enterDrive]);
   // After the scene: the title fades and the bars pull back (outro), then the
   // HUD comes in piece by piece (hudEnter).
   const [outro, setOutro] = useState<number | null>(null);
@@ -520,7 +536,7 @@ export default function LeagueClient({
     window.dispatchEvent(new CustomEvent("gc:radio-mode", { detail }));
   }, [cutscene]);
   useEffect(() => () => window.clearTimeout(outroTimer.current), []);
-  const endIntro = () => {
+  const endIntro = useCallback(() => {
     const cur = intro;
     if (!cur) return;
     setIntro(null);
@@ -530,10 +546,27 @@ export default function LeagueClient({
       setOutro(null);
       setHudEnter(true);
     }, OUTRO_MS);
-    // Same render as the intro going away, so the orbit never takes the camera back.
-    if (cur.drive) enterDrive({ x: introPlan.x, z: introPlan.stopZ, rot: 0 });
-  };
-  const skipIntro = endIntro;
+    if (cur.drive) {
+      // Your turn: the car is already yours and rolling.
+      setCinematic(false);
+      setFirstDrive(true);
+    }
+  }, [intro]);
+  const skipIntro = useCallback(() => {
+    if (intro?.drive) setIntro({ ...intro, skip: intro.skip + 1 });
+    else endIntro();
+  }, [intro, endIntro]);
+  const sceneIntro = useMemo(
+    () =>
+      intro
+        ? {
+            n: intro.n,
+            color: intro.color,
+            handoff: intro.drive ? { pose: introPose, ready: driveReady, skip: intro.skip } : undefined,
+          }
+        : null,
+    [intro, driveReady],
+  );
   const introChecked = useRef(false);
   useEffect(() => {
     if (introChecked.current || startEditing || startDriving || showJoinCta) return;
@@ -610,9 +643,10 @@ export default function LeagueClient({
     return () => window.clearTimeout(id);
   }, [isAdmin, startQuest, league.slug, saveQuest]);
   useEffect(() => {
-    if (mode === "drive") markQuest("drive");
+    // Once you have the car: not while the intro drives it.
+    if (mode === "drive" && !cinematic) markQuest("drive");
     if (mode === "edit") markQuest("build");
-  }, [mode, markQuest]);
+  }, [mode, cinematic, markQuest]);
   useEffect(() => {
     if (mode === "edit" && es.undo.length > 0) markQuest("place");
   }, [mode, es.undo.length, markQuest]);
@@ -694,7 +728,7 @@ export default function LeagueClient({
         h={es.h}
         identity={identity}
         name={league.name}
-        intro={intro}
+        intro={sceneIntro}
         onIntroEnd={endIntro}
         onIntroTick={onIntroTick}
         onPortalClick={!isMember ? () => {
@@ -807,8 +841,9 @@ export default function LeagueClient({
       )}
       {!editing && <EditorToasts notice={viewNotice} />}
 
-      {driving && (
+      {driving && !cinematic && (
         <DriveHud
+          firstRun={firstDrive}
           telemetry={telemetry}
           ready={driveReady}
           camera={driveCamera}

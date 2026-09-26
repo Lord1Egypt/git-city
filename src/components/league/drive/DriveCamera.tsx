@@ -10,7 +10,7 @@ import type { CarApi } from "./Car";
 // Chase camera: springs behind the car with a little lag, widens the FOV
 // with speed and boost, shakes on hard turns and impacts (never under
 // "reduce motion"). Top-down: high above, following. On enter it eases from
-// wherever the orbit camera was.
+// wherever the orbit camera was, unless the town intro left it in place.
 
 const ENTER = 1.4; // seconds of the ease from the orbit camera
 
@@ -28,15 +28,18 @@ export default function DriveCamera({
   mode,
   car,
   impact,
+  seamless = false,
 }: {
   mode: DriveCameraMode;
+  /** The town intro already framed the car like this camera does: no ease in. */
+  seamless?: boolean;
   car: React.MutableRefObject<CarApi | null>;
   /** Latest hit strength (0…1) and when it happened (performance.now ms). */
   impact: React.MutableRefObject<{ strength: number; at: number }>;
 }) {
   const get = useThree((s) => s.get);
   const start = useRef<{ pos: THREE.Vector3; look: THREE.Vector3; fov: number } | null>(null);
-  const t = useRef(0);
+  const t = useRef(seamless ? 1 : 0);
   const spring = useRef({ pos: new THREE.Vector3(), look: new THREE.Vector3(), ready: false });
   const calm = useRef(reducedMotion());
 

@@ -26,6 +26,7 @@ import {
 } from "@/lib/league-city/drive/vehicle";
 import CarModel from "./CarModel";
 import type { DriveInputRef } from "./useDriveInput";
+import type { IntroPose } from "@/lib/league-city/intro";
 
 // The drivable sedan. Physics runs in meters on a collider-only rigid body;
 // the visible car (city units) copies its interpolated pose every frame.
@@ -62,7 +63,7 @@ function freshState(turbo: boolean): CarState {
 
 export default function Car({
   spawn,
-  startAt,
+  scripted,
   objects,
   buildings,
   h,
@@ -80,8 +81,8 @@ export default function Car({
   children,
 }: {
   spawn: Spawn;
-  /** Where the car first appears, when not the spawn (the intro's parked car); R still goes to the spawn. */
-  startAt?: Spawn;
+  /** While set, the car rides this pose (the town intro, heading north) and ignores the physics; R still goes to the spawn. */
+  scripted?: React.MutableRefObject<IntroPose | null>;
   objects: CityObject[];
   buildings: CityBuilding[];
   h: number;
@@ -122,8 +123,10 @@ export default function Car({
 
   const start = useMemo(
     () => {
-      const s = startAt ?? spawn;
-      return { pos: [s.x * UNIT_TO_M, 0.4, s.z * UNIT_TO_M] as [number, number, number], heading: headingFromRot(s.rot) };
+      // On the intro car's wheels (the body's origin is the ground under it), not dropped in.
+      const p = scripted?.current;
+      if (p) return { pos: [p.x * UNIT_TO_M, 0, p.z * UNIT_TO_M] as [number, number, number], heading: headingFromRot(0) };
+      return { pos: [spawn.x * UNIT_TO_M, 0.4, spawn.z * UNIT_TO_M] as [number, number, number], heading: headingFromRot(spawn.rot) };
     },
     // The car spawns once; later spawn changes only matter for R.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -163,6 +166,17 @@ export default function Car({
     const c = controller.current;
     const body = bodyRef.current;
     if (!c || !body) return;
+    // The intro drives: on its line and at its speed, heading north; let go,
+    // the car keeps that speed and rolls on.
+    const sc = scripted?.current;
+    if (sc) {
+      const y = body.translation().y;
+      const h = headingFromRot(0);
+      body.setTranslation({ x: sc.x * UNIT_TO_M, y, z: sc.z * UNIT_TO_M }, true);
+      body.setRotation({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) }, true);
+      body.setLinvel({ x: 0, y: body.linvel().y, z: -sc.speed * UNIT_TO_M }, true);
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
     stepCar(c, state.current, input.current.input, w.timestep, gripRef.current);
     const p = body.translation();
     if (p.y < -10) reset();
