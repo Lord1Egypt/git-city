@@ -62,6 +62,7 @@ function freshState(turbo: boolean): CarState {
 
 export default function Car({
   spawn,
+  startAt,
   objects,
   buildings,
   h,
@@ -79,6 +80,8 @@ export default function Car({
   children,
 }: {
   spawn: Spawn;
+  /** Where the car first appears, when not the spawn (the intro's parked car); R still goes to the spawn. */
+  startAt?: Spawn;
   objects: CityObject[];
   buildings: CityBuilding[];
   h: number;
@@ -118,7 +121,10 @@ export default function Car({
   gripRef.current = gripAt;
 
   const start = useMemo(
-    () => ({ pos: [spawn.x * UNIT_TO_M, 0.4, spawn.z * UNIT_TO_M] as [number, number, number], heading: headingFromRot(spawn.rot) }),
+    () => {
+      const s = startAt ?? spawn;
+      return { pos: [s.x * UNIT_TO_M, 0.4, s.z * UNIT_TO_M] as [number, number, number], heading: headingFromRot(s.rot) };
+    },
     // The car spawns once; later spawn changes only matter for R.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],

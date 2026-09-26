@@ -48,7 +48,8 @@ import { HillSignPanel, PlazaPanel, SkyPanel } from "@/components/league/hud/edi
 import ReportPanel from "@/components/league/hud/ReportPanel";
 import { MobileActionBar, MobileTownHeader } from "@/components/league/hud/MobileTownHud";
 import IntroOverlay, { OUTRO_MS } from "@/components/league/hud/IntroOverlay";
-import { carIntro } from "@/lib/league-city/intro";
+import { BRAKE, carIntro } from "@/lib/league-city/intro";
+import type { Spawn } from "@/lib/league-city/drive/spawn";
 import { townDisplayName } from "@/lib/towns/names";
 import { formatLap } from "@/lib/league-city/race/laps";
 import TransitScreen from "@/components/league/hud/TransitScreen";
@@ -335,9 +336,12 @@ export default function LeagueClient({
     });
   }, []);
   const toggleCamera = useCallback(() => setDriveCamera((c) => (c === "chase" ? "top" : "chase")), []);
-  const enterDrive = () => {
+  // Where the car first appears: the intro's parked car, else the spawn.
+  const [driveStart, setDriveStart] = useState<Spawn | null>(null);
+  const enterDrive = (start: Spawn | null = null) => {
     setFocused(null);
     setPanel(null);
+    setDriveStart(start);
     setDriveReady(false);
     setTelemetry({ speed: 0, boosting: false, near: null, held: null, gotAt: 0 });
     setPaused(false);
@@ -408,6 +412,7 @@ export default function LeagueClient({
       driving
         ? {
             viewerDevId,
+            start: driveStart,
             telemetry,
             camera: driveCamera,
             onCameraToggle: toggleCamera,
@@ -423,7 +428,7 @@ export default function LeagueClient({
             onCrown: setCrownView,
           }
         : undefined,
-    [driving, viewerDevId, telemetry, driveCamera, toggleCamera, muted, paused, onDriveReady, onDriveFail, league.slug, driverName],
+    [driving, viewerDevId, driveStart, telemetry, driveCamera, toggleCamera, muted, paused, onDriveReady, onDriveFail, league.slug, driverName],
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
@@ -443,8 +448,10 @@ export default function LeagueClient({
   // ─── Intro ─────────────────────────────────────────────────
   // First visit to each town (localStorage, like the home), the ▶ button
   // replays it, Esc or the Skip button skips. A car drives in through the
-  // portal (TownIntro); the overlay adds the fade, letterbox and title.
-  const [intro, setIntro] = useState<{ n: number; color: string } | null>(null);
+  // portal (TownIntro); the overlay adds the fade, letterbox and title. Where
+  // you can drive (desktop), it ends in the car: the drive takes it from where
+  // it stopped, as a game hands you the controls after its opening shot.
+  const [intro, setIntro] = useState<{ n: number; color: string; drive: boolean } | null>(null);
   const [hudEnter, setHudEnter] = useState(false);
 
   // ─── Cover ─────────────────────────────────────────────────
@@ -486,10 +493,11 @@ export default function LeagueClient({
   // Seconds into the intro, from the scene: the title follows it.
   const introClock = useRef(0);
   // When the intro car passes under the arch: the title's beat.
-  const introCrossAt = useMemo(
-    () => carIntro([...es.objects.values()].find((o) => o.item_type === "portal")?.pz ?? undefined).crossAt,
+  const introPlan = useMemo(
+    () => carIntro([...es.objects.values()].find((o) => o.item_type === "portal")?.pz ?? undefined, BRAKE),
     [es.objects],
   );
+  const introCrossAt = introPlan.crossAt;
   const onIntroTick = useCallback((t: number) => {
     introClock.current = t;
   }, []);
@@ -498,7 +506,7 @@ export default function LeagueClient({
     setPanel(null);
     introClock.current = 0;
     setHudEnter(false);
-    setIntro((prev) => ({ n: (prev?.n ?? 0) + 1, color: carColor(driverName) }));
+    setIntro((prev) => ({ n: (prev?.n ?? 0) + 1, color: carColor(driverName), drive: isDesktop() }));
   }, [driverName]);
   // After the scene: the title fades and the bars pull back (outro), then the
   // HUD comes in piece by piece (hudEnter).
@@ -512,19 +520,19 @@ export default function LeagueClient({
     window.dispatchEvent(new CustomEvent("gc:radio-mode", { detail }));
   }, [cutscene]);
   useEffect(() => () => window.clearTimeout(outroTimer.current), []);
-  const endIntro = useCallback(() => {
-    setIntro((cur) => {
-      if (cur) {
-        setOutro(cur.n);
-        window.clearTimeout(outroTimer.current);
-        outroTimer.current = window.setTimeout(() => {
-          setOutro(null);
-          setHudEnter(true);
-        }, OUTRO_MS);
-      }
-      return null;
-    });
-  }, []);
+  const endIntro = () => {
+    const cur = intro;
+    if (!cur) return;
+    setIntro(null);
+    setOutro(cur.n);
+    window.clearTimeout(outroTimer.current);
+    outroTimer.current = window.setTimeout(() => {
+      setOutro(null);
+      setHudEnter(true);
+    }, OUTRO_MS);
+    // Same render as the intro going away, so the orbit never takes the camera back.
+    if (cur.drive) enterDrive({ x: introPlan.x, z: introPlan.stopZ, rot: 0 });
+  };
   const skipIntro = endIntro;
   const introChecked = useRef(false);
   useEffect(() => {
@@ -898,7 +906,7 @@ export default function LeagueClient({
                 }}
                 onEdit={isAdmin ? enterEdit : undefined}
                 onCover={isAdmin ? () => sendCover(false, true) : undefined}
-                onDrive={enterDrive}
+                onDrive={() => enterDrive()}
                 onRace={goRace}
                 raceRecord={raceRecord ? `Record @${raceRecord.login} ${formatLap(raceRecord.best_ms)}` : null}
                 drivingNow={watch.drivers.length}

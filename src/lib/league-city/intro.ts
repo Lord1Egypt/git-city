@@ -3,7 +3,8 @@
 // before the portal, with the camera riding behind it (drive mode's chase
 // view). Just after it passes the arch, the camera lifts to the scene's
 // normal frame while the car brakes to a stop up the main street, and the
-// orbit controls take over.
+// orbit controls take over. Where you can drive (desktop), the camera stays
+// behind the car while it brakes and the drive takes over from there instead.
 //
 // This file is the route and timing, pure and testable; TownIntro plays it.
 
@@ -16,6 +17,8 @@ export const LANE = 6;
 export const CRUISE = 38;
 /** Seconds for the camera to go from the chase view to the city frame. */
 export const RISE = 3.5;
+/** Seconds of braking when the drive takes over: the camera stays on the car. */
+export const BRAKE = 2.5;
 /** How far past the arch the camera lets go of the car. */
 const PAST_ARCH = 30;
 
@@ -34,13 +37,13 @@ export interface CarIntro {
   rise: number;
 }
 
-/** The drive, from the portal's z (the city's south edge). */
-export function carIntro(gateZ = LOT / 2): CarIntro {
+/** The drive, from the portal's z (the city's south edge); `rise` is also how long the car brakes. */
+export function carIntro(gateZ = LOT / 2, rise = RISE): CarIntro {
   const startZ = gateZ + APPROACH_LOTS * LOT - 16;
   const switchZ = gateZ - PAST_ARCH;
   // Braking from cruise to zero over the rise covers cruise × rise / 2.
-  const stopZ = switchZ - (CRUISE * RISE) / 2;
-  return { x: LANE, startZ, switchZ, stopZ, cruise: (startZ - switchZ) / CRUISE, crossAt: (startZ - gateZ) / CRUISE, rise: RISE };
+  const stopZ = switchZ - (CRUISE * rise) / 2;
+  return { x: LANE, startZ, switchZ, stopZ, cruise: (startZ - switchZ) / CRUISE, crossAt: (startZ - gateZ) / CRUISE, rise };
 }
 
 /** The car's z at time t (seconds), and its speed. */

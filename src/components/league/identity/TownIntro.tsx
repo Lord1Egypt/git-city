@@ -14,7 +14,8 @@ type Vec3 = [number, number, number];
 // Plays the town intro (lib/league-city/intro): a car drives in from far out
 // on the approach with the chase camera behind it; just past the arch the
 // camera lifts on a curve to the scene's frame while the car brakes to a stop,
-// and the orbit controls take over.
+// and the orbit controls take over. With `handoff` the camera stays behind the
+// car while it brakes, and the drive takes the car from where it stopped.
 
 /** Chase view, city units (drive mode's chase: 7 m back, 2.8 m up). */
 const BACK = 18;
@@ -53,6 +54,7 @@ export default function TownIntro({
   end,
   color,
   ceiling,
+  handoff = false,
   onEnd,
   onTick,
 }: {
@@ -61,6 +63,8 @@ export default function TownIntro({
   color: string;
   /** Height that clears every building: the camera goes up to it before swinging out. */
   ceiling: number;
+  /** The drive takes over at the stop: no rise, the chase view holds to the end. */
+  handoff?: boolean;
   onEnd: () => void;
   /** Seconds into the intro, every frame (the title follows this clock). */
   onTick?: (t: number) => void;
@@ -85,10 +89,17 @@ export default function TownIntro({
     chase(intro.x, intro.switchZ, cam.current.fromPos, cam.current.fromLook, far);
   }, [camera, intro, far]);
 
-  // Skipped: cut straight to the city frame, as games do.
+  // Skipped: cut straight to the city frame, as games do (behind the parked
+  // car when the drive takes over).
   useEffect(
     () => () => {
       if (state.current.ended) return;
+      if (handoff) {
+        chase(intro.x, intro.stopZ, _want, _look, far);
+        camera.position.copy(_want);
+        camera.lookAt(_look);
+        return;
+      }
       camera.position.copy(endPos);
       camera.lookAt(endLook);
       if (controls) {
@@ -96,7 +107,7 @@ export default function TownIntro({
         controls.update();
       }
     },
-    [camera, controls, endPos, endLook],
+    [camera, controls, endPos, endLook, handoff, intro, far],
   );
 
   useFrame((_, delta) => {
@@ -124,6 +135,15 @@ export default function TownIntro({
     }
 
     const c = cam.current;
+    if (handoff) {
+      chase(intro.x, z, _want, c.look, far, 1 - smooth(Math.min(1, st.t / (intro.cruise * SETTLE))));
+      camera.position.copy(_want);
+      camera.lookAt(c.look);
+      if (st.t < intro.cruise + intro.rise) return;
+      st.ended = true;
+      onEnd();
+      return;
+    }
     if (st.t <= intro.cruise) {
       const wide = 1 - smooth(Math.min(1, st.t / (intro.cruise * SETTLE)));
       chase(intro.x, z, _want, c.look, far, wide);

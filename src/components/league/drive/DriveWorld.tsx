@@ -17,7 +17,7 @@ import { CONE, CRATE } from "@/lib/league-city/toys";
 import type { CityBuilding } from "@/lib/github";
 import type { CityObject } from "@/lib/league-city/types";
 import { buildColliders, colliderKey, type ColliderSpec } from "@/lib/league-city/drive/colliders";
-import { spawnPoint } from "@/lib/league-city/drive/spawn";
+import { spawnPoint, type Spawn } from "@/lib/league-city/drive/spawn";
 import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { CHASSIS, GRAVITY, M_TO_UNIT, RESPAWN } from "@/lib/league-city/drive/tuning";
 import Car, { type CarApi } from "./Car";
@@ -46,6 +46,8 @@ export interface DriveWorldProps {
   buildings: CityBuilding[];
   h: number;
   viewerDevId: number | null;
+  /** Where the car first appears, when not the spawn (the town intro hands over its car). */
+  start?: Spawn | null;
   telemetry: DriveTelemetry;
   camera: DriveCameraMode;
   onCameraToggle: () => void;
@@ -199,6 +201,7 @@ export default function DriveWorld({
   buildings,
   h,
   viewerDevId,
+  start,
   telemetry,
   camera,
   onCameraToggle,
@@ -317,6 +320,7 @@ export default function DriveWorld({
           ))}
           <Car
             spawn={spawn}
+            startAt={start ?? undefined}
             objects={objects}
             buildings={buildings}
             h={h}
