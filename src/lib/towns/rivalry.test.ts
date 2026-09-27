@@ -62,10 +62,10 @@ describe("sideSwitch", () => {
 
 describe("timeUntil", () => {
   it("counts days and hours to the battle", () => {
-    expect(timeUntil(BATTLE_START, Date.parse("2026-09-27T04:00:00Z"))).toBe("7d 20h");
+    expect(timeUntil(BATTLE_START, BATTLE_START - (7 * 24 + 20) * 3_600_000)).toBe("7d 20h");
   });
   it("counts hours and minutes on the last day", () => {
-    expect(timeUntil(BATTLE_START, Date.parse("2026-10-04T20:30:00Z"))).toBe("3h 30m");
+    expect(timeUntil(BATTLE_START, BATTLE_START - 3.5 * 3_600_000)).toBe("3h 30m");
   });
   it("is empty once it started", () => {
     expect(timeUntil(BATTLE_START, BATTLE_START)).toBe("");

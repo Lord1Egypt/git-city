@@ -442,7 +442,7 @@ const HITBOX: Record<MonumentVariant, [number, number, number, number]> = {
 // ─── Monument ────────────────────────────────────────────────
 
 /**
- * The plaza monument. `teaser` (a date like "OCT 1") shows the pre-launch
+ * The plaza monument. `teaser` (a date like "OCT 8") shows the pre-launch
  * billboard; without an `onClick` the monument isn't clickable.
  */
 export default function TownMonument({

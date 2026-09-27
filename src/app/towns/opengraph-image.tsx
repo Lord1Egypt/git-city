@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { OG, building } from "@/lib/og/devHero";
-import { RIVALRY } from "@/lib/towns/rivalry";
+import { BATTLE_START, RIVALRY } from "@/lib/towns/rivalry";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const alt = "Claude vs Codex - Git City Towns";
@@ -17,8 +17,8 @@ const FOOTER_H = 78;
 const GROUND_Y = H - FOOTER_H;
 /** Counts under this read as empty: hide them, like Discover does. */
 const MIN_SHOWN = 10;
-/** The first battle week starts Monday, Oct 5 (00:00 UTC). */
-const FIRST_BATTLE = Date.UTC(2026, 9, 5);
+/** The first battle week (lib/towns/rivalry.ts). */
+const FIRST_BATTLE = BATTLE_START;
 
 function rgba(hex: string, a: number): string {
   return `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${a})`;
