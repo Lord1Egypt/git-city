@@ -72,6 +72,7 @@ export default function SpotClient({
   myBest,
   rivalLogin,
   challenger,
+  raceNow = false,
 }: {
   spotId: SpotId;
   viewerLogin: string | null;
@@ -80,6 +81,8 @@ export default function SpotClient({
   myBest: number | null;
   rivalLogin: string | null;
   challenger: string | null;
+  /** Came from "race this ghost" (?ghost=): skip the title, straight into 3-2-1 once the ghost is in. */
+  raceNow?: boolean;
 }) {
   const spot = getLiveSpot(spotId) as LiveSpot;
   const course = useMemo(() => courseOf(spot), [spot]);
@@ -138,17 +141,22 @@ export default function SpotClient({
 
   // The ghost to race.
   const [rivalName, setRivalName] = useState(rivalLogin);
-  const [rival, setRival] = useState<{ login: string; run: GhostRun; color: string } | null>(null);
+  const [rival, setRival] = useState<{ login: string; run: GhostRun; color: string; score: number } | null>(null);
+  // The ghost asked for has come in, or won't (none, or offline): the run can start.
+  const [rivalSettled, setRivalSettled] = useState(!rivalLogin);
   useEffect(() => {
     if (!rivalName) return;
     let live = true;
     fetch(`/api/drift/${spot.id}/ghost?login=${encodeURIComponent(rivalName)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ login: string; frames: Frames; splits: number[] }>) : null))
+      .then((r) => (r.ok ? (r.json() as Promise<{ login: string; score: number; frames: Frames; splits: number[] }>) : null))
       .then((g) => {
-        if (live && g) setRival({ login: g.login, run: toGhost(g.frames, g.splits), color: carColor(g.login) });
+        if (live && g) setRival({ login: g.login, run: toGhost(g.frames, g.splits), color: carColor(g.login), score: g.score });
       })
       .catch(() => {
         // offline: your own ghost only
+      })
+      .finally(() => {
+        if (live) setRivalSettled(true);
       });
     return () => {
       live = false;
@@ -186,6 +194,14 @@ export default function SpotClient({
 
   // Title → countdown: the 3-2-1 is the camera coming down onto the car (one shot, no flyover).
   const begin = useCallback(() => goStage("countdown", TRIAL.beatMs), [goStage]);
+  // "Race this ghost" from a board: no title, the countdown starts as soon as the world and the ghost are in.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!raceNow || autoStarted.current || !ready || !rivalSettled || trial.stage !== "menu") return;
+    autoStarted.current = true;
+    const t = setTimeout(begin, 300);
+    return () => clearTimeout(t);
+  }, [raceNow, ready, rivalSettled, trial.stage, begin]);
   useEffect(() => {
     if (!ready || paused) return;
     if (trial.stage === "menu") {
@@ -364,7 +380,7 @@ export default function SpotClient({
         )}
       </Canvas>
 
-      {ready && trial.stage === "menu" && (
+      {ready && trial.stage === "menu" && !raceNow && (
         <DriftTitle spot={spot} best={best} board={board} you={viewerLogin} rival={rival?.login ?? null} challenger={challenger} onStart={begin} onSpots={exit} />
       )}
 
@@ -394,6 +410,7 @@ export default function SpotClient({
         showGhosts={showGhosts}
         best={best}
         boardScores={boardScores}
+        rival={rival}
         onToggleGhosts={toggleGhosts}
         onToggleMute={toggleMute}
         onToggleCamera={toggleCamera}

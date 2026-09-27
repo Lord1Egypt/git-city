@@ -53,7 +53,7 @@ export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label, n
   color?: string;
   /** A name tag over it (a rival's login). */
   label?: string;
-  /** Where your car is (city units): the ghost fades out as you get close, so it never hides the line. */
+  /** Where your car is (city units): the ghost fades as you get close, so it never hides the line. */
   near?: () => { x: number; z: number } | null;
 }) {
   const group = useRef<THREE.Group>(null);
@@ -93,9 +93,9 @@ export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label, n
     g.rotation.set(0, p.yaw, 0);
     const me = near?.();
     if (me) {
-      // 0.38 from 12 m out, down to nothing within 4 m.
+      // 0.38 from 12 m out, down to a faint outline within 4 m (never gone: at the start it sits on your car).
       const d = Math.hypot(me.x - g.position.x, me.z - g.position.z) / M_TO_UNIT;
-      const k = Math.max(0, Math.min(1, (d - 4) / 8));
+      const k = 0.3 + 0.7 * Math.max(0, Math.min(1, (d - 4) / 8));
       g.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (mesh.isMesh && mesh.userData.ghosted) (mesh.material as THREE.Material).opacity = 0.38 * k;

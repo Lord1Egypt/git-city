@@ -83,6 +83,8 @@ export interface DriftHudProps {
   best: number | null;
   /** World board scores, best first (for the live rank). */
   boardScores: number[];
+  /** The ghost you race besides your own: named under the goal, so you know who the tag ahead is. */
+  rival?: { login: string; color: string; score: number } | null;
   onToggleGhosts: () => void;
   onToggleMute: () => void;
   onToggleCamera: () => void;
@@ -262,6 +264,16 @@ export default function DriftHud(p: DriftHudProps) {
                 <span ref={goalBar} className="block h-full w-full origin-left" />
               </span>
             </Band>
+            {p.rival && p.showGhosts && (
+              <Band animate={false} className="items-center justify-between gap-4 px-4 py-1.5" style={{ fontSize: T.small }}>
+                <span className="flex items-center gap-2">
+                  <span className="block h-2.5 w-2.5" style={{ background: p.rival.color }} />
+                  <span className="text-muted">vs</span>
+                  <span className="text-cream">@{p.rival.login}</span>
+                </span>
+                <span className="text-muted tabular-nums">{fmt(p.rival.score)}</span>
+              </Band>
+            )}
             <span ref={split} className="mt-2 self-start px-3 py-1 text-bg tabular-nums opacity-0 shadow-[0_6px_0_rgba(0,0,0,0.35)] transition-opacity" style={{ fontSize: T.mid }} />
           </div>
 

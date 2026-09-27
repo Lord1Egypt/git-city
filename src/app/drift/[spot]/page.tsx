@@ -15,7 +15,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { vs } = await searchParams;
   const spot = getLiveSpot(id);
   if (!spot) return { title: "Drift - Git City" };
-  const who = vs && /^[A-Za-z0-9-]{1,39}$/.test(vs) ? vs : null;
+  const who = vs && /^[A-Za-z0-9_-]{1,39}$/.test(vs) ? vs : null;
   const title = who ? `@${who} challenges you on ${spot.name} - Git City Drift` : `${spot.name} - Git City Drift`;
   const image = { url: `/drift/${spot.id}/og${who ? `?vs=${encodeURIComponent(who)}` : ""}`, width: 1200, height: 630, alt: `${spot.name} in Git City Drift` };
   return {
@@ -26,7 +26,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   };
 }
 
-const LOGIN = /^[A-Za-z0-9-]{1,39}$/;
+const LOGIN = /^[A-Za-z0-9_-]{1,39}$/;
 
 export default async function DriftSpotPage({ params, searchParams }: Props) {
   const { spot: id } = await params;
@@ -56,6 +56,7 @@ export default async function DriftSpotPage({ params, searchParams }: Props) {
       myBest={me?.score ?? null}
       rivalLogin={rival && rival.toLowerCase() !== viewer?.github_login.toLowerCase() ? rival : null}
       challenger={vs && LOGIN.test(vs) ? vs : null}
+      raceNow={!!ghost && LOGIN.test(ghost)}
     />
   );
 }
