@@ -1,7 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { getDevLeagues, getGlobalRanking } from "@/lib/leagues/queries";
+import { getDevLeagues, getTownRanking, type TownRankingRow } from "@/lib/leagues/queries";
 import type { Viewer } from "@/lib/leagues/service";
 import { leagueAssetUrl } from "@/lib/league-city/identity";
 import {
@@ -35,8 +35,15 @@ export interface GridTown extends TownCard {
   yours: boolean;
 }
 
+/** A row of the "This week" ranking: the town's place and its score. */
+export interface RankedTown extends TownRankingRow {
+  logoUrl: string | null;
+}
+
 export interface Discover {
   featured: FeaturedTown | null;
+  /** This week's town ranking (3+ members coding), best first, top 10. */
+  week: RankedTown[];
   yours: TownCard[];
   rows: Record<RowId, TownCard[]>;
   /** Every listed town, each once: biggest first. */
@@ -117,18 +124,21 @@ export async function getTownCatalog(): Promise<TownEntry[]> {
   }
 }
 
+const WEEK_LIMIT = 10;
+
 const getSharedRows = unstable_cache(
   async () => {
-    const [towns, ranking] = await Promise.all([getTownCatalog(), getGlobalRanking()]);
+    const [towns, ranking] = await Promise.all([getTownCatalog(), getTownRanking()]);
     const now = new Date();
     const staff = process.env.TOWN_OF_WEEK_OVERRIDE?.trim().toLowerCase() || null;
     const pick = pickFeatured(towns, now, staff);
-    const companies = ranking.rows.filter((r) => r.rank !== null).map((r) => r.league_id);
+    const ranked = ranking.rows.map((r) => r.league_id);
+    const top = ranking.rows.slice(0, WEEK_LIMIT);
     const rest = towns
       .filter((t) => t.buildings > 0)
       .sort((a, b) => b.buildings - a.buildings || b.visitors_7d - a.visitors_7d || a.slug.localeCompare(b.slug))
       .slice(0, 60);
-    const covers = await loadCovers(rest.map((t) => t.id)).catch((err) => {
+    const covers = await loadCovers([...new Set([...rest.map((t) => t.id), ...top.map((r) => r.league_id)])]).catch((err) => {
       console.error("[towns] covers failed:", err);
       return new Map<string, CoverInfo>();
     });
@@ -136,14 +146,15 @@ const getSharedRows = unstable_cache(
       featured: pick
         ? { ...toCard(pick.town, now), id: pick.town.id, totalBuildings: pick.town.buildings, reason: pick.reason }
         : null,
-      rows: selectRows(towns, { now, featuredId: pick?.town.id ?? null, companies }),
+      week: top.map((r) => ({ ...r, logoUrl: covers.get(r.league_id)?.logoUrl ?? null })),
+      rows: selectRows(towns, { now, featuredId: pick?.town.id ?? null, ranked }),
       all: rest.map((t) => {
         const c = covers.get(t.id);
         return { ...toCard(t, now), kind: t.kind, cover: c?.cover ?? null, logoUrl: c?.logoUrl ?? null, sky: c?.sky ?? 1, country: c?.country ?? null };
       }),
     };
   },
-  ["towns-discover-v6"],
+  ["towns-discover-v7"],
   { revalidate: 300 },
 );
 

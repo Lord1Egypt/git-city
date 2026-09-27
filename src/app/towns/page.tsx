@@ -8,6 +8,7 @@ import { getDiscover, type FeaturedTown } from "@/lib/towns/discover";
 import DiscoverHeader from "@/components/towns/DiscoverHeader";
 import TownHero from "@/components/towns/TownHero";
 import TownGrid from "@/components/towns/TownGrid";
+import WeekRanking from "@/components/towns/WeekRanking";
 import HeroDrive from "./hero-drive";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,10 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
 
       {discover.featured && hero ? <Hero featured={discover.featured} hero={hero} /> : <NoTowns />}
 
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">{discover.all.length > 0 && <TownGrid towns={discover.all} />}</div>
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <WeekRanking towns={discover.week} />
+        {discover.all.length > 0 && <TownGrid towns={discover.all} />}
+      </div>
     </main>
   );
 }
@@ -80,7 +84,7 @@ function NoTowns() {
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <h2 className="text-2xl text-cream sm:text-3xl">No towns yet</h2>
         <p className="mt-3 max-w-md text-sm leading-relaxed text-muted normal-case">
-          Start one for your team or friends. The town with the most visitors each week gets this spot.
+          Start one for your team or friends. The town that codes the most each week gets the monument in the center of Git City.
         </p>
         <Link href="/towns/new" className="btn-press mt-6 inline-block bg-lime px-6 py-3 text-sm tracking-widest text-bg">
           + Create a town
