@@ -23,7 +23,7 @@
 // - The finish banks whatever is at risk.
 
 import { CHASSIS } from "../league-city/drive/tuning";
-import { arcDelta, locate, locateNear, type Track } from "../league-city/race/track";
+import { arcDelta, locate, locateNear, pointAt, type Track } from "../league-city/race/track";
 import { TICK_MS, frameAt, frameCount, type Frame, type Frames } from "./frames";
 
 export const DRIFT_SCORE = {
@@ -53,7 +53,15 @@ export const DRIFT_SCORE = {
   clipPoints: 500,
   /** A corner of the car this close to a wall's face (m) is touching it. */
   wallSlack: 0.1,
+  /** Farther than this between two ticks (m) is a jump: the car can't move that fast (34 m/s). */
+  jump: 1.7,
 } as const;
+
+/** Where a respawn at checkpoint k puts the car: on the centerline, facing down the track. */
+export function respawnPose(track: Track, k: number): { x: number; z: number; heading: number } {
+  const p = pointAt(track, track.checkpoints[k]);
+  return { x: p.x, z: p.z, heading: Math.atan2(p.tx, p.tz) };
+}
 
 /**
  * A clipping point: a stretch of the course [s, s + len] on one side (1 left
@@ -78,7 +86,7 @@ export interface Course {
 
 export type DriftEvent =
   | { t: number; kind: "bank"; points: number }
-  | { t: number; kind: "lost"; points: number; why: "wall" | "spin" | "limiter" }
+  | { t: number; kind: "lost"; points: number; why: "wall" | "spin" | "limiter" | "respawn" }
   | { t: number; kind: "clip"; points: number; clip: number };
 
 export type AngleBand = "dead" | "ideal" | "over";
@@ -131,6 +139,11 @@ export class Scorer {
   private started = false;
   /** The car's center went past a wall (impossible when driven): the run can't be real. */
   outside = false;
+  /** Ticks where the car was put back on a checkpoint it had passed (Enter). */
+  readonly respawns: number[] = [];
+  /** The car jumped somewhere a respawn can't put it: the run can't be real. */
+  badJump = false;
+  private ticks = 0;
   state: DriftState;
 
   constructor(course: Course) {
@@ -152,6 +165,9 @@ export class Scorer {
     st.events = [];
     if (st.finished) return st;
     st.t = f.t;
+    const tick = this.ticks++;
+    const prev = this.recent[this.recent.length - 1];
+    if (prev && Math.hypot(f.x - prev.x, f.z - prev.z) > DRIFT_SCORE.jump) this.respawn(f, tick);
     this.recent.push(f);
     if (this.recent.length > 3) this.recent.shift();
 
@@ -244,6 +260,27 @@ export class Scorer {
     return st;
   }
 
+  /**
+   * A jump: legal only onto a checkpoint already passed, at its respawn pose.
+   * The chain at risk is lost and the car goes on from there.
+   */
+  private respawn(f: Frame, tick: number): void {
+    const st = this.state;
+    for (let k = this.nextCheckpoint - 1; k >= 0; k--) {
+      const p = respawnPose(this.track, k);
+      if (Math.hypot(f.x - p.x, f.z - p.z) > 1 || Math.abs(wrap(f.yaw - p.heading)) > 0.2) continue;
+      this.respawns.push(tick);
+      if (st.risk > 0) st.events.push({ t: f.t, kind: "lost", points: Math.round(st.risk), why: "respawn" });
+      this.reset();
+      this.recent.length = 0;
+      this.speeds.length = 0;
+      this.s = this.track.checkpoints[k];
+      st.progress = this.track.checkpoints[k];
+      return;
+    }
+    this.badJump = true;
+  }
+
   private within(c: Clip): boolean {
     return this.s >= c.s && this.s <= c.s + c.len;
   }
@@ -310,6 +347,10 @@ export interface RunScore {
   ms: number;
   /** The car's center was past a wall at some point. */
   outside: boolean;
+  /** Frame indices where the car respawned on a checkpoint. */
+  respawns: number[];
+  /** The car jumped somewhere a respawn can't put it. */
+  badJump: boolean;
 }
 
 /** Score a whole run. */
@@ -322,5 +363,5 @@ export function scoreRun(course: Course, frames: Frames): RunScore {
     events.push(...st.events);
     if (st.finished) break;
   }
-  return { score: sc.state.score, finished: sc.state.finished, splits: [...sc.state.splits], events, checkpoints: sc.checkpoint - 1, ms: sc.state.t, outside: sc.outside };
+  return { score: sc.state.score, finished: sc.state.finished, splits: [...sc.state.splits], events, checkpoints: sc.checkpoint - 1, ms: sc.state.t, outside: sc.outside, respawns: [...sc.respawns], badJump: sc.badJump };
 }

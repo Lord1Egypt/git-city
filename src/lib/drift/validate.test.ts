@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SPRINT, buildTrack, type TrackSpec } from "../league-city/race/track";
 import { TICK_MS, type Frames } from "./frames";
-import { scoreRun, type Course } from "./score";
+import { respawnPose, scoreRun, type Course } from "./score";
 import { validateRun } from "./validate";
 
 // A 300 m straight run: drive it at 90 km/h with two drifts.
@@ -85,5 +85,40 @@ describe("validateRun", () => {
     expect(validateRun(course, [1, 2, 3], 1, 0)).toEqual({ ok: false, reason: "shape" });
     expect(validateRun(course, frames, 1.5, 0)).toEqual({ ok: false, reason: "shape" });
     expect(validateRun(course, frames.map((v, i) => (i === 9 ? Number.NaN : v)), 1, 0)).toEqual({ ok: false, reason: "shape" });
+  });
+
+  it("accepts a respawn onto a checkpoint already passed, and loses the drift at risk", () => {
+    // Drifting at 5.5 s, the car is put back on checkpoint 2 (80 m) and drives on from there.
+    const pose = respawnPose(course.track, 2);
+    const f: Frames = [];
+    let z = slot.z;
+    let x = slot.x;
+    let yaw = 0;
+    let jumped = false;
+    for (let t = 0; t <= 20_000; t += TICK_MS) {
+      if (!jumped && t === 5500) {
+        jumped = true;
+        x = pose.x;
+        z = pose.z;
+        yaw = pose.heading;
+      }
+      const want = t > 2000 && t < 5500 ? 0.7 : 0;
+      yaw += Math.max(-0.15, Math.min(0.15, want - yaw));
+      f.push(t, Math.round(x * 100) / 100, Math.round(z * 100) / 100, Math.round(yaw * 1000) / 1000);
+      z += 25 * (TICK_MS / 1000);
+    }
+    const r = scoreRun(course, f);
+    expect(r.respawns).toHaveLength(1);
+    expect(r.events.some((e) => e.kind === "lost" && e.why === "respawn")).toBe(true);
+    expect(validateRun(course, f, r.score, 5000)).toMatchObject({ ok: true });
+  });
+
+  it("rejects a jump onto a checkpoint not reached yet", () => {
+    const pose = respawnPose(course.track, 6);
+    const f = [...frames];
+    f[20 * 4 + 1] = pose.x;
+    f[20 * 4 + 2] = pose.z;
+    f[20 * 4 + 3] = pose.heading;
+    expect(validateRun(course, f, real.score, 5000)).toEqual({ ok: false, reason: "speed" });
   });
 });

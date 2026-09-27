@@ -38,15 +38,19 @@ export function validateRun(course: Course, frames: unknown, claimed: unknown, m
   const slot = course.track.grid[0];
   if (Math.hypot(f[1] - slot.x, f[2] - slot.z) > VALIDATE.gridSlack) return { ok: false, reason: "grid" };
 
+  const r = scoreRun(course, f);
+  // Speed and turn rate between ticks, except onto a respawn (the scorer vouches for those).
   const dt = TICK_MS / 1000;
+  const respawned = new Set(r.respawns);
+  if (r.badJump) return { ok: false, reason: "speed" };
   for (let i = 1; i < n; i++) {
+    if (respawned.has(i)) continue;
     const a = (i - 1) * 4;
     const b = i * 4;
     if (Math.hypot(f[b + 1] - f[a + 1], f[b + 2] - f[a + 2]) > VALIDATE.maxSpeed * dt) return { ok: false, reason: "speed" };
     if (Math.abs(wrap(f[b + 3] - f[a + 3])) > VALIDATE.maxYawRate * dt) return { ok: false, reason: "turn" };
   }
 
-  const r = scoreRun(course, f);
   if (!r.finished) return { ok: false, reason: "unfinished" };
   if (r.outside) return { ok: false, reason: "outside" };
   if (r.checkpoints < course.track.checkpoints.length - 1) return { ok: false, reason: "checkpoints" };
