@@ -422,7 +422,7 @@ export interface LeagueSceneProps {
   /** Drive mode: the car and its world. */
   drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
   /** A rivalry town's floors (lib/league-city/smash): broken buildings draw as columns; color: the town's side, for the ghosts. */
-  smash?: { store: SmashStore; color: string; rivalColor: string } | null;
+  smash?: { store: SmashStore; color: string; rivalLogoUrl: string | null } | null;
   /** Fill the parent box instead of the viewport, and ignore the pointer (Discover's hero). */
   embedded?: boolean;
   /** A new value raises the city from the ground, streets first (the template picker). */
@@ -584,7 +584,7 @@ export default function LeagueScene({
           ghostColor={smashTown?.color}
         />
       </Rise>
-      {smashTown && !editing && <RubbleFlags store={smashTown.store} color={smashTown.rivalColor} />}
+      {smashTown && !editing && <RubbleFlags store={smashTown.store} logoUrl={smashTown.rivalLogoUrl} />}
       {watching && mode === "view" && !playing && watching.length > 0 && <WatchedCars cars={watching} />}
       {driving && drive && <DriveWorld objects={withApproach} buildings={buildings} h={h} smash={smash} {...drive} />}
       {coverRef && <CoverShot apiRef={coverRef} h={h} tallest={tallest} />}

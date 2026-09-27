@@ -147,7 +147,20 @@ export default function LeagueClient({
   // Rivalry towns: the other side drives through the buildings and knocks
   // their floors out (lib/league-city/smash). Everyone sees the damage.
   const smashColor = RIVALRY.find((r) => r.slug === league.slug)?.color ?? null;
-  const rivalColor = RIVALRY.find((r) => r.slug !== league.slug)?.color ?? "#ffffff";
+  const rivalSlug = smashColor ? (RIVALRY.find((r) => r.slug !== league.slug)?.slug ?? null) : null;
+  // The other side's logo, for its flag planted in our rubble.
+  const [rivalLogoUrl, setRivalLogoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!rivalSlug) return;
+    let live = true;
+    fetch(`/api/leagues/${rivalSlug}/city`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c: { identity?: { logoUrl?: string | null } } | null) => live && setRivalLogoUrl(c?.identity?.logoUrl ?? null))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [rivalSlug]);
   const showJoinCta = !isMember && (!!invite || !!inviteToken || viewer?.status === "invited");
   const joinKind = joinAction === "join" || joinAction === "ask" || joinAction === "pending" ? joinAction : null;
   const [panel, setPanel] = useState<PanelId>(showJoinCta || (startJoin && joinKind) ? "join" : null);
@@ -315,8 +328,8 @@ export default function LeagueClient({
   const buildings = useMemo(() => leagueBuildings(sceneObjects, byDevId), [sceneObjects, byDevId]);
   const smashStore = useMemo(() => (smashColor ? smashStoreFor(buildings) : null), [smashColor, buildings]);
   const smashTown = useMemo(
-    () => (smashStore && smashColor ? { store: smashStore, color: smashColor, rivalColor } : null),
-    [smashStore, smashColor, rivalColor],
+    () => (smashStore && smashColor ? { store: smashStore, color: smashColor, rivalLogoUrl } : null),
+    [smashStore, smashColor, rivalLogoUrl],
   );
   // The saved damage, once per store (the drive room sends changes from then on).
   useEffect(() => {

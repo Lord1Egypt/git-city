@@ -109,9 +109,25 @@ export function Billboard({ position, rot, map }: { position: [number, number]; 
 const SEG_X = 16;
 const SEG_Y = 8;
 
-/** Flag on a pole, the cloth waving on a sine. Both sides read left to right. */
-export function Flag({ position, rot, map, phase = 0 }: { position: [number, number]; rot: number; map: THREE.Texture; phase?: number }) {
-  const { poleH, pole, clothW: cw, clothH: ch } = FLAG;
+/** Flag on a pole, the cloth waving on a sine. Both sides read left to right. `cloth` (w, h) and `height` override the sizes. */
+export function Flag({
+  position,
+  rot,
+  map,
+  phase = 0,
+  cloth: size,
+  height,
+}: {
+  position: [number, number];
+  rot: number;
+  map: THREE.Texture;
+  phase?: number;
+  cloth?: [number, number];
+  height?: number;
+}) {
+  const { pole } = FLAG;
+  const poleH = height ?? FLAG.poleH;
+  const [cw, ch] = size ?? [FLAG.clothW, FLAG.clothH];
   const geo = useMemo(() => {
     const g = new THREE.PlaneGeometry(cw, ch, SEG_X, SEG_Y);
     g.translate(cw / 2, 0, 0);
