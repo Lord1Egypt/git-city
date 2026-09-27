@@ -6,9 +6,12 @@
 // falls in a few passes, a tall one in many. Knocked-out floors grow back on
 // their own, one row every `regenMs`.
 //
-// Everything is in city units. The store is shared by the drive world (which
-// hits it) and the building renderer (which draws it), so both ask `frame`
-// for the animated heights and the first call per timestamp advances them.
+// Everything is in city units, times are epoch ms. The store is shared by the
+// drive world (which hits it) and the building renderer (which draws it), so
+// both ask `frame` for the animated heights and the first call per timestamp
+// advances them. The drive room (party/drive.ts) keeps its own store as the
+// authority: it applies validated hits, grows floors back and sends the rows,
+// which clients take with `setRows`. Relative imports only (PartyKit bundles it).
 
 export const SMASH = {
   maxCols: 4,
@@ -56,6 +59,20 @@ export interface SmashTarget {
   zs: number[];
 }
 
+/** A saved building's damage (town_building_damage, as the smash API sends it). */
+export interface DamageEntry {
+  login: string;
+  /** Floors left per column. */
+  rows: number[];
+  /** Epoch ms the next time-based floor counts from. */
+  regenFrom: number;
+  /** The owner's week contributions at the last save, and now. */
+  contribBase: number;
+  contribNow: number;
+  /** Who took the last floor, while it lies in rubble. */
+  demolishedBy: string | null;
+}
+
 export interface SmashHit {
   /** Where the floor came off (units). */
   x: number;
@@ -64,6 +81,8 @@ export interface SmashHit {
   target: number;
   /** The building has no floors left. */
   down: boolean;
+  /** Column index inside the building. */
+  col: number;
 }
 
 /** Column edges: n columns across `windows` windows, cut on window lines. */
@@ -113,9 +132,12 @@ export class SmashStore {
   private lastTake = new Map<number, number>();
   private lastFrame = -1;
   private regenMs: number;
+  private changed = new Set<number>();
+  /** Who took the last floor of each building lying in rubble. */
+  readonly demolishedBy = new Map<number, string>();
 
-  constructor(buildings: readonly SmashSource[], regenMs: number = SMASH.regenMs) {
-    this.targets = buildings.map(toTarget);
+  constructor(targets: readonly SmashTarget[], regenMs: number = SMASH.regenMs) {
+    this.targets = [...targets];
     this.targets.forEach((t, i) => this.index.set(t.login, i));
     this.rows = new Uint8Array(this.targets.length * SMASH_SLOTS);
     this.shown = new Float32Array(this.targets.length * SMASH_SLOTS);
@@ -139,6 +161,136 @@ export class SmashStore {
   /** Damaged or still animating: the renderer draws these as columns. */
   isBroken(target: number): boolean {
     return this.damaged[target] === 1 || this.moving.has(target);
+  }
+
+  /** Targets whose floors changed since the last call (the room sends and saves these). */
+  takeChanged(): number[] {
+    const out = [...this.changed];
+    this.changed.clear();
+    return out;
+  }
+
+  /** Floors left per column of one building. */
+  rowsOf(target: number): number[] {
+    return Array.from({ length: cols(this.targets[target]) }, (_, c) => this.rows[target * SMASH_SLOTS + c]);
+  }
+
+  /** Epoch ms the building's next time-based floor counts from. */
+  regenFrom(target: number): number {
+    return this.since[target];
+  }
+
+  /** The damaged buildings, to send a newcomer or to save. */
+  snapshot(): { login: string; rows: number[]; regenFrom: number; demolishedBy: string | null }[] {
+    const out = [];
+    for (let i = 0; i < this.targets.length; i++) {
+      if (!this.damaged[i]) continue;
+      out.push({ login: this.targets[i].login, rows: this.rowsOf(i), regenFrom: this.since[i], demolishedBy: this.demolishedBy.get(i) ?? null });
+    }
+    return out;
+  }
+
+  /** Saved damage, with the floors grown back since (time and contributions). */
+  load(entries: readonly DamageEntry[], now: number) {
+    for (const e of entries) {
+      const i = this.index.get(e.login);
+      if (i === undefined) continue;
+      const back = Math.max(0, e.contribNow - e.contribBase);
+      this.setRows(i, e.rows.map((r) => r + back), now, e.regenFrom, false);
+      this.setBy(i, e.demolishedBy);
+      if (this.damaged[i]) this.regen(i, now);
+      for (let c = 0; c < cols(this.targets[i]); c++) this.shown[i * SMASH_SLOTS + c] = this.rows[i * SMASH_SLOTS + c];
+    }
+  }
+
+  /**
+   * The room's word on a building's floors. Fewer than drawn: the columns
+   * fall into the gap; more: they grow back. `animate` false snaps (a load).
+   */
+  setRows(target: number, rows: readonly number[], now: number, regenFrom?: number, animate = true) {
+    const t = this.targets[target];
+    let full = true;
+    let any = false;
+    for (let c = 0; c < cols(t); c++) {
+      const s = target * SMASH_SLOTS + c;
+      const r = Math.max(0, Math.min(t.floors, Math.round(rows[c] ?? t.floors)));
+      if (r < t.floors) full = false;
+      if (r === this.rows[s]) continue;
+      any = true;
+      if (r < this.rows[s]) {
+        const took = this.rows[s] - r;
+        this.shown[s] = animate ? Math.max(0, this.shown[s] - took) : r;
+        if (animate) this.drop[s] += took;
+      } else if (!animate) this.shown[s] = r;
+      this.rows[s] = r;
+    }
+    if (full) this.setBy(target, null);
+    if (!any) {
+      if (regenFrom !== undefined && this.damaged[target]) this.since[target] = regenFrom;
+      return;
+    }
+    this.mark(target, full, regenFrom ?? (this.damaged[target] ? this.since[target] : now));
+    if (!animate) {
+      this.moving.delete(target);
+      this.version++;
+    }
+  }
+
+  /** The room's full list: listed buildings take their floors, every other damaged one is whole again. */
+  applyAll(list: readonly (readonly [string, readonly number[], string | null])[], now: number) {
+    const listed = new Set<number>();
+    for (const [login, rows, by] of list) {
+      const i = this.index.get(login);
+      if (i === undefined) continue;
+      listed.add(i);
+      this.setRows(i, rows, now, undefined, false);
+      this.setBy(i, by);
+    }
+    for (let i = 0; i < this.targets.length; i++) {
+      if (this.damaged[i] && !listed.has(i)) this.setRows(i, [], now, undefined, false);
+    }
+  }
+
+  /** Names (or clears) who took a fallen building's last floor. */
+  setBy(target: number, by: string | null) {
+    if (by && this.standing(target) === 0) {
+      if (this.demolishedBy.get(target) === by) return;
+      this.demolishedBy.set(target, by);
+      this.version++;
+    } else if (this.demolishedBy.delete(target)) this.version++;
+  }
+
+  /** `n` floors back on every short column (a contribution, the owner parked by it). */
+  regrow(target: number, n: number) {
+    if (!this.damaged[target] || n <= 0) return;
+    const t = this.targets[target];
+    let full = true;
+    for (let c = 0; c < cols(t); c++) {
+      const s = target * SMASH_SLOTS + c;
+      this.rows[s] = Math.min(t.floors, this.rows[s] + n);
+      if (this.rows[s] < t.floors) full = false;
+    }
+    this.moving.add(target);
+    this.changed.add(target);
+    if (full) {
+      this.damaged[target] = 0;
+      this.setBy(target, null);
+    }
+  }
+
+  /** Book-keeping after a building's floors changed. */
+  private mark(target: number, full: boolean, since: number) {
+    this.changed.add(target);
+    this.moving.add(target);
+    if (full) {
+      this.damaged[target] = 0;
+      return;
+    }
+    if (!this.damaged[target]) {
+      this.damaged[target] = 1;
+      this.version++;
+    }
+    this.since[target] = since;
   }
 
   /** Logins of the buildings drawn broken right now. */
@@ -187,7 +339,7 @@ export class SmashStore {
    * cooldown, a column hit less than that long ago by the same source is
    * skipped (a car inside a column takes one floor per pass, not per frame).
    */
-  hitCircle(cx: number, cz: number, r: number, n: number, now: number, cooldownMs = 0): SmashHit[] {
+  hitCircle(cx: number, cz: number, r: number, n: number, now: number, cooldownMs = 0, by?: string): SmashHit[] {
     const hits: SmashHit[] = [];
     for (let i = 0; i < this.targets.length; i++) {
       const t = this.targets[i];
@@ -221,12 +373,58 @@ export class SmashStore {
             this.version++;
           }
           this.moving.add(i);
-          hits.push({ x: (x0 + x1) / 2, y: t.floorH / 2, z: (z0 + z1) / 2, target: i, down: false });
+          this.changed.add(i);
+          hits.push({ x: (x0 + x1) / 2, y: t.floorH / 2, z: (z0 + z1) / 2, target: i, down: false, col: c });
         }
       }
-      if (hits.length && hits[hits.length - 1].target === i && this.standing(i) === 0) hits[hits.length - 1].down = true;
+      if (hits.length && hits[hits.length - 1].target === i && this.standing(i) === 0) {
+        hits[hits.length - 1].down = true;
+        if (by) this.setBy(i, by);
+      }
     }
     return hits;
+  }
+
+  /**
+   * The room's side of a hit: takes `n` floors from the listed columns of one
+   * building. Returns how many floors came off and whether it fell with them.
+   */
+  hitColumns(target: number, columns: readonly number[], n: number, now: number, by?: string): { took: number; down: boolean } {
+    const t = this.targets[target];
+    const before = this.standing(target);
+    if (before === 0) return { took: 0, down: false };
+    if (this.damaged[target]) this.regen(target, now);
+    let took = 0;
+    for (const c of new Set(columns)) {
+      if (!Number.isInteger(c) || c < 0 || c >= cols(t)) continue;
+      const s = target * SMASH_SLOTS + c;
+      const k = Math.min(n, this.rows[s]);
+      if (k === 0) continue;
+      this.rows[s] -= k;
+      this.shown[s] = Math.max(0, this.shown[s] - k);
+      this.drop[s] += k;
+      took += k;
+    }
+    if (took === 0) return { took: 0, down: false };
+    if (!this.damaged[target]) {
+      this.damaged[target] = 1;
+      this.since[target] = now;
+      this.version++;
+    }
+    this.moving.add(target);
+    this.changed.add(target);
+    const down = this.standing(target) === 0;
+    if (down && by) this.setBy(target, by);
+    return { took, down };
+  }
+
+  /** Center (units) of a building's column. */
+  columnCenter(target: number, c: number): [number, number] {
+    const t = this.targets[target];
+    const nx = t.xs.length - 1;
+    const a = c % nx;
+    const b = Math.floor(c / nx);
+    return [t.x - t.w / 2 + ((t.xs[a] + t.xs[a + 1]) / 2) * t.w, t.z - t.d / 2 + ((t.zs[b] + t.zs[b + 1]) / 2) * t.d];
   }
 
   /** Floors left in the whole building. */
@@ -249,8 +447,17 @@ export class SmashStore {
       if (this.rows[s] < t.floors) full = false;
     }
     this.moving.add(i);
-    if (full) this.damaged[i] = 0;
+    this.changed.add(i);
+    if (full) {
+      this.damaged[i] = 0;
+      this.setBy(i, null);
+    }
   }
+}
+
+/** A store for these buildings (the client's, from the scene's CityBuildings). */
+export function smashStoreFor(buildings: readonly SmashSource[], regenMs?: number): SmashStore {
+  return new SmashStore(buildings.map(toTarget), regenMs);
 }
 
 export function cols(t: SmashTarget): number {
