@@ -11,24 +11,35 @@
 
 export const TRACK_ID = "sprint";
 
-export const TRACK = {
+/**
+ * A track's shape and dimensions. A closed track is a loop whose first point
+ * is the start line; an open one runs from its first point (the start) to its
+ * last (the finish), like a mountain pass.
+ */
+export interface TrackSpec {
+  id: string;
+  /** Control points (m), in the direction of travel. */
+  points: readonly (readonly [number, number])[];
+  closed: boolean;
   /** Asphalt width (m). */
-  width: 14,
+  width: number;
   /** Grass between the asphalt edge and the wall (m). */
-  runoff: 4,
-  wallThickness: 1,
+  runoff: number;
+  wallThickness: number;
   /** Wall collider height (m): nobody hops it. */
-  wallHeight: 4,
+  wallHeight: number;
   /** Curb width (m), laid outside the asphalt in corners. */
-  curb: 1.6,
+  curb: number;
   /** A checkpoint every this many meters; the start line is checkpoint 0. */
-  checkpointEvery: 40,
+  checkpointEvery: number;
   /** Split times at these checkpoints (index), like sectors. */
-  splits: [5, 10, 14],
+  splits: readonly number[];
   /** Grid slots behind the start line: first slot and the gap between rows (m). */
-  gridFirst: 8,
-  gridGap: 7,
-};
+  gridFirst: number;
+  gridGap: number;
+  /** A run only: meters of road past the finish line to brake on (the line sits this far before the end). */
+  runout?: number;
+}
 
 const SAMPLE = 2;
 
@@ -52,6 +63,25 @@ const POINTS: [number, number][] = [
   [-32.6, 84.1], [-24.6, 84.1], [-16.6, 84.1],
 ];
 
+/** The town race track (the time trial and live races). */
+export const SPRINT: TrackSpec = {
+  id: TRACK_ID,
+  points: POINTS,
+  closed: true,
+  width: 14,
+  runoff: 4,
+  wallThickness: 1,
+  wallHeight: 4,
+  curb: 1.6,
+  checkpointEvery: 40,
+  splits: [5, 10, 14],
+  gridFirst: 8,
+  gridGap: 7,
+};
+
+/** The town track's dimensions (kept for the race code that reads them directly). */
+export const TRACK = SPRINT;
+
 export interface TrackSample {
   x: number;
   z: number;
@@ -72,6 +102,9 @@ export interface GridSlot {
 }
 
 export interface Track {
+  spec: TrackSpec;
+  /** A loop (s wraps at length) or a run from start to finish (s clamps). */
+  closed: boolean;
   samples: TrackSample[];
   length: number;
   /** Checkpoint distances; [0] is the start line. */
@@ -105,41 +138,51 @@ function catmull(p0: number[], p1: number[], p2: number[], p3: number[], u: numb
   return [c[0], c[1]];
 }
 
-export function buildTrack(points: readonly [number, number][] = POINTS): Track {
+export function buildTrack(spec: TrackSpec = SPRINT): Track {
+  const points = spec.points;
+  const closed = spec.closed;
   const n = points.length;
+  const at = (i: number) => (closed ? points[(i + n) % n] : points[Math.max(0, Math.min(n - 1, i))]) as [number, number];
   // Dense polyline through the control points.
   const dense: [number, number][] = [];
-  for (let i = 0; i < n; i++) {
-    const p0 = points[(i - 1 + n) % n];
-    const p1 = points[i];
-    const p2 = points[(i + 1) % n];
-    const p3 = points[(i + 2) % n];
+  const segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const p0 = at(i - 1);
+    const p1 = at(i);
+    const p2 = at(i + 1);
+    const p3 = at(i + 2);
     for (let j = 0; j < 8; j++) dense.push(catmull(p0, p1, p2, p3, j / 8));
   }
+  if (!closed) dense.push([...at(n - 1)]);
   // Even spacing by arc length.
+  const edges = closed ? dense.length : dense.length - 1;
   const cum: number[] = [0];
-  for (let i = 1; i <= dense.length; i++) {
+  for (let i = 1; i <= edges; i++) {
     const a = dense[i - 1];
     const b = dense[i % dense.length];
     cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]));
   }
-  const total = cum[dense.length];
+  const total = cum[edges];
   const count = Math.round(total / SAMPLE);
   const length = count * SAMPLE;
+  // A loop's last sample sits one step before the start; a run ends on its finish.
+  const sampleCount = closed ? count : count + 1;
   const pts: [number, number][] = [];
   let j = 0;
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < sampleCount; i++) {
     const want = (i / count) * total;
-    while (cum[j + 1] < want) j++;
+    while (j < edges - 1 && cum[j + 1] < want) j++;
     const a = dense[j];
     const b = dense[(j + 1) % dense.length];
-    const w = (want - cum[j]) / Math.max(1e-9, cum[j + 1] - cum[j]);
+    const w = Math.min(1, (want - cum[j]) / Math.max(1e-9, cum[j + 1] - cum[j]));
     pts.push([a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w]);
   }
 
+  const m = pts.length;
+  const idx = (i: number) => (closed ? (i + m) % m : Math.max(0, Math.min(m - 1, i)));
   const samples: TrackSample[] = pts.map(([x, z], i) => {
-    const a = pts[(i - 1 + count) % count];
-    const b = pts[(i + 1) % count];
+    const a = pts[idx(i - 1)];
+    const b = pts[idx(i + 1)];
     const dx = b[0] - a[0];
     const dz = b[1] - a[1];
     const l = Math.hypot(dx, dz) || 1;
@@ -147,11 +190,12 @@ export function buildTrack(points: readonly [number, number][] = POINTS): Track 
   });
   // Curvature from the turn of the tangent over ±2 samples. Left of travel is
   // (tz, -tx); a left turn swings the tangent toward it.
-  for (let i = 0; i < count; i++) {
-    const a = samples[(i - 2 + count) % count];
-    const b = samples[(i + 2) % count];
+  for (let i = 0; i < m; i++) {
+    const a = samples[idx(i - 2)];
+    const b = samples[idx(i + 2)];
     const cross = a.tz * b.tx - a.tx * b.tz;
-    samples[i].k = Math.asin(Math.max(-1, Math.min(1, cross))) / (4 * SAMPLE);
+    const span = Math.max(1, idx(i + 2) - idx(i - 2)) * SAMPLE;
+    samples[i].k = Math.asin(Math.max(-1, Math.min(1, cross))) / (closed ? 4 * SAMPLE : span);
   }
 
   const cells = new Map<string, number[]>();
@@ -163,34 +207,44 @@ export function buildTrack(points: readonly [number, number][] = POINTS): Track 
   });
 
   const checkpoints: number[] = [];
-  for (let s = 0; s < length - TRACK.checkpointEvery / 2; s += TRACK.checkpointEvery) checkpoints.push(s);
+  const last = closed ? length : finishOf({ closed, length, spec });
+  for (let s = 0; s < last - spec.checkpointEvery / 2; s += spec.checkpointEvery) checkpoints.push(s);
 
-  const track: Track = { samples, length, checkpoints, grid: [], cells };
+  const track: Track = { spec, closed, samples, length, checkpoints, grid: [], cells };
   track.grid = gridSlots(track, 12);
   return track;
 }
 
 /** Staggered grid behind the start line: two columns, each slot half a row behind the last. */
 function gridSlots(t: Track, count: number): GridSlot[] {
+  const { gridFirst, gridGap, width } = t.spec;
   const out: GridSlot[] = [];
   for (let i = 0; i < count; i++) {
-    const s = t.length - (TRACK.gridFirst + i * (TRACK.gridGap / 2));
+    // A run has nothing behind its start: the grid stands well past the start gantry, so the camera behind the car never passes through it.
+    const back = gridFirst + i * (gridGap / 2);
+    const s = t.closed ? t.length - back : Math.min(t.length, 36 + i * (gridGap / 2));
     const p = pointAt(t, s);
     const side = i % 2 === 0 ? 1 : -1; // pole on the left of the grid
-    const off = side * (TRACK.width / 4);
+    const off = side * (width / 4);
     out.push({ x: p.x + p.tz * off, z: p.z - p.tx * off, heading: Math.atan2(p.tx, p.tz) });
   }
   return out;
 }
 
+/** Where the finish line is (m): the start line on a loop (it's crossed again), before the runout on a run. */
+export function finishOf(t: Pick<Track, "closed" | "length" | "spec">): number {
+  return t.closed ? t.length : Math.max(0, t.length - (t.spec.runout ?? 0));
+}
+
 /** Centerline point and tangent at distance s (wraps). */
 export function pointAt(t: Track, s: number): { x: number; z: number; tx: number; tz: number } {
   const L = t.length;
-  const u = (((s % L) + L) % L) / SAMPLE;
-  const i = Math.floor(u);
+  const n = t.samples.length;
+  const u = (t.closed ? ((s % L) + L) % L : Math.max(0, Math.min(L, s))) / SAMPLE;
+  const i = Math.min(Math.floor(u), t.closed ? n - 1 : n - 2);
   const w = u - i;
-  const a = t.samples[i % t.samples.length];
-  const b = t.samples[(i + 1) % t.samples.length];
+  const a = t.samples[i % n];
+  const b = t.samples[(i + 1) % n];
   const tx = a.tx + (b.tx - a.tx) * w;
   const tz = a.tz + (b.tz - a.tz) * w;
   const l = Math.hypot(tx, tz) || 1;
@@ -211,7 +265,8 @@ function refine(t: Track, i: number, x: number, z: number): TrackSpot {
   const p = t.samples[i];
   const along = (x - p.x) * p.tx + (z - p.z) * p.tz;
   const lateral = (x - p.x) * p.tz - (z - p.z) * p.tx;
-  const s = (((p.s + Math.max(-SAMPLE, Math.min(SAMPLE, along))) % t.length) + t.length) % t.length;
+  const raw = p.s + Math.max(-SAMPLE, Math.min(SAMPLE, along));
+  const s = t.closed ? ((raw % t.length) + t.length) % t.length : Math.max(0, Math.min(t.length, raw));
   return { s, lateral, i };
 }
 
@@ -250,6 +305,7 @@ export function locateNear(t: Track, x: number, z: number, s: number, back: numb
   let best = 0;
   let bestD = Infinity;
   for (let k = i0; k <= i1; k++) {
+    if (!t.closed && (k < 0 || k >= n)) continue;
     const i = ((k % n) + n) % n;
     const p = t.samples[i];
     const d = (p.x - x) ** 2 + (p.z - z) ** 2;
@@ -263,6 +319,7 @@ export function locateNear(t: Track, x: number, z: number, s: number, back: numb
 
 /** Signed shortest distance along the loop from a to b (m), in (-L/2, L/2]. */
 export function arcDelta(t: Track, a: number, b: number): number {
+  if (!t.closed) return b - a;
   const L = t.length;
   let d = (((b - a) % L) + L) % L;
   if (d > L / 2) d -= L;
@@ -270,7 +327,12 @@ export function arcDelta(t: Track, a: number, b: number): number {
 }
 
 /** Edge of the grass beyond which the wall starts (m from the centerline). */
-export const WALL_OFFSET = TRACK.width / 2 + TRACK.runoff + TRACK.wallThickness / 2;
+export const WALL_OFFSET = wallOffset(SPRINT);
+
+/** A track's wall line, m from the centerline. */
+export function wallOffset(spec: Pick<TrackSpec, "width" | "runoff" | "wallThickness">): number {
+  return spec.width / 2 + spec.runoff + spec.wallThickness / 2;
+}
 
 let cached: Track | null = null;
 /** The track, built once. */

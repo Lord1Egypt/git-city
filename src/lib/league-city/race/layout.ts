@@ -3,7 +3,7 @@
 // wall segments (physics and looks share them), curb runs, the start line,
 // grandstands, floodlights and trees. Meters, like track.ts.
 
-import { TRACK, WALL_OFFSET, pointAt, type Track } from "./track";
+import { pointAt, wallOffset, type Track } from "./track";
 
 export interface WallSegment {
   x: number;
@@ -23,18 +23,33 @@ export function offsetAt(t: Track, s: number, off: number): { x: number; z: numb
   return { x: p.x + p.tz * off, z: p.z - p.tx * off, tx: p.tx, tz: p.tz };
 }
 
-/** The walls on both sides, a segment every `every` m, overlapping so corners stay closed. */
+/**
+ * The walls on both sides, a segment every `every` m, overlapping so corners
+ * stay closed. A run (open track) also gets a wall across its start and its
+ * finish, so nobody drives off either end.
+ */
 export function wallSegments(t: Track, every = 6): WallSegment[] {
   const out: WallSegment[] = [];
+  const off = wallOffset(t.spec);
+  const thick = t.spec.wallThickness;
   const n = Math.round(t.length / every);
   for (const side of [1, -1] as const) {
     for (let i = 0; i < n; i++) {
-      const a = offsetAt(t, (i * t.length) / n, side * WALL_OFFSET);
-      const b = offsetAt(t, ((i + 1) * t.length) / n, side * WALL_OFFSET);
+      const a = offsetAt(t, (i * t.length) / n, side * off);
+      const b = offsetAt(t, ((i + 1) * t.length) / n, side * off);
       const dx = b.x - a.x;
       const dz = b.z - a.z;
       const len = Math.hypot(dx, dz);
-      out.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, len: len + TRACK.wallThickness, rotY: Math.atan2(dx, dz), side, i });
+      out.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, len: len + thick, rotY: Math.atan2(dx, dz), side, i });
+    }
+  }
+  if (!t.closed) {
+    // End caps a few meters past each end, square to the track.
+    for (const [s, back] of [[0, -8], [t.length, 8]] as const) {
+      const p = pointAt(t, s);
+      const x = p.x + p.tx * back;
+      const z = p.z + p.tz * back;
+      out.push({ x, z, len: 2 * off + thick, rotY: Math.atan2(p.tz, -p.tx), side: 1, i: -1 });
     }
   }
   return out;
@@ -47,17 +62,19 @@ const CURB_K = 1 / 70;
 export function curbRuns(t: Track): [number, number][] {
   const runs: [number, number][] = [];
   const n = t.samples.length;
-  // Start the scan on a straight bit so no run wraps past the end.
-  let first = t.samples.findIndex((p) => Math.abs(p.k) < CURB_K);
+  // Start a loop's scan on a straight bit so no run wraps past the end; a run scans start to finish.
+  let first = t.closed ? t.samples.findIndex((p) => Math.abs(p.k) < CURB_K) : 0;
   if (first < 0) first = 0;
+  const step = t.closed ? t.length / n : t.length / (n - 1);
+  const last = t.closed ? n : n - 1;
   let open: number | null = null;
-  for (let k = 0; k <= n; k++) {
+  for (let k = 0; k <= last; k++) {
     const p = t.samples[(first + k) % n];
-    const s = t.samples[first].s + k * (t.length / n);
-    const on = Math.abs(p.k) >= CURB_K;
-    if (on && open === null) open = s - 8;
+    const s = t.samples[first].s + k * step;
+    const on = Math.abs(p.k) >= CURB_K && !(k === last && !t.closed);
+    if (on && open === null) open = Math.max(t.closed ? -Infinity : 0, s - 8);
     if (!on && open !== null) {
-      runs.push([open, s + 8]);
+      runs.push([open, t.closed ? s + 8 : Math.min(t.length, s + 8)]);
       open = null;
     }
   }
@@ -121,7 +138,7 @@ export function treeSpots(t: Track, count: number): { x: number; z: number; scal
   for (let i = 0; out.length < count && i < count * 20; i++) {
     const x = minX - pad + hash(i * 2) * (maxX - minX + 2 * pad);
     const z = minZ - pad + hash(i * 2 + 1) * (maxZ - minZ + 2 * pad);
-    if (!clearOfTrack(t, x, z, WALL_OFFSET + 10)) continue;
+    if (!clearOfTrack(t, x, z, wallOffset(t.spec) + 10)) continue;
     out.push({ x, z, scale: 0.7 + hash(i * 7) * 0.8 });
   }
   return out;

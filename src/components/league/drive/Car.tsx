@@ -55,9 +55,10 @@ const _axisX = new THREE.Vector3(1, 0, 0);
 const _axisY = new THREE.Vector3(0, 1, 0);
 const _spin = new THREE.Quaternion();
 
-function freshState(turbo: boolean): CarState {
+function freshState(turbo: boolean, driftMode: boolean): CarState {
   const s = newCarState();
   s.turbo = turbo;
+  s.driftMode = driftMode;
   return s;
 }
 
@@ -78,6 +79,7 @@ export default function Car({
   surface,
   respawnAt,
   turbo = false,
+  driftMode = false,
   children,
 }: {
   spawn: Spawn;
@@ -105,6 +107,8 @@ export default function Car({
   respawnAt?: React.MutableRefObject<Spawn | null>;
   /** No Shift boost: drifts charge a mini-turbo instead (the race track). */
   turbo?: boolean;
+  /** The drift spots: the driver holds the drift's angle (vehicle.ts). */
+  driftMode?: boolean;
   /** Rendered inside the visible car (lights). */
   children?: React.ReactNode;
 }) {
@@ -113,7 +117,7 @@ export default function Car({
   const rigidObj = useRef<THREE.Object3D>(null);
   const group = useRef<THREE.Group>(null);
   const wheelRefs = useRef<(THREE.Object3D | null)[]>([]);
-  const state = useRef<CarState>(freshState(turbo));
+  const state = useRef<CarState>(freshState(turbo, driftMode));
   const controller = useRef<VehicleController | null>(null);
 
   const surfaces = useMemo(() => surfaceIndex(objects), [objects]);
@@ -158,7 +162,7 @@ export default function Car({
     if (!body) return;
     const s = respawnAt?.current ?? spawnRef.current;
     placeCar(body, s.x * UNIT_TO_M, s.z * UNIT_TO_M, headingFromRot(s.rot));
-    state.current = freshState(turbo);
+    state.current = freshState(turbo, driftMode);
     onReset?.();
   };
 
