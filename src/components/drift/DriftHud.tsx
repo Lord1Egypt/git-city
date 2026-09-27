@@ -355,6 +355,28 @@ export default function DriftHud(p: DriftHudProps) {
 
 function Pause(p: DriftHudProps & { medals: [Medal, number][] }) {
   const next = [...p.medals].reverse().find(([, at]) => p.best === null || at > p.best) ?? null;
+  // The keys the menu shows: R starts over, Enter goes back to the last checkpoint (Esc and Q live on the page).
+  const cb = useRef(p);
+  useEffect(() => {
+    cb.current = p;
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      const q = cb.current;
+      if (e.code === "KeyR") {
+        e.preventDefault();
+        q.onPause(false);
+        q.onRestart();
+      } else if ((e.code === "Enter" || e.code === "NumpadEnter") && q.stage === "run") {
+        e.preventDefault();
+        q.onPause(false);
+        q.onRespawn();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const row = "drift-band flex items-center gap-4 px-5 py-3 shadow-[0_6px_0_rgba(0,0,0,0.35)]";
   return (
     <div className="pointer-events-auto absolute inset-0">

@@ -2,7 +2,7 @@
 
 import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { CuboidCollider, Physics, RigidBody } from "@react-three/rapier";
+import { CuboidCollider, Physics, RigidBody, useBeforePhysicsStep } from "@react-three/rapier";
 import * as THREE from "three";
 import Car, { type CarApi } from "@/components/league/drive/Car";
 import Lights from "@/components/league/drive/Lights";
@@ -93,6 +93,12 @@ class Boundary extends Component<{ onFail: () => void; children: ReactNode }, { 
   }
 }
 
+/** Calls `step` before every physics step: only while the world really runs. */
+function PhysicsTick({ step }: { step: React.MutableRefObject<() => void> }) {
+  useBeforePhysicsStep(() => step.current());
+  return null;
+}
+
 function Ready({ onReady }: { onReady: () => void }) {
   useEffect(() => onReady(), [onReady]);
   return null;
@@ -181,6 +187,15 @@ export default function DriftWorld({
   const finished = useRef(false);
   const stats = useRef({ banks: 0, lost: 0, clips: 0, bestChain: 0 });
   const count = useRef({ at: 0, beat: -1 });
+  const pausedRef = useRef(paused || hidden);
+  useEffect(() => {
+    pausedRef.current = paused || hidden;
+  }, [paused, hidden]);
+  // A restart or respawn asked for (the pause menu, the results): done on the next
+  // physics step, so a car moved while the world is still paused isn't put back.
+  const pendingRestart = useRef(false);
+  const pendingRespawn = useRef(false);
+  const physicsStep = useRef<() => void>(() => {});
 
   const stageRef = useRef({ stage, at: stageAt, beat: beatMs });
   useEffect(() => {
@@ -239,12 +254,13 @@ export default function DriftWorld({
     if (st !== "menu" && st !== "intro") cb.current.onStage("countdown", TRIAL.beatMs);
   }, [clearRun]);
   useEffect(() => {
+    // Applied on the next frame the physics runs: from the pause menu the world is
+    // still paused, and a car moved then is put back where it was.
     restartRef.current = () => {
-      toGrid();
-      onReset();
+      pendingRestart.current = true;
     };
     return () => void (restartRef.current = null);
-  }, [restartRef, toGrid, onReset]);
+  }, [restartRef]);
 
   /** One tick into the scorer: the HUD's numbers, the feed, the splits, the finish. */
   const stepRef = useRef<(f: Frame) => void>(() => {});
@@ -297,9 +313,25 @@ export default function DriftWorld({
     for (const f of recorder.current.snap(performance.now(), pose.x, pose.z, pose.heading)) stepRef.current(f);
   }, [track]);
   useEffect(() => {
-    respawnRef.current = respawn;
+    physicsStep.current = () => {
+      if (pendingRestart.current) {
+        pendingRestart.current = false;
+        pendingRespawn.current = false;
+        toGrid();
+        onReset();
+      } else if (pendingRespawn.current) {
+        pendingRespawn.current = false;
+        respawn();
+      }
+    };
+  }, [toGrid, onReset, respawn]);
+  useEffect(() => {
+    // From the pause menu the world is paused: the respawn waits for the next frame it runs.
+    respawnRef.current = () => {
+      pendingRespawn.current = true;
+    };
     const onKey = (e: KeyboardEvent) => {
-      if ((e.code === "Enter" || e.code === "NumpadEnter") && !e.repeat) respawn();
+      if ((e.code === "Enter" || e.code === "NumpadEnter") && !e.repeat && !pausedRef.current) respawn();
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -313,6 +345,7 @@ export default function DriftWorld({
     const c = car.current;
     const hud = tel.current;
     if (!c) return;
+
     const now = performance.now();
     const sg = stageRef.current;
     hud.countdown = null;
@@ -352,6 +385,7 @@ export default function DriftWorld({
       );
     }
 
+    if (autodrive) (window as unknown as { __drift?: unknown }).__drift = { x: c.body.translation().x, z: c.body.translation().z, stage: sg.stage };
     if (autodrive && sg.stage === "run") {
       const p0 = c.body.translation();
       override(input, autopilot(track, pilot.current, p0.x, p0.z, carHeading(c.body), c.state.speed));
@@ -408,6 +442,7 @@ export default function DriftWorld({
           {rival && <Ghost run={rivalRun} lapStart={ghostClock} offset={zero} show={pbShow} color={rival.color} label={`@${rival.login}`} />}
           <DriftCamera car={car} mode={camera} stage={stage} stageAt={stageAt} countdownMs={beatMs * TRIAL.beats} />
           <CameraKey input={input} onToggle={onCameraToggle} />
+          <PhysicsTick step={physicsStep} />
           <Ready onReady={onReady} />
         </Physics>
       </Suspense>
