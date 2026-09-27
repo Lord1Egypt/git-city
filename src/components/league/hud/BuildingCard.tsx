@@ -74,10 +74,13 @@ export default function BuildingCard({
       {/* Nav hints, desktop only */}
       <div className={`pointer-events-none fixed bottom-6 right-6 z-30 hidden text-right text-[9px] leading-loose text-muted ${driving ? "" : "sm:block"}`}>
         <div>
-          <span className="text-cream">Drag</span> orbit
+          <span className="text-cream">Drag</span> move
         </div>
         <div>
           <span className="text-cream">Scroll</span> zoom
+        </div>
+        <div>
+          <span className="text-cream">Right-drag</span> rotate
         </div>
         <div>
           <span className="text-lime">ESC</span> close

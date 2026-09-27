@@ -59,6 +59,8 @@ import { freshQuest, nextStep, parseQuest, questKey, questSteps, type QuestState
 import { chime } from "@/lib/sfx/chime";
 import { useDriveWatch } from "@/components/league/drive/useDriveWatch";
 import { RIVALRY } from "@/lib/towns/rivalry";
+import MapNavControls from "@/components/MapNavControls";
+import { createCameraStore } from "@/lib/map-nav";
 import { smashStoreFor, type DamageEntry } from "@/lib/league-city/smash";
 import { applyRoomDamage } from "@/lib/league-city/smash-net";
 import { useTownBots } from "@/components/league/drive/useTownBots";
@@ -84,6 +86,7 @@ const LeagueScene = dynamic(() => import("@/components/league/LeagueScene"), {
 const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"), { ssr: false });
 
 const MUTE_KEY = "gc:drive-muted";
+const LIME = "#c8e64a";
 
 /** While driving, check for city changes (an admin's Done) this often. */
 const DRIVE_POLL_MS = 5000;
@@ -144,6 +147,8 @@ export default function LeagueClient({
 }) {
   const { league, members, viewer } = data;
   const isMember = viewer?.status === "active";
+  // Where the explore camera looks, for the compass (set by LeagueScene's camera).
+  const [navCamera] = useState(() => createCameraStore());
   // Rivalry towns: the other side drives through the buildings and knocks
   // their floors out (lib/league-city/smash). Everyone sees the damage.
   const smashColor = RIVALRY.find((r) => r.slug === league.slug)?.color ?? null;
@@ -796,6 +801,7 @@ export default function LeagueClient({
         smash={smashTown}
         watching={watchedCars}
         coverRef={coverApi}
+        navCamera={navCamera}
       >
         {mode === "edit" && (
           <EditorOverlay
@@ -909,6 +915,17 @@ export default function LeagueClient({
       {/* HUD: the wrappers ignore the pointer so the city stays draggable. */}
       {!editing && !driving && !intro && outro === null && (
         <>
+          {/* The main city's compass and zoom buttons, and its controls hints (no card open). */}
+          <MapNavControls camera={navCamera} accent={smashColor ?? LIME} showPlaces={false} />
+          {!focused && (
+            <div className="pointer-events-none fixed bottom-20 left-4 z-30 hidden font-pixel text-[9px] uppercase leading-loose text-muted sm:block">
+              <div><span className="text-cream">Drag</span> move</div>
+              <div><span className="text-cream">Scroll</span> zoom</div>
+              <div><span className="text-cream">Right-drag</span> rotate</div>
+              <div><span className="text-cream">Double-click</span> zoom in</div>
+              <div><span className="text-cream">Click</span> building</div>
+            </div>
+          )}
           <div className="pointer-events-none fixed left-4 top-4 z-30 flex flex-col gap-3 max-sm:hidden" style={hudEnter ? { animation: "fade-in 0.45s ease-out both" } : undefined}>
             <LeagueTitle data={data} badges={badges} logoUrl={identity.logoUrl} place={place} pendingRequests={pendingRequests} />
             {questCard}
