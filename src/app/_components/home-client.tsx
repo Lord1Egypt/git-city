@@ -80,6 +80,7 @@ import {
 import posthog from "posthog-js";
 import { SHOW_TOWNS, TOWNS_LAUNCH_LABEL } from "@/lib/towns/visibility";
 import TownMonument, { MONUMENT_VARIANT } from "@/components/towns/TownMonument";
+import TownsTeaserCard from "@/components/towns/TownsTeaserCard";
 import type { TownOfWeek } from "@/lib/towns/weekly";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
@@ -857,6 +858,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
   const [jobPanelOpen, setJobPanelOpen] = useState(false);
   const [jobPreview, setJobPreview] = useState<Array<{ id: string; title: string; salary_min: number; salary_max: number; salary_currency: string; tier: string; seniority: string; role_type: string; company: { name: string } | null }>>([]);
   const [pillModalOpen, setPillModalOpen] = useState(false);
+  const [townsTeaserOpen, setTownsTeaserOpen] = useState(false);
   const [founderMessageOpen, setFounderMessageOpen] = useState(false);
   const [eArcadeOpen, setEArcadeOpen] = useState(false);
   const [pixelBalance, setPixelBalance] = useState<number | null>(null);
@@ -3000,7 +3002,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
               onClick={() => router.push(townOfWeek ? `/town/${townOfWeek.slug}` : "/towns/new")}
             />
           ) : (
-            <TownMonument town={null} variant={MONUMENT_VARIANT} teaser={TOWNS_LAUNCH_LABEL} />
+            <TownMonument town={null} variant={MONUMENT_VARIANT} teaser={TOWNS_LAUNCH_LABEL} onClick={() => setTownsTeaserOpen(true)} />
           )
         }
         rabbitSighting={rabbitSighting}
@@ -6712,6 +6714,8 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
           }}
         />
       )}
+
+      {townsTeaserOpen && <TownsTeaserCard onClose={() => setTownsTeaserOpen(false)} />}
 
       {/* Founder's Landmark modals */}
       {pillModalOpen && (
