@@ -20,7 +20,7 @@ import { approachRoads } from "@/lib/league-city/starter";
 import { APPROACH_LOTS } from "@/lib/league-city/identity-geometry";
 import type { SmashStore } from "@/lib/league-city/smash";
 import IdentityLayer from "./identity/IdentityLayer";
-import RubbleLabels from "./RubbleLabels";
+import RubbleFlags from "./RubbleFlags";
 import TownIntro, { type IntroHandoff } from "./identity/TownIntro";
 import LeagueToys from "./LeagueToys";
 import LeagueRoads from "./LeagueRoads";
@@ -584,7 +584,7 @@ export default function LeagueScene({
           ghostColor={smashTown?.color}
         />
       </Rise>
-      {smashTown && !editing && <RubbleLabels store={smashTown.store} color={smashTown.rivalColor} />}
+      {smashTown && !editing && <RubbleFlags store={smashTown.store} color={smashTown.rivalColor} />}
       {watching && mode === "view" && !playing && watching.length > 0 && <WatchedCars cars={watching} />}
       {driving && drive && <DriveWorld objects={withApproach} buildings={buildings} h={h} smash={smash} {...drive} />}
       {coverRef && <CoverShot apiRef={coverRef} h={h} tallest={tallest} />}
