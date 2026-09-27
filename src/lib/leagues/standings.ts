@@ -4,8 +4,11 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import {
   isoDay,
   rankStandings,
+  dayContributions,
+  townDays,
   townScore,
   weekContributions,
+  weekDays,
   type ContributionDay,
   type Standing,
   type StandingInput,
@@ -15,6 +18,8 @@ import {
 export interface LeagueStandingEntry extends StandingInput {
   login: string;
   avatar_url: string | null;
+  /** Contributions per day, Mon..Sun (capped). */
+  days: number[];
 }
 
 export interface LeagueWeekStandings {
@@ -23,6 +28,8 @@ export interface LeagueWeekStandings {
   standings: Standing<LeagueStandingEntry>[];
   /** The town's score against other towns. Null under 3 members coding. */
   town: TownScore | null;
+  /** Per dev by day, Mon..Sun: the town's contribution graph. */
+  days: number[];
 }
 
 interface LeagueRef {
@@ -62,6 +69,7 @@ export async function loadStandings(
   if (leagues.length === 0) return result;
 
   const startDay = isoDay(start);
+  const week = weekDays(start);
 
   type MemberRow = {
     league_id: string;
@@ -112,12 +120,14 @@ export async function loadStandings(
       login: m.developers?.github_login ?? String(m.developer_id),
       avatar_url: m.developers?.avatar_url ?? null,
       total: weekContributions(daysByDev.get(m.developer_id) ?? []),
+      days: dayContributions(daysByDev.get(m.developer_id) ?? [], week),
     }));
     result.set(league.id, {
       leagueId: league.id,
       weekStart: startDay,
       standings: rankStandings(entries),
       town: townScore(entries.map((e) => e.total)),
+      days: townDays(entries.map((e) => e.days)),
     });
   }
 

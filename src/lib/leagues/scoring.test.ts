@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  dayContributions,
   detectOvertakes,
   isoDay,
   rankStandings,
   rankTowns,
+  townDays,
   townScore,
   weekContributions,
   weekDays,
@@ -31,6 +33,18 @@ describe("weekContributions", () => {
   it("ignores negative and fractional counts", () => {
     expect(weekContributions([{ day: "2026-09-21", contributions: -4 }])).toBe(0);
     expect(weekContributions([{ day: "2026-09-21", contributions: 2.9 }])).toBe(2);
+  });
+});
+
+describe("dayContributions and townDays", () => {
+  const week = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"];
+
+  it("puts each day in its slot, capped, with missing days at 0", () => {
+    expect(dayContributions([{ day: "2026-09-23", contributions: 250 }, { day: "2026-09-21", contributions: 4 }], week)).toEqual([4, 0, 100, 0, 0, 0, 0]);
+  });
+
+  it("averages each day over the members who coded that week", () => {
+    expect(townDays([[10, 0, 0, 0, 0, 0, 0], [20, 6, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]])).toEqual([15, 3, 0, 0, 0, 0, 0]);
   });
 });
 

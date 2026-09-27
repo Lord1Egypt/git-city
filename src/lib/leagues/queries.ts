@@ -20,6 +20,8 @@ export interface TownRankingRow {
   github_org: string | null;
   per_dev: number;
   coding: number;
+  /** Per dev by day, Mon..Sun. */
+  days: number[];
 }
 
 export interface TownRanking {
@@ -52,6 +54,7 @@ export async function getTownRanking(): Promise<TownRanking> {
       name: l.name as string,
       kind: l.kind as string,
       github_org: l.github_org as string | null,
+      days: standings.get(l.id)?.days ?? [0, 0, 0, 0, 0, 0, 0],
     })),
   ).map((t) => ({
     rank: t.rank,
@@ -62,6 +65,7 @@ export async function getTownRanking(): Promise<TownRanking> {
     github_org: t.github_org,
     per_dev: t.score.perDev,
     coding: t.score.coding,
+    days: t.days,
   }));
 
   const value = { week_start: isoDay(start), rows };
@@ -186,7 +190,7 @@ function getLeagueBoard(leagueId: string) {
       ]);
       return { week, weeks: weeksRes.data ?? [] };
     },
-    ["league-board-v2", leagueId],
+    ["league-board-v3", leagueId],
     { revalidate: 60, tags: [leagueTag(leagueId)] },
   )();
 }

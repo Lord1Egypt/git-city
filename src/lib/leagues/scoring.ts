@@ -57,6 +57,23 @@ export function weekContributions(days: ContributionDay[]): number {
   return total;
 }
 
+/** Contributions per day of the week (Mon..Sun), each capped; days without data are 0. */
+export function dayContributions(days: ContributionDay[], week: string[]): number[] {
+  const out = week.map(() => 0);
+  for (const d of days) {
+    const i = week.indexOf(d.day);
+    if (i >= 0) out[i] = Math.min(Math.max(0, Math.floor(d.contributions)), DAILY_CONTRIBUTION_CAP);
+  }
+  return out;
+}
+
+/** A town's day graph: each day's total over the members who coded that week. */
+export function townDays(memberDays: number[][]): number[] {
+  const coders = memberDays.filter((d) => d.some((n) => n > 0));
+  const n = Math.max(coders.length, 1);
+  return Array.from({ length: 7 }, (_, i) => Math.round(coders.reduce((a, d) => a + (d[i] ?? 0), 0) / n));
+}
+
 export interface TownScore {
   /** Average contributions of the members who coded, rounded. */
   perDev: number;
