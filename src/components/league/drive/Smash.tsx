@@ -19,6 +19,7 @@ export interface SmashApi {
   blast: (x: number, z: number, reach: number) => void;
 }
 
+const CHUNK = ["#141a2a"];
 const DEBRIS = ["#1c2233", "#2a3147", "#ffd76a", "#ffe9a8", "#8fa3c7", "#3a4462"];
 /** Floors a blast takes from each column it reaches, and how much of its reach counts. */
 const BLAST_ROWS = 3;
@@ -50,6 +51,8 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
     let down = false;
     for (const h of hits) {
       const t = store.targets[h.target];
+      // The floor itself flies off as a big block, with bits of wall and window.
+      bursts.current?.burst(h.x, h.y, h.z, { count: 1, speed: 22, colors: CHUNK, size: t.floorH * 0.85, life: 1.6, gravity: 60 });
       bursts.current?.burst(h.x, h.y, h.z, { count: 8 + power * 5, speed: 24 + power * 10, colors: DEBRIS, size: Math.min(2.2, t.floorH * 0.3), life: 1.1 });
       if (h.down) {
         down = true;

@@ -687,31 +687,39 @@ export default memo(function InstancedBuildings({
           continue;
         }
         const shown = smash.shown[k * SMASH_SLOTS + c];
-        const gone = smash.rows[k * SMASH_SLOTS + c] === 0 && shown < 0.4;
+        const lift = smash.drop[k * SMASH_SLOTS + c] * t.floorH;
+        const gone = smash.rows[k * SMASH_SLOTS + c] === 0 && shown < 0.4 && lift === 0;
         const cx = x0 + ((t.xs[a] + t.xs[a + 1]) / 2) * t.w;
         const cz = z0 + ((t.zs[bz] + t.zs[bz + 1]) / 2) * t.d;
         const cw = (t.xs[a + 1] - t.xs[a]) * t.w;
         const cd = (t.zs[bz + 1] - t.zs[bz]) * t.d;
-        // An emptied column is a low, crooked stump of rubble.
-        const rows = gone ? 0.35 : Math.max(0.35, shown);
+        // An emptied column is a low, crooked stump of rubble. A standing one
+        // floats `lift` above the ground while it falls into its gap.
+        const rows = gone ? 0.35 : shown;
         const h = rows * t.floorH;
         const jitter = gone ? ((c * 37 + i * 11) % 7) / 7 - 0.5 : 0;
         _yaw.setFromAxisAngle(_up, jitter * 0.5);
-        _position.set(cx, h / 2, cz);
-        _scale.set(cw * (gone ? 0.8 : 1), h, cd * (gone ? 0.8 : 1));
-        mesh.setMatrixAt(slot, _matrix.compose(_position, _yaw, _scale));
+        if (h < 0.01) {
+          mesh.setMatrixAt(slot, _hidden);
+        } else {
+          _position.set(cx, lift + h / 2, cz);
+          _scale.set(cw * (gone ? 0.8 : 1), h, cd * (gone ? 0.8 : 1));
+          mesh.setMatrixAt(slot, _matrix.compose(_position, _yaw, _scale));
+        }
+        // The windows that are left are the upper ones: they ride down with the column.
+        const skip = gone ? 0 : (t.floors - rows) / ATLAS_COLS;
         uvF[slot * 4 + 0] = uvF[i * 4 + 0] + t.xs[a] * uvF[i * 4 + 2];
-        uvF[slot * 4 + 1] = uvF[i * 4 + 1];
+        uvF[slot * 4 + 1] = uvF[i * 4 + 1] + skip;
         uvF[slot * 4 + 2] = (t.xs[a + 1] - t.xs[a]) * uvF[i * 4 + 2];
         uvF[slot * 4 + 3] = rows / ATLAS_COLS;
         uvS[slot * 4 + 0] = uvS[i * 4 + 0] + t.zs[bz] * uvS[i * 4 + 2];
-        uvS[slot * 4 + 1] = uvS[i * 4 + 1];
+        uvS[slot * 4 + 1] = uvS[i * 4 + 1] + skip;
         uvS[slot * 4 + 2] = (t.zs[bz + 1] - t.zs[bz]) * uvS[i * 4 + 2];
         uvS[slot * 4 + 3] = rows / ATLAS_COLS;
         const missing = t.floors - Math.max(0, shown);
         if (missing < 0.02) ghost.setMatrixAt(gslot, _hidden);
         else {
-          const top = Math.max(0, shown) * t.floorH;
+          const top = lift + Math.max(0, shown) * t.floorH;
           _position.set(cx, (top + b.height) / 2, cz);
           _scale.set(cw, b.height - top, cd);
           ghost.setMatrixAt(gslot, _matrix.compose(_position, _quaternion, _scale));

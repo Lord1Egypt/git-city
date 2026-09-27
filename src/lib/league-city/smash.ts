@@ -23,8 +23,9 @@ export const SMASH = {
   boostRows: 2,
   /** A floor grows back after this long (ms). */
   regenMs: 3_600_000,
-  /** How fast a column drops onto what is left (1/s, exponential) and grows back (floors/s). */
-  fall: 16,
+  /** A column falls into the gap its lost floors leave (floors/s²), bounces a little, and grows back (floors/s). */
+  gravity: 30,
+  bounce: 0.22,
   grow: 3,
 } as const;
 
@@ -99,8 +100,11 @@ export class SmashStore {
   readonly index = new Map<string, number>();
   /** Floors left per column, slot = target * SMASH_SLOTS + column. */
   readonly rows: Uint8Array;
-  /** Drawn floors per column (animated toward `rows`). */
+  /** Drawn floors per column (grows toward `rows` when floors come back). */
   readonly shown: Float32Array;
+  /** How far (floors) each column still floats above the ground, falling into the gap. */
+  readonly drop: Float32Array;
+  private vel: Float32Array;
   /** Bumps whenever a building starts or stops being damaged. */
   version = 0;
   private since: Float64Array;
@@ -115,6 +119,8 @@ export class SmashStore {
     this.targets.forEach((t, i) => this.index.set(t.login, i));
     this.rows = new Uint8Array(this.targets.length * SMASH_SLOTS);
     this.shown = new Float32Array(this.targets.length * SMASH_SLOTS);
+    this.drop = new Float32Array(this.targets.length * SMASH_SLOTS);
+    this.vel = new Float32Array(this.targets.length * SMASH_SLOTS);
     this.since = new Float64Array(this.targets.length);
     this.damaged = new Uint8Array(this.targets.length);
     this.targets.forEach((t, i) => {
@@ -135,7 +141,7 @@ export class SmashStore {
     return this.damaged[target] === 1 || this.moving.has(target);
   }
 
-  /** Grow floors back, then ease the drawn heights. Returns the targets that moved. Once per `now`. */
+  /** Grow floors back, drop columns into their gaps. Returns the targets that moved. Once per `now`. */
   frame(now: number, dt: number): ReadonlySet<number> {
     if (now === this.lastFrame) return this.moving;
     this.lastFrame = now;
@@ -147,11 +153,19 @@ export class SmashStore {
         const s = i * SMASH_SLOTS + c;
         const goal = this.rows[s];
         let v = this.shown[s];
-        if (v > goal) v = goal + (v - goal) * Math.exp(-SMASH.fall * dt);
+        if (v > goal) v = goal;
         else if (v < goal) v = Math.min(goal, v + SMASH.grow * dt);
-        if (Math.abs(v - goal) < 0.01) v = goal;
-        else still = false;
+        if (v !== goal) still = false;
         this.shown[s] = v;
+        if (this.drop[s] > 0 || this.vel[s] !== 0) {
+          this.vel[s] += SMASH.gravity * dt;
+          this.drop[s] -= this.vel[s] * dt;
+          if (this.drop[s] <= 0) {
+            this.drop[s] = 0;
+            this.vel[s] = this.vel[s] > 4 ? -this.vel[s] * SMASH.bounce : 0;
+          }
+          still = false;
+        }
       }
       if (still) {
         this.moving.delete(i);
@@ -189,7 +203,11 @@ export class SmashStore {
             if (now - (this.lastTake.get(s) ?? -Infinity) < cooldownMs) continue;
             this.lastTake.set(s, now);
           }
-          this.rows[s] = Math.max(0, this.rows[s] - n);
+          const took = Math.min(n, this.rows[s]);
+          this.rows[s] -= took;
+          this.shown[s] = Math.max(0, this.shown[s] - took);
+          // What's left jumps up by what came off, then falls into the gap.
+          this.drop[s] += took;
           if (!this.damaged[i]) {
             this.damaged[i] = 1;
             this.since[i] = now;
