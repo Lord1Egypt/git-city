@@ -2,6 +2,7 @@ import { renderGiftReceivedEmail } from "../../notification-senders/gift";
 import { renderLeagueInvitedEmail } from "../../notification-senders/league-invited";
 import { renderLeagueJoinedEmail } from "../../notification-senders/league-joined";
 import { renderLeagueOvertakenEmail } from "../../notification-senders/league-overtaken";
+import { renderTownDemolishedEmail } from "../../notification-senders/town-demolished";
 import { renderRaceChallengeEmail, renderRacePassedEmail } from "../../notification-senders/race";
 import { renderJoinRequestEmail, renderRequestApprovedEmail } from "../../notification-senders/league-requests";
 import { renderLeagueWeeklyEmail, type LeagueWeeklyEmailData } from "../../notification-senders/league-weekly";
@@ -38,6 +39,8 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
       { ...TOWN, overtakerLogin: "kristoferborges", gap: 1, newRank: 4, hoursLeft: 5 },
       PREVIEW_LINKS,
     ),
+  "town-demolished": () =>
+    renderTownDemolishedEmail({ leagueSlug: "codex-town", leagueName: "Codex Town", attackerLogin: "srizzon" }, PREVIEW_LINKS),
   "race-passed": () =>
     renderRacePassedEmail({ ...TOWN, passerLogin: "pyromains", theirMs: 22_912, yourMs: 23_443, newRank: 3 }, PREVIEW_LINKS),
   "race-challenge": () =>
