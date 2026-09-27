@@ -586,7 +586,7 @@ export default memo(function InstancedBuildings({
     const onPointerDown = (e: PointerEvent) => {
       if (introRef.current) return;
       if (wasAdPointerConsumed()) return;
-      if ((window as any).__spireClicked || (window as any).__arcadeClicked || (window as any).__sponsorClicked || (window as any).__bankClicked) return;
+      if ((window as any).__spireClicked || (window as any).__monumentClicked) return;
       const id = raycastInstance(e.clientX, e.clientY);
       if (id !== null && id < buildingsRef.current.length) {
         tapRef.current = { time: performance.now(), id, x: e.clientX, y: e.clientY };
@@ -618,7 +618,7 @@ export default memo(function InstancedBuildings({
         document.body.style.cursor = "auto";
         return;
       }
-      if ((window as any).__spireCursor) return;
+      if ((window as any).__spireCursor || (window as any).__monumentCursor) return;
       // Throttle hover raycast to ~8Hz
       const now = performance.now();
       if (now - lastMoveTime < 125) return;

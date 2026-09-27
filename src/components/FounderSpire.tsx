@@ -72,7 +72,6 @@ export default function FounderSpire({ onClick }: FounderSpireProps) {
     let tap: { time: number; x: number; y: number } | null = null;
 
     const onDown = (e: PointerEvent) => {
-      if ((window as any).__arcadeClicked) return;
       if (hitsSpire(e)) {
         w.__spireClicked = true;
         tap = { time: performance.now(), x: e.clientX, y: e.clientY };

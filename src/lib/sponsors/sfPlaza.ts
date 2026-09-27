@@ -1,28 +1,27 @@
-// Shared geometry for the San Francisco civic plaza — the downtown landmark
-// cluster (Bank, Founder Spire, E.Arcade, sponsors, fountain).
+// Shared geometry for the San Francisco civic plaza — the downtown cluster
+// (Founder Spire to the east, the town monument mount at the centre).
 //
-// Two places derive landmark positions from these numbers and MUST agree:
+// Two places derive plaza positions from these numbers and MUST agree:
 //   - CityCanvas.tsx — renders the 3D plaza group.
-//   - home-client.tsx — computes the camera focus target for a sponsor click.
+//   - home-client.tsx — computes camera focus targets on the plaza.
 // Keep the single source of truth here so a tweak can't silently desync them.
 
 /** Distance each landmark sits from the civic center, in local (pre-scale) units. */
 export const SF_PLAZA_RADIUS = 360;
 
-/** The whole landmark cluster is rendered inside a group scaled by this factor. */
+/** The whole plaza is rendered inside a group scaled by this factor. */
 export const SF_PLAZA_SCALE = 0.55;
 
-/** Horizontal spacing between adjacent sponsors in the southern row (local units). */
-export const SF_SPONSOR_SPACING = 200;
-
 /**
- * Local `[x, z]` of sponsor `index` (out of `count`) in the plaza's southern
- * row, BEFORE the plaza group's {@link SF_PLAZA_SCALE} is applied. The row is
- * centered east–west on the civic center and offset south by
- * {@link SF_PLAZA_RADIUS}.
+ * World position of the plaza centre (the town monument mount point).
+ * With the SF map the plaza group sits at `downtown`; without it the plaza is
+ * centred on the world origin. `localY` is a height in plaza-local units and
+ * is scaled like the plaza group when the map is on.
  */
-export function sfSponsorLocalPos(index: number, count: number): [number, number] {
-  const x = (index - (count - 1) / 2) * SF_SPONSOR_SPACING;
-  const z = SF_PLAZA_RADIUS;
-  return [x, z];
+export function plazaCenterWorld(
+  downtown: [number, number] | null | undefined,
+  localY = 0,
+): [number, number, number] {
+  if (!downtown) return [0, localY, 0];
+  return [downtown[0], localY * SF_PLAZA_SCALE, downtown[1]];
 }
