@@ -14,6 +14,8 @@ export const WATCH_MS = 200;
 export const WATCH_INTERP_MS = 320;
 export const MAX_DRIVERS = 30;
 export const MAX_MESSAGE_BYTES = 512;
+/** The one bigger message: `auth`, which carries a Supabase access token. */
+export const MAX_AUTH_BYTES = 4096;
 /** Physics works in meters; a 40-lot city spans ±400 m. Anything past this is junk. */
 export const COORD_MAX = 1000;
 
@@ -69,6 +71,10 @@ export type ClientMsg =
   | { t: "crown_grab" }
   | { t: "crown_hit"; victim: string; steal: boolean }
   | { t: "crown_drop" }
+  /** Rivalry smash (lib/league-city/smash-net): who you are, for the room to ask the site. */
+  | { t: "auth"; token: string }
+  /** Rivalry smash: your car (k "car") or your blast (k "blast", fx id) took floors off columns `c` of building `b`. */
+  | { t: "smash"; b: string; c: number[]; k: "car" | "blast"; fx?: number }
   /** Race track only (party/race.ts): in or out for the next race. */
   | { t: "ready"; on: boolean }
   | { t: "restart" }
@@ -89,6 +95,12 @@ export type ServerMsg =
   /** Spectators only: every driver's latest state, [id, ...11 numbers] each. */
   | { t: "cars"; cars: [string, ...number[]][] }
   | { t: "bump"; from: string; x: number; z: number }
+  /** Rivalry smash: whether your `auth` puts you on the other side (you may break this town) or on this one (home). */
+  | { t: "smash_me"; can: boolean; home: boolean; login: string | null }
+  /** Rivalry smash: a building's floors per column now; `by` took its last floor. */
+  | { t: "damage"; b: string; r: number[]; by?: string | null }
+  /** Rivalry smash: every damaged building, when the room loads or you arrive. */
+  | { t: "damage_all"; list: [string, number[], string | null][] }
   | ["s", string, ...number[]];
 
 const r3 = (v: number) => Math.round(v * 1000) / 1000;

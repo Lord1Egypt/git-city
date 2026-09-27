@@ -1,5 +1,6 @@
 import type { Party, Connection, ConnectionContext } from "partykit/server";
 import {
+  MAX_AUTH_BYTES,
   MAX_DRIVERS,
   MAX_MESSAGE_BYTES,
   SEND_MS,
@@ -34,6 +35,8 @@ import {
   stealCrown,
   tickCrown,
 } from "../src/lib/league-city/drive/crown";
+import { parseSmash } from "../src/lib/league-city/smash-net";
+import { SmashRoom } from "./smash";
 
 // ─── League city driving ────────────────────────────────────
 // One room per league city (room id = league slug). A relay: each driver says
@@ -47,6 +50,9 @@ import {
 //
 // Crown Rush: the server runs the match (see crown.ts) and broadcasts its
 // state on every change and once a second while it's live.
+//
+// Rivalry smash (party/smash.ts): in the two rivalry towns the room is also
+// the authority on the buildings' floors; spectators get those changes too.
 //
 // Spectators connect with ?watch=1: people looking at the city without
 // driving. They get the welcome, joins and leaves, and every car batched in
@@ -127,9 +133,20 @@ export default class DriveServer implements Party.Server {
     return this.boxes.map((b) => ({ gen: b.gen, wait: Math.max(0, b.availableAt - now) }));
   }
 
-  constructor(readonly room: Party.Room) {}
+  private smash: SmashRoom;
+
+  constructor(readonly room: Party.Room) {
+    this.smash = new SmashRoom(room, (id) => {
+      const s = this.drivers.get(id)?.state;
+      return s ? { x: s[0], z: s[2], speed: s[7], flags: s[10] } : null;
+    });
+  }
 
   onConnect(conn: Connection, ctx: ConnectionContext) {
+    if (this.smash.enabled) {
+      void this.smash.greet(conn);
+      this.smash.wake();
+    }
     if (new URL(ctx.request.url).searchParams.get("watch") === "1") {
       this.watchers.add(conn.id);
       this.runWatchClock();
@@ -147,7 +164,9 @@ export default class DriveServer implements Party.Server {
 
   onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Connection) {
     if (this.watchers.has(sender.id)) return;
-    if (typeof message !== "string" || message.length > MAX_MESSAGE_BYTES) return;
+    if (typeof message !== "string") return;
+    // Only `auth` (an access token) may be longer than a normal message.
+    if (message.length > MAX_MESSAGE_BYTES && !(message.length <= MAX_AUTH_BYTES && message.startsWith('{"t":"auth"'))) return;
     let msg: unknown;
     try {
       msg = JSON.parse(message);
@@ -170,7 +189,18 @@ export default class DriveServer implements Party.Server {
     }
 
     if (!msg || typeof msg !== "object") return;
-    const { t, name, to, x, z, box, gen, item, dx, dz, id, target, victim, steal } = msg as Record<string, unknown>;
+    const { t, name, to, x, z, box, gen, item, dx, dz, id, target, victim, steal, token } = msg as Record<string, unknown>;
+
+    // Rivalry smash: who you are (asked of the site), and your hits.
+    if (t === "auth") {
+      if (this.drivers.has(sender.id) && typeof token === "string" && token.length < MAX_AUTH_BYTES) void this.smash.auth(sender.id, token, sender);
+      return;
+    }
+    if (t === "smash") {
+      const m = parseSmash(msg as Record<string, unknown>);
+      if (m && this.drivers.has(sender.id)) this.smash.smash(sender.id, m);
+      return;
+    }
 
     // Crown Rush.
     if (t === "crown_start" || t === "crown_grab" || t === "crown_hit" || t === "crown_drop") {
@@ -231,6 +261,7 @@ export default class DriveServer implements Party.Server {
         d.held = null;
         const aim = typeof target === "string" && target.length <= 64 && this.drivers.has(target) ? target : undefined;
         const fx: ServerMsg = { t: "fx", id: ++this.fxSeq, from: sender.id, item, ...u, ...(aim ? { target: aim } : {}) };
+        this.smash.fired(this.fxSeq, sender.id, u.x, u.z);
         this.room.broadcast(JSON.stringify(fx));
         return;
       }
@@ -258,11 +289,13 @@ export default class DriveServer implements Party.Server {
       return;
     }
     this.drivers.set(sender.id, { name, state: null, lastState: 0, lastBump: 0, held: null, lastTake: 0, lastUse: 0 });
+    this.smash.join(sender.id);
     this.room.broadcast(JSON.stringify({ t: "join", id: sender.id, name } satisfies ServerMsg), [sender.id]);
   }
 
   onClose(conn: Connection) {
     this.watchers.delete(conn.id);
+    this.smash.leave(conn.id);
     const at = this.where(conn.id) ?? [this.crown.x, this.crown.z];
     if (!this.drivers.delete(conn.id)) return;
     if (leaveCrown(this.crown, conn.id, Date.now(), at[0], at[1])) this.sendCrown();
