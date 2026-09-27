@@ -15,8 +15,15 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { vs } = await searchParams;
   const spot = getLiveSpot(id);
   if (!spot) return { title: "Drift - Git City" };
-  const title = vs ? `@${vs} challenges you on ${spot.name} - Git City Drift` : `${spot.name} - Git City Drift`;
-  return { title, description: spot.tagline };
+  const who = vs && /^[A-Za-z0-9-]{1,39}$/.test(vs) ? vs : null;
+  const title = who ? `@${who} challenges you on ${spot.name} - Git City Drift` : `${spot.name} - Git City Drift`;
+  const image = { url: `/drift/${spot.id}/og${who ? `?vs=${encodeURIComponent(who)}` : ""}`, width: 1200, height: 630, alt: `${spot.name} in Git City Drift` };
+  return {
+    title,
+    description: spot.tagline,
+    openGraph: { title, description: spot.tagline, images: [image] },
+    twitter: { card: "summary_large_image", title, description: spot.tagline, images: [image] },
+  };
 }
 
 const LOGIN = /^[A-Za-z0-9-]{1,39}$/;
