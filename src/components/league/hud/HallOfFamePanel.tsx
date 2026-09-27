@@ -19,7 +19,7 @@ export default function HallOfFamePanel({ data, onClose }: { data: LeaguePageDat
                 <Avatar src={w.winner.avatar_url} size={20} />
                 <span className="min-w-0 flex-1 truncate text-[11px] text-cream normal-case">@{w.winner.login}</span>
                 {w.winner.ex_member && <span className="text-[8px] text-dim">ex-member</span>}
-                <span className="text-[10px] text-cream tabular-nums">{fmt(w.winner.score)}</span>
+                {w.winner.score !== null && <span className="text-[10px] text-cream tabular-nums">{fmt(w.winner.score)}</span>}
               </>
             ) : (
               <span className="flex-1 text-[10px] text-dim">No winner</span>

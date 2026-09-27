@@ -168,7 +168,7 @@ export default function BuildingCard({
             </span>
             {standing ? (
               <span className="text-[9px] text-muted">
-                This week <span className="text-lime">#{standing.rank}</span> · {fmt(standing.total)}
+                This week <span className="text-lime">#{standing.rank}</span> · {fmt(standing.total)} contributions
               </span>
             ) : (
               <span className="text-[9px] text-dim">Not racing</span>

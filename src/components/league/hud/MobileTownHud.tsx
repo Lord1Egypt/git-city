@@ -7,6 +7,7 @@ import { Pending } from "@/components/leagues/PixelSpinner";
 import type { LeaguePageData } from "@/lib/leagues/queries";
 import type { TownBadges } from "@/lib/towns/milestones";
 import { townDisplayName } from "@/lib/towns/names";
+import { placeLine, type TownPlace } from "@/lib/towns/place";
 import { HUD_BOX, fmt } from "./shared";
 
 // The town HUD on phones (under 640px): one compact header row on top and one
@@ -22,12 +23,15 @@ export function MobileTownHeader({
   badges,
   logoUrl,
   pendingRequests = 0,
+  place = null,
   onRace,
 }: {
   data: LeaguePageData;
   badges: TownBadges;
   logoUrl: string | null;
   pendingRequests?: number;
+  /** This week's place among towns: the subtitle when known. */
+  place?: TownPlace | null;
   onRace: () => void;
 }) {
   const { league, counts } = data;
@@ -49,7 +53,7 @@ export function MobileTownHeader({
             </h1>
             <p className="mt-1 truncate text-[9px] text-muted">
               {badges.townOfWeek && <span className="text-lime">&#9733; Town of the week · </span>}
-              {fmt(counts.total)} buildings · {fmt(counts.joined)} joined
+              {place ? placeLine(place) : `${fmt(counts.total)} buildings · ${fmt(counts.joined)} joined`}
             </p>
           </div>
         </div>

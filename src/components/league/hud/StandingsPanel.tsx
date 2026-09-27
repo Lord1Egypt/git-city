@@ -2,17 +2,28 @@
 
 import Link from "next/link";
 import type { LeaguePageData } from "@/lib/leagues/queries";
+import { DAILY_CONTRIBUTION_CAP } from "@/lib/leagues/scoring";
+import { placeLine, type TownPlace } from "@/lib/towns/place";
 import Panel from "./Panel";
 import { Avatar, fmt, useCountdown } from "./shared";
 
-export default function StandingsPanel({ data, onClose }: { data: LeaguePageData; onClose: () => void }) {
+export default function StandingsPanel({
+  data,
+  place = null,
+  onClose,
+}: {
+  data: LeaguePageData;
+  place?: TownPlace | null;
+  onClose: () => void;
+}) {
   const { week, viewer, members } = data;
   const countdown = useCountdown();
   const invited = members.filter((m) => m.status === "invited");
   return (
     <Panel title="This week" onClose={onClose}>
-      <div className="flex items-baseline justify-between text-[10px] text-muted">
-        <span>{week.mode === "xp" ? "Code + game XP" : "Code only"}</span>
+      {place && <p className="border-[3px] border-lime bg-lime/10 px-3 py-2 text-[11px] text-lime normal-case">{placeLine(place)}</p>}
+      <div className={`flex items-baseline justify-between text-[10px] text-muted ${place ? "mt-3" : ""}`}>
+        <span>Contributions · max {DAILY_CONTRIBUTION_CAP}/day</span>
         <span>Closes in {countdown || "…"}</span>
       </div>
       <ol className="mt-3 space-y-1.5">

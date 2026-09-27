@@ -1,14 +1,22 @@
 "use client";
 
 import type { LeaguePageData } from "@/lib/leagues/queries";
+import { DAILY_CONTRIBUTION_CAP } from "@/lib/leagues/scoring";
+import { placeLine, type TownPlace } from "@/lib/towns/place";
 import { Avatar, HUD_BOX, fmt, useCountdown } from "./shared";
 
 export default function RaceWidget({
   data,
+  place = null,
+  townOfWeek = false,
   onHallOfFame,
   onStandings,
 }: {
   data: LeaguePageData;
+  /** This week's place among towns. */
+  place?: TownPlace | null;
+  /** The town holds the monument this week. */
+  townOfWeek?: boolean;
   onHallOfFame: () => void;
   onStandings: () => void;
 }) {
@@ -24,6 +32,12 @@ export default function RaceWidget({
         <span className="text-cream">This week</span>
         <span className="text-muted">Ends in {countdown || "…"}</span>
       </div>
+      {(townOfWeek || place) && (
+        <div className="mt-2 space-y-1 border-2 border-lime/60 bg-lime/10 px-2 py-1.5 text-[9px] normal-case">
+          {townOfWeek && <p className="text-lime">&#127942; Town of the week</p>}
+          {place && <p className={townOfWeek ? "text-cream" : "text-lime"}>{placeLine(place)}</p>}
+        </div>
+      )}
       <button type="button" onClick={onStandings} className="mt-2 block w-full text-left" aria-label="Full standings">
         <ol className="space-y-1">
           {top.map((s) => (
@@ -40,7 +54,7 @@ export default function RaceWidget({
       </button>
       <div className="mt-2.5 flex justify-between border-t-2 border-border pt-2 text-[9px]">
         <button type="button" onClick={onStandings} className="text-muted transition-colors hover:text-cream">
-          {week.mode === "xp" ? "Code + XP" : "Code only"} · All
+          Contributions · max {DAILY_CONTRIBUTION_CAP}/day
         </button>
         <button type="button" onClick={onHallOfFame} className="text-lime transition-colors hover:text-cream">
           Hall of fame ›
