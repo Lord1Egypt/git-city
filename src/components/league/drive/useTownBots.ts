@@ -6,6 +6,9 @@ import { carColor } from "@/lib/league-city/drive/net";
 import type { CityObject } from "@/lib/league-city/types";
 import type { CarFeed } from "./useDrivePresence";
 
+/** Bots are off for now; true brings them back everywhere (view mode and the drive). */
+const TOWN_BOTS = false;
+
 /**
  * The town's bots as car feeds: as many as the town gets, minus the people
  * driving it (`realDrivers`), so bots make way when people show up.
@@ -33,7 +36,7 @@ export function useTownBots(town: string, objects: readonly CityObject[], realDr
       ),
     [roadsKey],
   );
-  const n = enabled ? activeBots(graph, realDrivers) : 0;
+  const n = TOWN_BOTS && enabled ? activeBots(graph, realDrivers) : 0;
   return useMemo(
     () =>
       Array.from({ length: n }, (_, i) => ({

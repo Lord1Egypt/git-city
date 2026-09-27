@@ -42,7 +42,7 @@ export interface RaceTelemetry extends DriveTelemetry {
 }
 
 export function createRaceTelemetry(): RaceTelemetry {
-  return { speed: 0, boosting: false, near: null, held: null, gotAt: 0, driftLevel: 0, turbo: false, turboReady: false, split: null, turboFlash: null, pos: null, ghostPos: null, rivalPos: null, others: [], lapStart: null, offset: 0, wrongWay: false, lights: 0, runLap: 1, runStart: null, countdown: null, goAt: 0, launch: null, finalLapAt: 0 };
+  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, driftLevel: 0, turbo: false, turboReady: false, split: null, turboFlash: null, pos: null, ghostPos: null, rivalPos: null, others: [], lapStart: null, offset: 0, wrongWay: false, lights: 0, runLap: 1, runStart: null, countdown: null, goAt: 0, launch: null, finalLapAt: 0 };
 }
 
 /** Laps in a time trial run (like Mario Kart's time trials). */

@@ -3,7 +3,9 @@
 // before the portal, with the camera riding behind it (drive mode's chase
 // view). Just after it passes the arch, the camera lifts to the scene's
 // normal frame while the car brakes to a stop up the main street, and the
-// orbit controls take over.
+// orbit controls take over. Where you can drive (desktop) the intro is the
+// first seconds of the drive instead: the camera settles into the drive's
+// chase view, the car slows to a roll, and you get it while it still moves.
 //
 // This file is the route and timing, pure and testable; TownIntro plays it.
 
@@ -16,8 +18,19 @@ export const LANE = 6;
 export const CRUISE = 38;
 /** Seconds for the camera to go from the chase view to the city frame. */
 export const RISE = 3.5;
+/** Seconds of braking when the drive takes over: the camera stays on the car. */
+export const BRAKE = 2.5;
+/** The car is still rolling at this speed when you get it (about 25 km/h). */
+export const HANDOFF_SPEED = 17;
 /** How far past the arch the camera lets go of the car. */
 const PAST_ARCH = 30;
+
+/** Where the intro car is this frame (city units, heading north): the drive's car follows it until you get it. */
+export interface IntroPose {
+  x: number;
+  z: number;
+  speed: number;
+}
 
 export interface CarIntro {
   x: number;
@@ -32,23 +45,27 @@ export interface CarIntro {
   /** Seconds until the car passes under the arch (the title's beat). */
   crossAt: number;
   rise: number;
+  /** Speed at the end of the rise: 0 for the view intro, HANDOFF_SPEED when the drive takes over. */
+  endSpeed: number;
 }
 
 /** The drive, from the portal's z (the city's south edge). */
-export function carIntro(gateZ = LOT / 2): CarIntro {
+export function carIntro(gateZ = LOT / 2, drive = false): CarIntro {
+  const rise = drive ? BRAKE : RISE;
+  const endSpeed = drive ? HANDOFF_SPEED : 0;
   const startZ = gateZ + APPROACH_LOTS * LOT - 16;
   const switchZ = gateZ - PAST_ARCH;
-  // Braking from cruise to zero over the rise covers cruise × rise / 2.
-  const stopZ = switchZ - (CRUISE * RISE) / 2;
-  return { x: LANE, startZ, switchZ, stopZ, cruise: (startZ - switchZ) / CRUISE, crossAt: (startZ - gateZ) / CRUISE, rise: RISE };
+  // Braking evenly from cruise to endSpeed covers the average speed × rise.
+  const stopZ = switchZ - ((CRUISE + endSpeed) * rise) / 2;
+  return { x: LANE, startZ, switchZ, stopZ, cruise: (startZ - switchZ) / CRUISE, crossAt: (startZ - gateZ) / CRUISE, rise, endSpeed };
 }
 
-/** The car's z at time t (seconds), and its speed. */
+/** The car's z at time t (seconds), and its speed; it holds at the end of the rise. */
 export function carAt(c: CarIntro, t: number): { z: number; speed: number } {
   if (t <= c.cruise) return { z: c.startZ - CRUISE * t, speed: CRUISE };
   const u = Math.min(t - c.cruise, c.rise);
-  const speed = CRUISE * (1 - u / c.rise);
-  return { z: c.switchZ - CRUISE * u + (CRUISE * u * u) / (2 * c.rise), speed };
+  const decel = (CRUISE - c.endSpeed) / c.rise;
+  return { z: c.switchZ - CRUISE * u + (decel * u * u) / 2, speed: CRUISE - decel * u };
 }
 
 export function introSeconds(c: CarIntro): number {
