@@ -105,6 +105,8 @@ export interface HallOfFameWeek {
   week_start: string;
   /** score is null for weeks scored under the old points rules. */
   winner: { login: string; avatar_url: string | null; score: number | null; ex_member: boolean } | null;
+  /** The town finished 1st among towns that week, so it took the monument. */
+  monument: boolean;
 }
 
 export interface LeaguePageData {
@@ -167,6 +169,7 @@ interface FrozenWeek {
   /** standings[0] of the frozen week: the leader, who is the winner when there is one. */
   top: { developer_id: number; login: string; avatar_url: string | null; total: number } | null;
   version: number | null;
+  town_rank: number | null;
 }
 
 /**
@@ -182,7 +185,7 @@ function getLeagueBoard(leagueId: string) {
         loadLeagueStandings({ id: leagueId }, weekStart(new Date()), sb),
         sb
           .from("league_weeks")
-          .select("week_start, winner_id, top:standings->standings->0, version:standings->version")
+          .select("week_start, winner_id, top:standings->standings->0, version:standings->version, town_rank:standings->town_rank")
           .eq("league_id", leagueId)
           .order("week_start", { ascending: false })
           .limit(52)
@@ -190,7 +193,7 @@ function getLeagueBoard(leagueId: string) {
       ]);
       return { week, weeks: weeksRes.data ?? [] };
     },
-    ["league-board-v3", leagueId],
+    ["league-board-v4", leagueId],
     { revalidate: 60, tags: [leagueTag(leagueId)] },
   )();
 }
@@ -215,6 +218,7 @@ export async function getLeaguePageData(league: League, viewer: Viewer | null): 
             ex_member: member?.status !== "active",
           }
         : null,
+      monument: w.town_rank === 1,
     };
   });
 
