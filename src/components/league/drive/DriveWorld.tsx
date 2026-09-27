@@ -37,6 +37,8 @@ import type { FxSource } from "./fx";
 import { CameraKey, DriveAudio, LocalFx } from "./carFx";
 import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
 import { useDriveInput } from "./useDriveInput";
+import Smash, { type SmashApi } from "./Smash";
+import type { SmashStore } from "@/lib/league-city/smash";
 
 // Drive mode's physics world. Loaded with next/dynamic only when someone
 // presses Drive, so the Rapier WASM never reaches viewers or editors.
@@ -78,6 +80,8 @@ export interface DriveWorldProps {
   crownApi: React.MutableRefObject<CrownApi | null>;
   /** Crown Rush state for the HUD. */
   onCrown: (v: CrownView) => void;
+  /** The rival town: its buildings have no collider, the car drives through and breaks them. */
+  smash?: SmashStore;
 }
 
 /** A bump carries this share of the hitter's relative velocity, plus a small hop (m/s). */
@@ -226,6 +230,7 @@ export default function DriveWorld({
   onHonk,
   crownApi,
   onCrown,
+  smash,
 }: DriveWorldProps) {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
@@ -234,7 +239,15 @@ export default function DriveWorld({
     return () => document.removeEventListener("visibilitychange", on);
   }, []);
 
-  const specs = useMemo(() => buildColliders(objects, buildings, h), [objects, buildings, h]);
+  const solid = useMemo(() => (smash ? buildings.filter((b) => !smash.index.has(b.loginLower)) : buildings), [smash, buildings]);
+  const specs = useMemo(() => buildColliders(objects, solid, h), [objects, solid, h]);
+  const smashApi = useRef<SmashApi | null>(null);
+  // The smash test build is driven from the console too (window.__car).
+  useEffect(() => {
+    if (!smash) return;
+    const id = setInterval(() => ((window as unknown as { __car?: CarApi | null }).__car = car.current), 500);
+    return () => clearInterval(id);
+  }, [smash]);
   const fixed = useMemo(() => specs.filter((s) => s.body === "fixed"), [specs]);
   const dynamic = useMemo(() => specs.filter((s) => s.body === "dynamic"), [specs]);
   const spawn = useMemo(() => spawnPoint(objects, viewerDevId, h), [objects, viewerDevId, h]);
@@ -278,6 +291,7 @@ export default function DriveWorld({
   const botTargets = useRef(new Map<string, BotTarget>());
   /** A blast at (x, z) meters throws every bot in reach, harder the closer. */
   const blastBots = (x: number, z: number, reach: number, power: number) => {
+    smashApi.current?.blast(x, z, reach);
     for (const t of botTargets.current.values()) {
       const p = t.pos();
       if (!p) continue;
@@ -373,6 +387,7 @@ export default function DriveWorld({
             knockRef={crownKnock}
             onView={onCrown}
           />
+          {smash && <Smash ref={smashApi} store={smash} car={car} impactRef={impact} muted={muted || paused} />}
           {flash && <HonkFlash key={flash.at} building={flash.b} at={flash.at} />}
           <SkidMarks sources={fx} />
           <Smoke sources={fx} />

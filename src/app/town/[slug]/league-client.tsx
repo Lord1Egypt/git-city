@@ -58,6 +58,7 @@ import TownQuest from "@/components/league/hud/TownQuest";
 import { freshQuest, nextStep, parseQuest, questKey, questSteps, type QuestState, type QuestStep } from "@/lib/towns/quest";
 import { chime } from "@/lib/sfx/chime";
 import { useDriveWatch } from "@/components/league/drive/useDriveWatch";
+import { RIVALRY } from "@/lib/towns/rivalry";
 import { useTownBots } from "@/components/league/drive/useTownBots";
 import {
   HOTBAR,
@@ -81,6 +82,16 @@ const LeagueScene = dynamic(() => import("@/components/league/LeagueScene"), {
 const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"), { ssr: false });
 
 const MUTE_KEY = "gc:drive-muted";
+
+// ?smash=1: the rival town's buildings break when you drive through them (a
+// local test, nothing is saved). ?smashregen=30 grows a floor back every 30s.
+function smashFlags(): { regenMs?: number } | null {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search);
+  if (q.get("smash") !== "1") return null;
+  const regen = Number(q.get("smashregen"));
+  return regen > 0 ? { regenMs: regen * 1000 } : {};
+}
 /** While driving, check for city changes (an admin's Done) this often. */
 const DRIVE_POLL_MS = 5000;
 
@@ -140,6 +151,11 @@ export default function LeagueClient({
 }) {
   const { league, members, viewer } = data;
   const isMember = viewer?.status === "active";
+  const smashTown = useMemo(() => {
+    const side = RIVALRY.find((r) => r.slug === league.slug);
+    const flags = smashFlags();
+    return side && flags && !isMember ? { color: side.color, ...flags } : null;
+  }, [league.slug, isMember]);
   const showJoinCta = !isMember && (!!invite || !!inviteToken || viewer?.status === "invited");
   const joinKind = joinAction === "join" || joinAction === "ask" || joinAction === "pending" ? joinAction : null;
   const [panel, setPanel] = useState<PanelId>(showJoinCta || (startJoin && joinKind) ? "join" : null);
@@ -753,6 +769,7 @@ export default function LeagueClient({
         editApiRef={cameraApi}
         editPickables={pickables}
         drive={driveProps}
+        smash={smashTown}
         watching={watchedCars}
         coverRef={coverApi}
       >
