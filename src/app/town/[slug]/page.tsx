@@ -23,6 +23,7 @@ import LeagueClient from "./league-client";
 import { townDisplayName } from "@/lib/towns/names";
 import { getTownBadges } from "@/lib/towns/badges";
 import { isCoverDue } from "@/lib/towns/cover";
+import { isAdminGithubLogin } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -97,8 +98,8 @@ export default async function LeaguePage({ params, searchParams }: Props) {
     getJoinAction(league, viewer, !!token),
     isAdmin && league.kind === "custom" ? countJoinRequests(league.id).catch(() => 0) : Promise.resolve(0),
     viewer && isMember ? groupInviteLink(league, viewer, isAdmin) : Promise.resolve(null),
-    // Members' pages photograph the city for its Discover card when it's due.
-    isMember ? isCoverDue(league.id) : Promise.resolve(false),
+    // Members' pages (and the site admin's) photograph the city for its Discover card when it's due.
+    isMember || (viewer && isAdminGithubLogin(viewer.github_login)) ? isCoverDue(league.id) : Promise.resolve(false),
   ]);
 
   return (

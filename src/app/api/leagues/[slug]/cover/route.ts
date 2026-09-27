@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isAdminGithubLogin } from "@/lib/admin";
 import { getLeagueBySlug, getMembership, getViewer } from "@/lib/leagues/service";
 import { assertSameOrigin } from "@/lib/leagues/http";
 import { rateLimit } from "@/lib/rate-limit";
@@ -21,7 +22,10 @@ export async function POST(req: Request, { params }: Ctx) {
   const league = await getLeagueBySlug(slug);
   if (!league) return NextResponse.json({ error: "Town not found." }, { status: 404 });
   const me = await getMembership(league.id, viewer.id);
-  if (me?.status !== "active") return NextResponse.json({ error: "Only members can photograph the town." }, { status: 403 });
+  // Members, and the site admin (so a town whose members haven't been back still gets one).
+  if (me?.status !== "active" && !isAdminGithubLogin(viewer.github_login)) {
+    return NextResponse.json({ error: "Only members can photograph the town." }, { status: 403 });
+  }
 
   const { ok } = rateLimit(`league-cover:${viewer.id}`, 6, 60_000);
   if (!ok) return NextResponse.json({ error: "Too fast. Wait a moment." }, { status: 429 });
