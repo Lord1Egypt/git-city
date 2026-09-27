@@ -8,7 +8,7 @@ import type { RapierContext, RapierRigidBody } from "@react-three/rapier";
 import type { DriveInput } from "./input";
 import { isFlipped } from "./spawn";
 import type { SurfaceGrip } from "./surface";
-import { BOOST, DRIFT, ENGINE, M_TO_UNIT, RESPAWN, STEER, SURFACE, TURBO, WHEEL } from "./tuning";
+import { BOOST, DRIFT, DRIFT_MODE, DRIFT_SURFACE, ENGINE, M_TO_UNIT, RESPAWN, STEER, SURFACE, TURBO, WHEEL } from "./tuning";
 
 type World = RapierContext["world"];
 export type VehicleController = ReturnType<World["createVehicleController"]>;
@@ -51,6 +51,10 @@ export interface CarState {
   lateral: number;
   /** Surface under the rear wheels. */
   surface: SurfaceGrip["surface"];
+  /** Drift spots: the drift's angle is held by the driver (DRIFT_MODE), not set by the steer. */
+  driftMode: boolean;
+  /** Drift mode: the nose angle off the direction of travel (rad). */
+  driftAngle: number;
 }
 
 export const WHEELS: { x: number; z: number; front: boolean }[] = [
@@ -64,6 +68,7 @@ export function newCarState(): CarState {
   return {
     speed: 0, steer: 0, boosting: false, braking: false, slip: 0,
     flippedFor: 0, drifting: false, driftDir: 0, recovering: 0, spinLeft: 0, spinDir: 1, turbo: false, driftCharge: 0, turboStored: 0, turboLeft: 0, turboPush: 0, pushLevel: 0, boostHeld: false, turboFired: 0, topMul: 1, lateral: 0, surface: "road",
+    driftMode: false, driftAngle: 0,
   };
 }
 
@@ -104,7 +109,16 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 const SPIN_RATE = 7;
 const SPIN_DRAG = 1.2;
 
-/** Start a spin-out: the car loses grip and turns in circles for `seconds`. */
+/**
+ * Drift mode: the angle after one step. `into` is +1 steering into the drift,
+ * -1 countersteering (anything between on a phone). Past DRIFT_MODE.spin it spins.
+ */
+export function driftAngleStep(angle: number, into: number, dt: number, surface: SurfaceGrip["surface"]): { angle: number; spin: boolean } {
+  const rate = into > 0 ? DRIFT_MODE.open * into : DRIFT_MODE.close * into;
+  const next = Math.max(DRIFT_MODE.min, angle + (rate + DRIFT_SURFACE[surface].creep) * dt);
+  return { angle: next, spin: next > DRIFT_MODE.spin };
+}
+
 /** Mini-turbo level for a drift held this long (s): 0 none, 1 blue, 2 orange, 3 purple. */
 export function turboLevel(charge: number): number {
   let l = 0;
@@ -112,6 +126,7 @@ export function turboLevel(charge: number): number {
   return l;
 }
 
+/** Start a spin-out: the car loses grip and turns in circles for `seconds`. */
 export function spinOut(s: CarState, seconds: number, dir: number = Math.random() < 0.5 ? -1 : 1): void {
   s.spinLeft = Math.max(s.spinLeft, seconds);
   s.spinDir = dir < 0 ? -1 : 1;
@@ -144,10 +159,12 @@ export function stepCar(
   }
 
   // Drift: hold Space while steering at speed; it ends when Space lets go.
-  if (!spinning && !s.drifting && input.handbrake && input.steer !== 0 && speed > DRIFT.minSpeed && grounded) {
+  const minSpeed = s.driftMode ? DRIFT_SURFACE[s.surface].minSpeed : DRIFT.minSpeed;
+  if (!spinning && !s.drifting && input.handbrake && input.steer !== 0 && speed > minSpeed && grounded) {
     s.drifting = true;
     s.driftDir = Math.sign(input.steer);
     s.driftCharge = 0;
+    s.driftAngle = DRIFT_MODE.start;
   } else if (s.drifting && (!input.handbrake || speed < DRIFT.endSpeed)) {
     s.drifting = false;
     s.recovering = DRIFT.recoverTime;
@@ -254,7 +271,13 @@ export function stepCar(
     // The direction of travel arcs around the turn; the nose leads it into the turn.
     const into = input.steer * s.driftDir; // +1 steering into the drift, -1 countersteering
     const turn = Math.max(0.2, DRIFT.turn + DRIFT.turnSteer * into);
-    const angle = Math.max(0.15, DRIFT.angle + DRIFT.angleSteer * into);
+    let angle = Math.max(0.15, DRIFT.angle + DRIFT.angleSteer * into);
+    if (s.driftMode) {
+      const next = driftAngleStep(s.driftAngle, into, dt, s.surface);
+      s.driftAngle = next.angle;
+      angle = Math.min(next.angle, DRIFT_MODE.spin);
+      if (next.spin) spinOut(s, DRIFT_MODE.spinSeconds, s.driftDir);
+    }
     // Right is a clockwise (negative) turn about +y.
     const th = -s.driftDir * turn * dt;
     const cos = Math.cos(th);

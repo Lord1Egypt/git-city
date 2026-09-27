@@ -112,7 +112,39 @@ export const SURFACE = {
   road: { grip: 2.0, topSpeed: 25 },
   plaza: { grip: 1.8, topSpeed: 20 },
   grass: { grip: 1.1, topSpeed: 14 },
+  /** Drift spots: rain-soaked docks (less grip) and a dry mountain road. */
+  wet: { grip: 1.5, topSpeed: 25 },
+  asphalt: { grip: 2.1, topSpeed: 26 },
 } as const;
+
+// Drift mode (the drift spots): the drift's angle is yours to hold. Steering
+// into the drift opens it, countersteering closes it, and past `spin` the car
+// spins out. Keys only have full lock, so how long you hold is the analog axis
+// (browser drift games); a drag on a phone is analog already.
+export const DRIFT_MODE = {
+  /** Nose angle off the direction of travel a drift starts at (rad, ~30°), its floor (~15°) and where it spins (~70°). */
+  start: 0.52,
+  min: 0.26,
+  spin: 1.22,
+  /** How fast full lock into the drift opens the angle, and full countersteer closes it (rad/s). */
+  open: 0.9,
+  close: 1.4,
+  /** How long a spin from too much angle lasts (s). */
+  spinSeconds: 0.9,
+};
+
+/**
+ * How each surface drifts in drift mode: `creep` opens the angle by itself
+ * (rad/s: on the wet the tail walks out, so you countersteer to hold it) and
+ * `minSpeed` is the speed a drift needs to start (m/s).
+ */
+export const DRIFT_SURFACE: Record<keyof typeof SURFACE, { creep: number; minSpeed: number }> = {
+  road: { creep: 0, minSpeed: 5 },
+  plaza: { creep: 0, minSpeed: 5 },
+  grass: { creep: 0.1, minSpeed: 5 },
+  wet: { creep: 0.25, minSpeed: 4 },
+  asphalt: { creep: 0, minSpeed: 8 },
+};
 
 // Hold Shift: unlimited boost in the town. On the race track only a mini-turbo.
 export const BOOST = {
