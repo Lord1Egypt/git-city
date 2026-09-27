@@ -212,6 +212,17 @@ export async function autoPlace(leagueId: string, devIds: number | number[]): Pr
   }
 }
 
+/** Whether the member has a building in the town's city. */
+export async function hasBuilding(leagueId: string, devId: number): Promise<boolean> {
+  const { count } = await getSupabaseAdmin()
+    .from("league_objects")
+    .select("id", { count: "exact", head: true })
+    .eq("league_id", leagueId)
+    .eq("kind", "building")
+    .eq("developer_id", devId);
+  return (count ?? 0) > 0;
+}
+
 /** Takes former or removed members' buildings out of the city. Never throws. */
 export async function removeBuilding(leagueId: string, devIds: number | number[]): Promise<void> {
   const ids = Array.isArray(devIds) ? devIds : [devIds];

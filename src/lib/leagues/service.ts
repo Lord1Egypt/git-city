@@ -5,7 +5,7 @@ import { getAuthedDeveloper } from "@/lib/auth-identity";
 import { FETCH_TIMEOUT_MS, GitHubFetchError, ghHeaders } from "@/lib/github-api";
 import { createDeveloperFromGitHub } from "@/lib/create-developer";
 import { inviteJoined } from "./joined";
-import { autoPlace, ensureCity, removeBuilding } from "@/lib/league-city/service";
+import { autoPlace, ensureCity, hasBuilding, removeBuilding } from "@/lib/league-city/service";
 import { DEFAULT_TEMPLATE, templateFor, type TemplateId } from "@/lib/league-city/templates";
 import { cleanLeagueName, isReservedSlug, LOGIN_RE } from "./names";
 import { LeagueError, dbError } from "./errors";
@@ -21,6 +21,7 @@ import {
   type JoinRequestRow,
 } from "@/lib/towns/joining";
 import { accountOldEnough } from "@/lib/towns/invites";
+import { isRivalry, rivalName, rivalOf, sideSwitch } from "@/lib/towns/rivalry";
 import { sendJoinRequestNotification, sendRequestApprovedNotification } from "@/lib/notification-senders/league-requests";
 import { sendLeagueInvitedNotification } from "@/lib/notification-senders/league-invited";
 
@@ -96,7 +97,7 @@ export async function currentSlugFor(oldSlug: string): Promise<string | null> {
 export async function getMembership(leagueId: string, devId: number) {
   const { data } = await getSupabaseAdmin()
     .from("league_members")
-    .select("status, verification, verified_until, invited_by, joined_at, removed_by")
+    .select("status, verification, verified_until, invited_by, joined_at, left_at, removed_by, joined_via")
     .eq("league_id", leagueId)
     .eq("developer_id", devId)
     .maybeSingle();
@@ -107,10 +108,14 @@ export async function getMembership(leagueId: string, devId: number) {
         verified_until: string | null;
         invited_by: number | null;
         joined_at: string | null;
+        left_at: string | null;
         removed_by: number | null;
+        joined_via: string | null;
       }
     | null;
 }
+
+type Membership = NonNullable<Awaited<ReturnType<typeof getMembership>>>;
 
 /**
  * Takes one unit of a per-dev limit (league_take_quota, migration 135):
@@ -270,6 +275,9 @@ export async function joinLeague(
     }
   }
 
+  const via = decision === "invited" ? "invite" : decision === "token" ? "link" : "open";
+  if (isRivalry(league.slug)) return pickSide(viewer, league, existing, invitedBy, via);
+
   // The count is locked, but the upsert below runs after the lock is gone, so
   // two joins at the same instant could go one league over. Harmless.
   if (!isAdminGithubLogin(viewer.github_login) && !(await takeQuota(viewer.id, "membership", MAX_CUSTOM_LEAGUES))) {
@@ -285,7 +293,7 @@ export async function joinLeague(
       joined_at: new Date().toISOString(),
       left_at: null,
       removed_by: null,
-      joined_via: decision === "invited" ? "invite" : decision === "token" ? "link" : "open",
+      joined_via: via,
     },
     { onConflict: "league_id,developer_id" },
   );
@@ -302,6 +310,99 @@ export async function joinLeague(
   return "active";
 }
 
+// ─── Claude Code vs Codex ───────────────────────────────────
+
+const MEMBER_FIELDS = ["status", "invited_by", "joined_at", "left_at", "removed_by", "joined_via"] as const;
+
+function restorable(m: Membership) {
+  return Object.fromEntries(MEMBER_FIELDS.map((k) => [k, m[k]]));
+}
+
+/** Puts a membership row back as it was, or deletes it if it didn't exist. Logs, never throws. */
+async function restoreMembership(leagueId: string, devId: number, before: Membership | null) {
+  const sb = getSupabaseAdmin();
+  const q = before
+    ? sb.from("league_members").update(restorable(before)).eq("league_id", leagueId).eq("developer_id", devId)
+    : sb.from("league_members").delete().eq("league_id", leagueId).eq("developer_id", devId);
+  const { error } = await q;
+  if (error) console.error("[rivalry] restore failed", leagueId, devId, error);
+}
+
+/**
+ * Joining a rivalry town is picking a side, which is all or nothing: one side
+ * at a time (the database refuses two, migration 157), the week's side holds
+ * until Monday, and a side comes with a building on it. Any step that fails
+ * puts both memberships back as they were.
+ */
+async function pickSide(
+  viewer: Viewer,
+  league: League,
+  existing: Membership | null,
+  invitedBy: number | null,
+  via: string,
+): Promise<MemberStatus> {
+  const sb = getSupabaseAdmin();
+  const rival = await getLeagueBySlug(rivalOf(league.slug) as string);
+  const rivalBefore = rival ? await getMembership(rival.id, viewer.id) : null;
+  const move = sideSwitch(rivalBefore, new Date());
+  const rivalLabel = rival ? (rivalName(rival.slug) ?? rival.name) : "";
+  const lockedError = () =>
+    new LeagueError("side_locked", `You're on ${rivalLabel} this week. You can switch sides on Monday.`, 409);
+  if (move === "locked") throw lockedError();
+
+  const now = new Date().toISOString();
+  // The old side goes first: the database never lets both be active.
+  if (rival && move === "switch") {
+    const { error } = await sb
+      .from("league_members")
+      .update({ status: "former", left_at: now, removed_by: null })
+      .eq("league_id", rival.id)
+      .eq("developer_id", viewer.id);
+    if (error) throw dbError("leave_failed", error);
+  }
+  const undoRival = async () => {
+    if (rival && move === "switch" && rivalBefore) await restoreMembership(rival.id, viewer.id, rivalBefore);
+  };
+
+  const { error } = await sb.from("league_members").upsert(
+    {
+      league_id: league.id,
+      developer_id: viewer.id,
+      status: "active",
+      invited_by: invitedBy,
+      joined_at: now,
+      left_at: null,
+      removed_by: null,
+      joined_via: via,
+    },
+    { onConflict: "league_id,developer_id" },
+  );
+  if (error) {
+    await undoRival();
+    // Another request put them on the other side a moment ago.
+    if (error.message?.includes("rival_side")) throw lockedError();
+    throw dbError("join_failed", error);
+  }
+
+  // No lot (city full, or placement failed): no pick.
+  await autoPlace(league.id, viewer.id);
+  if (!(await hasBuilding(league.id, viewer.id))) {
+    await restoreMembership(league.id, viewer.id, existing);
+    await undoRival();
+    invalidateLeague(league.id);
+    throw new LeagueError("town_full", `${rivalName(league.slug) ?? league.name} has no free lot right now. Try again soon.`, 409);
+  }
+
+  if (rival && move === "switch") {
+    await removeBuilding(rival.id, viewer.id);
+    invalidateLeague(rival.id);
+  }
+  await closeRequest(league.id, viewer.id, null);
+  if (existing?.status === "invited" || via === "link") await inviteJoined(league.id, viewer.id, viewer.github_login, invitedBy);
+  invalidateLeague(league.id);
+  return "active";
+}
+
 /** Active member leaves: former (kept in the hall of fame), building out of the city. */
 export async function leaveLeague(viewer: Viewer, league: League): Promise<void> {
   const m = await getMembership(league.id, viewer.id);
@@ -314,7 +415,8 @@ export async function leaveLeague(viewer: Viewer, league: League): Promise<void>
     .eq("developer_id", viewer.id);
   if (error) throw dbError("leave_failed", error);
   await removeBuilding(league.id, viewer.id);
-  if (league.admin_id === viewer.id) await reassignAdmin(league.id);
+  // Rivalry towns keep their admin (the site admin) whoever leaves.
+  if (league.admin_id === viewer.id && !isRivalry(league.slug)) await reassignAdmin(league.id);
   invalidateLeague(league.id);
 }
 
@@ -416,7 +518,10 @@ export async function inviteMember(
   const existing = await getMembership(league.id, dev.id);
   let status: MemberStatus = existing?.status ?? "invited";
   const fresh = !existing || existing.status === "former";
-  if (!existing) {
+  // Rivalry towns: an invite is only the link. Nobody lands on a side, or gets
+  // a building there, without picking it themselves.
+  const seats = !isRivalry(league.slug);
+  if (seats && !existing) {
     const { error } = await sb.from("league_members").insert({
       league_id: league.id,
       developer_id: dev.id,
@@ -426,7 +531,7 @@ export async function inviteMember(
     });
     if (error) throw dbError("invite_failed", error);
     await autoPlace(league.id, dev.id);
-  } else if (existing.status === "former") {
+  } else if (seats && existing?.status === "former") {
     // A new invite is how a former member comes back; only the admin can undo a removal.
     if (existing.removed_by !== null && league.admin_id !== viewer.id) {
       throw new LeagueError("removed", `The admin removed @${dev.github_login}. Only the admin can invite them back.`, 403);
@@ -630,6 +735,7 @@ export async function countJoinRequests(leagueId: string): Promise<number> {
  */
 export async function decideJoinRequest(viewer: Viewer, league: League, rawLogin: string, approve: boolean): Promise<void> {
   requireAdmin(viewer, league);
+  if (isRivalry(league.slug)) throw new LeagueError("rivalry_open", "Anyone can pick this side; there are no requests.", 400);
   const sb = getSupabaseAdmin();
   const login = rawLogin.trim().replace(/^@/, "").toLowerCase();
   const { data: dev } = await sb.from("developers").select("id, github_login").eq("github_login", login).maybeSingle();
@@ -683,6 +789,11 @@ export async function decideJoinRequest(viewer: Viewer, league: League, rawLogin
 // ─── Admin ──────────────────────────────────────────────────
 
 function requireAdmin(viewer: Viewer, league: League) {
+  // Claude Code and Codex belong to Git City: only the site admin runs them.
+  if (isRivalry(league.slug)) {
+    if (!isAdminGithubLogin(viewer.github_login)) throw new LeagueError("not_admin", "Only Git City can change this town.", 403);
+    return;
+  }
   if (league.admin_id !== viewer.id) throw new LeagueError("not_admin", "Only the town admin can do that.", 403);
 }
 
