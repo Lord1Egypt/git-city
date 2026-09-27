@@ -141,6 +141,13 @@ export class SmashStore {
     return this.damaged[target] === 1 || this.moving.has(target);
   }
 
+  /** Logins of the buildings drawn broken right now. */
+  brokenLogins(): Set<string> {
+    const out = new Set<string>();
+    for (let i = 0; i < this.targets.length; i++) if (this.isBroken(i)) out.add(this.targets[i].login);
+    return out;
+  }
+
   /** Grow floors back, drop columns into their gaps. Returns the targets that moved. Once per `now`. */
   frame(now: number, dt: number): ReadonlySet<number> {
     if (now === this.lastFrame) return this.moving;

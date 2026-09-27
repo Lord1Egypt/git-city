@@ -186,16 +186,13 @@ const _yaw = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
 
 // ─── Smash ghost ───────────────────────────────────────────────
-// What a broken building is missing: the outline of each knocked-out column
-// and its floor lines, faint, in the town's color.
+// A broken building's original size: a thin outline of its full box, faint,
+// in the town's color, with a whisper of fill.
 
 const ghostVertex = /* glsl */ `
-  attribute float aFloors;
   varying vec2 vUv;
-  varying float vFloors;
   void main() {
     vUv = uv;
-    vFloors = aFloors;
     gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
   }
 `;
@@ -203,17 +200,10 @@ const ghostVertex = /* glsl */ `
 const ghostFragment = /* glsl */ `
   uniform vec3 uColor;
   varying vec2 vUv;
-  varying float vFloors;
   void main() {
     vec2 e = min(vUv, 1.0 - vUv) / fwidth(vUv);
-    float edge = 1.0 - clamp(min(e.x, e.y) - 0.5, 0.0, 1.0);
-    float f = vUv.y * vFloors;
-    float fw = fwidth(f);
-    float fl = abs(f - floor(f + 0.5)) / fw;
-    // Floor lines fade out once they get closer than a few pixels (far away).
-    float floorLine = (1.0 - clamp(fl - 0.5, 0.0, 1.0)) * clamp(1.5 - fw * 4.0, 0.0, 1.0);
-    float a = max(edge * 0.4, floorLine * 0.14) + 0.012;
-    gl_FragColor = vec4(uColor, a);
+    float edge = 1.0 - clamp(min(e.x, e.y) - 0.75, 0.0, 1.0);
+    gl_FragColor = vec4(uColor, edge * 0.6 + 0.025);
   }
 `;
 
@@ -641,14 +631,12 @@ export default memo(function InstancedBuildings({
     },
     [ghostGeo, ghostMat],
   );
-  const ghostFloors = useMemo(() => new Float32Array(smash ? count * SMASH_SLOTS : 0), [smash, count]);
   useEffect(() => {
     const g = ghostRef.current;
     if (!g) return;
-    for (let i = 0; i < ghostFloors.length; i++) g.setMatrixAt(i, _hidden);
+    for (let i = 0; i < count; i++) g.setMatrixAt(i, _hidden);
     g.instanceMatrix.needsUpdate = true;
-    g.geometry.setAttribute("aFloors", new THREE.InstancedBufferAttribute(ghostFloors, 1));
-  }, [ghostFloors]);
+  }, [smash, count]);
 
   useFrame((_, dt) => {
     const mesh = meshRef.current;
@@ -660,14 +648,19 @@ export default memo(function InstancedBuildings({
     smashVersion.current = smash.version;
     const uvF = uvFrontData;
     const uvS = uvSideData;
-    const floorsAttr = ghost.geometry.getAttribute("aFloors") as THREE.InstancedBufferAttribute | undefined;
 
     const write = (i: number, k: number) => {
       const t = smash.targets[k];
       const b = buildings[i];
       const broken = smash.isBroken(k);
-      if (broken) mesh.setMatrixAt(i, _hidden);
-      else {
+      if (broken) {
+        mesh.setMatrixAt(i, _hidden);
+        // Just outside the full box, so it outlines the building without z-fighting its columns.
+        _position.set(b.position[0], b.height / 2, b.position[2]);
+        _scale.set(b.width + 0.6, b.height + 0.3, b.depth + 0.6);
+        ghost.setMatrixAt(i, _matrix.compose(_position, _quaternion, _scale));
+      } else {
+        ghost.setMatrixAt(i, _hidden);
         _position.set(b.position[0], b.height / 2, b.position[2]);
         _scale.set(b.width, b.height, b.depth);
         mesh.setMatrixAt(i, _matrix.compose(_position, _quaternion, _scale));
@@ -678,12 +671,10 @@ export default memo(function InstancedBuildings({
       const z0 = t.z - t.d / 2;
       for (let c = 0; c < SMASH_SLOTS; c++) {
         const slot = count + i * SMASH_SLOTS + c;
-        const gslot = i * SMASH_SLOTS + c;
         const a = c % nx;
         const bz = Math.floor(c / nx);
         if (!broken || c >= nx * nz) {
           mesh.setMatrixAt(slot, _hidden);
-          ghost.setMatrixAt(gslot, _hidden);
           continue;
         }
         const shown = smash.shown[k * SMASH_SLOTS + c];
@@ -716,15 +707,6 @@ export default memo(function InstancedBuildings({
         uvS[slot * 4 + 1] = uvS[i * 4 + 1] + skip;
         uvS[slot * 4 + 2] = (t.zs[bz + 1] - t.zs[bz]) * uvS[i * 4 + 2];
         uvS[slot * 4 + 3] = rows / ATLAS_COLS;
-        const missing = t.floors - Math.max(0, shown);
-        if (missing < 0.02) ghost.setMatrixAt(gslot, _hidden);
-        else {
-          const top = lift + Math.max(0, shown) * t.floorH;
-          _position.set(cx, (top + b.height) / 2, cz);
-          _scale.set(cw, b.height - top, cd);
-          ghost.setMatrixAt(gslot, _matrix.compose(_position, _quaternion, _scale));
-        }
-        ghostFloors[gslot] = missing;
       }
     };
 
@@ -745,7 +727,6 @@ export default memo(function InstancedBuildings({
     const sa = mesh.geometry.getAttribute("aUvSide") as THREE.InstancedBufferAttribute | undefined;
     if (fa) fa.needsUpdate = true;
     if (sa) sa.needsUpdate = true;
-    if (floorsAttr) floorsAttr.needsUpdate = true;
   });
 
   // ─── Click / Hover interaction (manual raycast, bypasses R3F events) ──
@@ -861,7 +842,7 @@ export default memo(function InstancedBuildings({
         args={[geo, material, capacity]}
         frustumCulled={false}
       />
-      {smash && <instancedMesh ref={ghostRef} args={[ghostGeo, ghostMat, count * SMASH_SLOTS]} frustumCulled={false} renderOrder={2} />}
+      {smash && <instancedMesh ref={ghostRef} args={[ghostGeo, ghostMat, count]} frustumCulled={false} renderOrder={2} />}
     </>
   );
 });

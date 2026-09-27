@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { createWindowAtlas, FocusBeacon } from "./Building3D";
@@ -68,6 +68,20 @@ function buildLookup(buildings: CityBuilding[]): BuildingLookup {
   return { indexByLogin };
 }
 
+// ─── Smash ──────────────────────────────────────────────────────
+
+/** The logins drawn broken (their roof items and beacons hide), re-read when the store says the set changed. */
+function useSmashBroken(smash?: SmashStore): ReadonlySet<string> | null {
+  const [broken, setBroken] = useState<ReadonlySet<string> | null>(null);
+  const seen = useRef(-1);
+  useFrame(() => {
+    if (!smash || smash.version === seen.current) return;
+    seen.current = smash.version;
+    setBroken(smash.brokenLogins());
+  });
+  return broken;
+}
+
 // ─── Component ──────────────────────────────────────────────────
 
 interface CitySceneProps {
@@ -127,8 +141,15 @@ export default function CityScene({
   // Single atlas texture for all building windows (created once per theme)
   const atlasTexture = useMemo(() => createWindowAtlas(colors), [colors]);
 
+  // A broken building loses its roof items and beacons with its floors.
+  const broken = useSmashBroken(smash);
+  const standing = useMemo(
+    () => (broken && broken.size > 0 ? buildings.filter((b) => !broken.has(b.loginLower)) : buildings),
+    [buildings, broken],
+  );
+
   // Spatial grid for effects LOD
-  const grid = useMemo(() => buildSpatialGrid(buildings, GRID_CELL_SIZE), [buildings]);
+  const grid = useMemo(() => buildSpatialGrid(standing, GRID_CELL_SIZE), [standing]);
 
   // Lookup for focus info emission
   const lookup = useMemo(() => buildLookup(buildings), [buildings]);
@@ -219,7 +240,7 @@ export default function CityScene({
 
       {/* Effects: React components only for nearby buildings with items (?fx=0 turns them off to measure phones) */}
       {!NO_FX && <EffectsLayer
-        buildings={buildings}
+        buildings={standing}
         grid={grid}
         colors={colors}
         accentColor={accentColor ?? colors.accent ?? "#c8e64a"}
@@ -256,7 +277,7 @@ export default function CityScene({
       )}
 
       {/* Drop beacons: pillars of light on buildings with active drops */}
-      {!introMode && buildings.filter((b) => b.active_drop).map((b) => (
+      {!introMode && standing.filter((b) => b.active_drop).map((b) => (
         <group key={`drop-${b.login}`} position={[b.position[0], 0, b.position[2]]}>
           <DropBeacon rarity={b.active_drop!.rarity} height={b.height} />
         </group>
