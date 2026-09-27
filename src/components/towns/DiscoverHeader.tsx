@@ -15,9 +15,14 @@ export default function DiscoverHeader() {
         <Link href="/" className="shrink-0 whitespace-nowrap text-sm text-muted transition-colors hover:text-cream">
           &larr; City
         </Link>
-        <Link href="/towns/new" className={`${BTN} border-lime bg-lime text-bg`}>
-          + Create a town
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/drift" className={`${BTN} border-border text-cream hover:border-lime hover:text-lime`}>
+            Drift
+          </Link>
+          <Link href="/towns/new" className={`${BTN} border-lime bg-lime text-bg`}>
+            + Create a town
+          </Link>
+        </div>
       </nav>
 
       <div className="mt-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
