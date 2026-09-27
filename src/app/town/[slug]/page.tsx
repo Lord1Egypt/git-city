@@ -68,18 +68,14 @@ export default async function LeaguePage({ params, searchParams }: Props) {
   const viewer = await getViewer();
   const data = await getLeaguePageData(league, viewer);
   const coding = data.week.standings.filter((s) => s.total > 0).length;
-  const [city, cityDevs, cityNorms, inviteToken, badges, place, raceRecord] = await Promise.all([
+  const [city, cityDevs, cityNorms, inviteToken, badges, ranking, raceRecord] = await Promise.all([
     getCachedCity(league.id),
     getLeagueCityDevs(data.members),
     getCityNorms(),
     t && league.kind === "custom" ? getInviteToken(league.id) : Promise.resolve(null),
     getTownBadges(league.id).catch(() => ({ townOfWeek: false, milestones: [] })),
-    // This week's place among towns (cached ranking), for the widget and the intro.
-    league.hidden
-      ? Promise.resolve(null)
-      : getTownRanking()
-          .then((r) => townPlace(r, league.id, coding))
-          .catch(() => null),
+    // This week's town race (cached ranking), for the widget, the panel and the intro.
+    league.hidden ? Promise.resolve(null) : getTownRanking().catch(() => null),
     // The race gate's plate: the track record.
     getLapBoard(league.id, TRACK_ID, 1)
       .then((rows) => (rows[0] ? { login: rows[0].login, best_ms: rows[0].best_ms } : null))
@@ -123,7 +119,8 @@ export default async function LeaguePage({ params, searchParams }: Props) {
       pendingRequests={pendingRequests}
       groupLink={groupLink}
       badges={badges}
-      place={place}
+      place={ranking ? townPlace(ranking, league.id, coding) : null}
+      ranking={ranking?.rows ?? []}
       coverDue={coverDue}
     />
   );

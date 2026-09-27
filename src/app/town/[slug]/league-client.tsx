@@ -14,7 +14,7 @@ import {
   type DeveloperRecord,
   type LayoutNorms,
 } from "@/lib/github";
-import type { LeaguePageData } from "@/lib/leagues/queries";
+import type { LeaguePageData, TownRankingRow } from "@/lib/leagues/queries";
 import type { LeagueCity } from "@/lib/league-city/service";
 import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
 import LeagueTitle from "@/components/league/hud/LeagueTitle";
@@ -103,6 +103,7 @@ export default function LeagueClient({
   groupLink,
   badges,
   place = null,
+  ranking = [],
   raceRecord = null,
   coverDue = false,
 }: {
@@ -134,6 +135,8 @@ export default function LeagueClient({
   badges: TownBadges;
   /** This week's place among towns (null for hidden towns or a failed read). */
   place?: TownPlace | null;
+  /** This week's ranked towns, best first (empty for hidden towns or a failed read). */
+  ranking?: TownRankingRow[];
 }) {
   const { league, members, viewer } = data;
   const isMember = viewer?.status === "active";
@@ -895,13 +898,7 @@ export default function LeagueClient({
             className={`pointer-events-none fixed right-4 top-4 z-30 hidden transition-opacity duration-200 sm:block ${focused || panel ? "opacity-0" : ""}`}
             style={hudEnter ? { animation: "fade-in 0.45s ease-out 0.12s both" } : undefined}
           >
-            <RaceWidget
-              data={data}
-              place={place}
-              townOfWeek={badges.townOfWeek}
-              onHallOfFame={() => setPanel("hall")}
-              onStandings={() => setPanel("standings")}
-            />
+            <RaceWidget data={data} ranking={ranking} onOpen={() => setPanel("standings")} />
           </div>
 
           <div
@@ -996,7 +993,7 @@ export default function LeagueClient({
         <ReportPanel slug={league.slug} name={league.name} logoUrl={identity.logoUrl} signedIn={!!viewer} onClose={close} />
       )}
       {panel === "hall" && <HallOfFamePanel data={data} onClose={close} />}
-      {panel === "standings" && <StandingsPanel data={data} place={place} onClose={close} />}
+      {panel === "standings" && <StandingsPanel data={data} ranking={ranking} onHallOfFame={() => setPanel("hall")} onClose={close} />}
       {panel === "invite" && isMember && viewer && (
         <InvitePanel
           slug={league.slug}
