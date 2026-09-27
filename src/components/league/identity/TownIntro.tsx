@@ -5,7 +5,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import CarModel from "@/components/league/drive/CarModel";
-import { CAMERA, WHEEL, M_TO_UNIT } from "@/lib/league-city/drive/tuning";
+import { WHEEL, M_TO_UNIT } from "@/lib/league-city/drive/tuning";
+import { chaseRig, type ChaseRig } from "@/lib/league-city/drive/camera";
 import { WHEELS } from "@/lib/league-city/drive/vehicle";
 import { carAt, type CarIntro, type IntroPose } from "@/lib/league-city/intro";
 
@@ -29,11 +30,6 @@ const WIDE_BACK = 48;
 const WIDE_UP = 32;
 /** Share of the approach spent easing from the opening shot into the chase view. */
 const SETTLE = 0.65;
-/** The drive camera's framing (DriveCamera), where the handoff ends. */
-const DRIVE_BACK = CAMERA.distance * M_TO_UNIT;
-const DRIVE_UP = CAMERA.height * M_TO_UNIT;
-const DRIVE_AHEAD = 6;
-const DRIVE_LOOK_UP = 3;
 /** Car not loaded yet at the handoff: it brakes to a stop over this long and waits. */
 const WAIT_BRAKE = 1.5;
 
@@ -50,16 +46,17 @@ const mix = (a: number, b: number, k: number) => a + (b - a) * k;
 /**
  * Camera behind a car heading north (−z) at (x, z). `wide` 1 is the opening
  * shot (back, up, looking down at the car), 0 the chase view (low, looking
- * down the road). `drive` 1 is the drive camera's own framing. Portrait
- * screens sit further back, until the drive camera takes over.
+ * down the road). `drive` 1 is the drive camera's own framing (`rig`).
+ * Portrait screens sit further back, until the drive camera takes over.
  */
-function chase(x: number, z: number, pos: THREE.Vector3, look: THREE.Vector3, far = 1, wide = 0, drive = 0) {
+function chase(x: number, z: number, pos: THREE.Vector3, look: THREE.Vector3, far = 1, wide = 0, drive = 0, rig?: ChaseRig) {
   const f = mix(far, 1, drive);
-  const back = mix((BACK + (WIDE_BACK - BACK) * wide) * f, DRIVE_BACK, drive);
-  const up = mix((UP + (WIDE_UP - UP) * wide) * f, DRIVE_UP, drive);
+  const r = rig ?? chaseRig(1);
+  const back = mix((BACK + (WIDE_BACK - BACK) * wide) * f, r.back, drive);
+  const up = mix((UP + (WIDE_UP - UP) * wide) * f, r.up, drive);
   pos.set(x, up, z + back);
   // Wide: aim a little past the car, so it sits low in frame with the arch and city above.
-  look.set(x, mix(6 - 6 * wide, DRIVE_LOOK_UP, drive), z - mix(AHEAD + 16 * wide, DRIVE_AHEAD, drive));
+  look.set(x, mix(6 - 6 * wide, r.lookUp, drive), z - mix(AHEAD + 16 * wide, r.ahead, drive));
 }
 
 export interface IntroHandoff {
@@ -97,6 +94,7 @@ export default function TownIntro({
   const camera = useThree((s) => s.camera);
   const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
   const far = aspect < 1 ? 1.6 : 1;
+  const rig = useMemo(() => chaseRig(aspect), [aspect]);
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const car = useRef<THREE.Group>(null);
   const wheelRefs = useRef<(THREE.Object3D | null)[]>([]);
@@ -126,6 +124,13 @@ export default function TownIntro({
   useEffect(
     () => () => {
       if (poseRef) poseRef.current = null;
+      // Cut short mid-handoff (the drive failed): the orbit's lens back.
+      const base = camera.userData.baseFov as number | undefined;
+      if (!state.current.ended && base !== undefined && camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = base;
+        camera.updateProjectionMatrix();
+        delete camera.userData.baseFov;
+      }
       if (state.current.ended || driving) return;
       camera.position.copy(endPos);
       camera.lookAt(endLook);
@@ -180,9 +185,18 @@ export default function TownIntro({
       // slows, so when the drive camera takes over nothing moves.
       const wide = 1 - smooth(Math.min(1, st.t / (intro.cruise * SETTLE)));
       const settle = smooth(Math.min(1, Math.max(0, (st.t - intro.cruise) / intro.rise)));
-      chase(intro.x, z, _want, c.look, far, wide, settle);
+      chase(intro.x, z, _want, c.look, far, wide, settle, rig);
       camera.position.copy(_want);
       camera.lookAt(c.look);
+      // The lens opens to the drive camera's too; the drive puts the old one back on exit.
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.userData.baseFov ??= camera.fov;
+        const fov = mix(camera.userData.baseFov as number, rig.fov, settle);
+        if (Math.abs(fov - camera.fov) > 0.01) {
+          camera.fov = fov;
+          camera.updateProjectionMatrix();
+        }
+      }
       if (st.t < handoffAt || !ready) return;
       st.ended = true;
       onEnd();

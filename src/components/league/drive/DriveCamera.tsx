@@ -5,6 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import { BOOST, CAMERA, M_TO_UNIT, STEER } from "@/lib/league-city/drive/tuning";
+import { chaseRig } from "@/lib/league-city/drive/camera";
 import type { CarApi } from "./Car";
 
 // Chase camera: springs behind the car with a little lag, widens the FOV
@@ -50,9 +51,11 @@ export default function DriveCamera({
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const on = () => (calm.current = mq.matches);
     mq.addEventListener("change", on);
-    const fov = camera.fov;
+    // The town intro may have opened the lens already: back to the one before it.
+    const fov = (camera.userData.baseFov as number | undefined) ?? camera.fov;
     return () => {
       mq.removeEventListener("change", on);
+      delete camera.userData.baseFov;
       camera.fov = fov;
       camera.updateProjectionMatrix();
     };
@@ -72,11 +75,12 @@ export default function DriveCamera({
     if (_fwd.lengthSq() < 1e-4) _fwd.set(0, 0, 1);
     _fwd.normalize();
 
+    const rig = chaseRig(three.size.width / Math.max(1, three.size.height));
     if (mode === "chase") {
-      _want.copy(g.position).addScaledVector(_fwd, -CAMERA.distance * M_TO_UNIT);
-      _want.y = g.position.y + CAMERA.height * M_TO_UNIT;
-      _look.copy(g.position).addScaledVector(_fwd, 6);
-      _look.y += 3;
+      _want.copy(g.position).addScaledVector(_fwd, -rig.back);
+      _want.y = g.position.y + rig.up;
+      _look.copy(g.position).addScaledVector(_fwd, rig.ahead);
+      _look.y += rig.lookUp;
     } else {
       _want.copy(g.position).addScaledVector(_fwd, -10);
       _want.y = g.position.y + CAMERA.topDownHeight * M_TO_UNIT;
@@ -118,7 +122,7 @@ export default function DriveCamera({
 
     // FOV widens with speed and boost.
     const speedT = Math.min(1, Math.abs(st.speed) / BOOST.topSpeed);
-    const target = mode === "chase" ? CAMERA.fov + (CAMERA.fovBoost - CAMERA.fov) * (st.boosting ? 1 : speedT * 0.5) : CAMERA.fov;
+    const target = mode === "chase" ? rig.fov + (rig.fovBoost - rig.fov) * (st.boosting ? 1 : speedT * 0.5) : rig.fov;
     const fov = THREE.MathUtils.lerp(s0.fov, THREE.MathUtils.lerp(camera.fov, target, 1 - Math.exp(-4 * dt)), e);
     if (Math.abs(fov - camera.fov) > 0.01) {
       camera.fov = fov;
