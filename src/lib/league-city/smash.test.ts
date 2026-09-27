@@ -91,3 +91,13 @@ describe("SmashStore", () => {
     expect(s.demolishedBy.size).toBe(0);
   });
 });
+
+describe("standingHeight", () => {
+  it("is the tallest column left, a floor of rubble at least", () => {
+    const s = smashStoreFor([tower]);
+    s.hitColumns(0, Array.from({ length: 16 }, (_, c) => c), 7, 0);
+    expect(s.standingHeight(0)).toBe(3 * 6);
+    s.hitColumns(0, Array.from({ length: 16 }, (_, c) => c), 10, 0);
+    expect(s.standingHeight(0)).toBe(6);
+  });
+});

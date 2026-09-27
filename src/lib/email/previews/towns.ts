@@ -40,7 +40,10 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
       PREVIEW_LINKS,
     ),
   "town-demolished": () =>
-    renderTownDemolishedEmail({ leagueSlug: "codex-town", leagueName: "Codex Town", attackerLogin: "srizzon" }, PREVIEW_LINKS),
+    renderTownDemolishedEmail(
+      { leagueSlug: "codex-town", leagueName: "Codex Town", attackerLogin: "srizzon", victimLogin: "yuripulga", rivalSlug: "claude-code-town", rivalName: "Claude Code Town", downHere: 3, downThere: 1 },
+      PREVIEW_LINKS,
+    ),
   "race-passed": () =>
     renderRacePassedEmail({ ...TOWN, passerLogin: "pyromains", theirMs: 22_912, yourMs: 23_443, newRank: 3 }, PREVIEW_LINKS),
   "race-challenge": () =>
