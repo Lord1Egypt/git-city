@@ -412,6 +412,8 @@ export default memo(function InstancedBuildings({
     const radius = Math.sqrt(maxDist * maxDist + maxHeight * maxHeight) + 100;
     mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, maxHeight / 2, 0), radius);
     mesh.boundingBox = null; // let Three.js recompute if needed
+    // The ghosts start hidden, so their own bounds would be a point: use the city's.
+    if (ghostRef.current) ghostRef.current.boundingSphere = mesh.boundingSphere.clone();
 
     // Set per-instance attributes
     const uvFrontAttr = new THREE.InstancedBufferAttribute(uvFrontData, 4);
@@ -762,9 +764,15 @@ export default memo(function InstancedBuildings({
       raycasterRef.current.setFromCamera(pointerNDC.current, camera);
       const hits: THREE.Intersection[] = [];
       mesh.raycast(raycasterRef.current, hits);
+      // A broken building is its columns (slots after the buildings) and its
+      // ghost (one per building, same index): both click as the building.
+      ghostRef.current?.raycast(raycasterRef.current, hits);
       if (hits.length > 0) {
         hits.sort((a, b) => a.distance - b.distance);
-        if (hits[0].instanceId !== undefined) return hits[0].instanceId;
+        const id = hits[0].instanceId;
+        if (id === undefined) return null;
+        const n = buildingsRef.current.length;
+        return hits[0].object === mesh && id >= n ? Math.floor((id - n) / SMASH_SLOTS) : id;
       }
       return null;
     };
