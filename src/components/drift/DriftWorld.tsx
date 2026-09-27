@@ -11,8 +11,13 @@ import SkidMarks from "@/components/league/drive/SkidMarks";
 import { CameraKey, DriveAudio, LocalFx } from "@/components/league/drive/carFx";
 import type { FxSource } from "@/components/league/drive/fx";
 import { useDriveInput } from "@/components/league/drive/useDriveInput";
-import RaceCamera, { type RaceCameraMode, type RaceShot } from "@/components/race/RaceCamera";
 import TrackScene from "@/components/race/TrackScene";
+import type { CityTheme } from "@/components/city/theme";
+import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
+import type { LayoutNorms } from "@/lib/city-layout-core";
+import DriftCamera from "./DriftCamera";
+import Skyline from "./Skyline";
+import HarborScene from "./scenes/HarborScene";
 import { Ghost } from "@/components/race/Ghost";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
 import { GRAVITY, M_TO_UNIT } from "@/lib/league-city/drive/tuning";
@@ -42,6 +47,7 @@ export interface DriftFinish {
   frames: Frames;
   score: number;
   splits: number[];
+  stats: { banks: number; lost: number; clips: number; bestChain: number };
 }
 
 export interface DriftWorldProps {
@@ -50,7 +56,10 @@ export interface DriftWorldProps {
   title: string;
   color: string;
   telemetry: DriftTelemetry;
-  camera: RaceCameraMode;
+  theme: CityTheme;
+  /** The city on the horizon: its biggest developers and the city's height norms. */
+  skyline: { devs: Record<string, unknown>[]; norms: LayoutNorms } | null;
+  camera: DriveCameraMode;
   onCameraToggle: () => void;
   muted: boolean;
   paused: boolean;
@@ -58,8 +67,6 @@ export interface DriftWorldProps {
   stageAt: number;
   beatMs: number;
   onStage: (stage: TrialStage, beatMs?: number) => void;
-  /** The results are up: the camera keeps the car to the left. */
-  frameLeft: boolean;
   /** Your best run here, and the other ghost you race (someone's best, their login). */
   pb: GhostRun | null;
   rival: { login: string; run: GhostRun; color: string } | null;
@@ -74,8 +81,9 @@ export interface DriftWorldProps {
 }
 
 const U = M_TO_UNIT;
+/** Where each spot sees the city (city units): from Harbor, across the water at the end of the quay, dead ahead from the start. */
+const SKYLINE_AT: Partial<Record<string, [number, number]>> = { harbor: [1850, -120] };
 const NONE: never[] = [];
-const SHOTS: Record<TrialStage, RaceShot> = { menu: "title", intro: "intro", countdown: "follow", run: "follow", finish: "tv" };
 
 class Boundary extends Component<{ onFail: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -132,6 +140,8 @@ export default function DriftWorld({
   title,
   color,
   telemetry,
+  theme,
+  skyline,
   camera,
   onCameraToggle,
   muted,
@@ -140,7 +150,6 @@ export default function DriftWorld({
   stageAt,
   beatMs,
   onStage,
-  frameLeft,
   pb,
   rival,
   showGhosts,
@@ -175,6 +184,7 @@ export default function DriftWorld({
   // Date.now() at GO, for the ghosts (they play on the wall clock).
   const runStart = useRef<number | null>(null);
   const finished = useRef(false);
+  const stats = useRef({ banks: 0, lost: 0, clips: 0, bestChain: 0 });
   const count = useRef({ at: 0, beat: -1 });
 
   const stageRef = useRef({ stage, at: stageAt, beat: beatMs });
@@ -215,6 +225,7 @@ export default function DriftWorld({
     scorer.current = null;
     runStart.current = null;
     finished.current = false;
+    stats.current = { banks: 0, lost: 0, clips: 0, bestChain: 0 };
     Object.assign(tel.current, { drift: null, feed: [], split: null });
   }, []);
 
@@ -252,6 +263,12 @@ export default function DriftWorld({
       hud.drift = st;
       const now = performance.now();
       for (const e of st.events) {
+        const r = stats.current;
+        if (e.kind === "bank") {
+          r.banks++;
+          r.bestChain = Math.max(r.bestChain, e.points);
+        } else if (e.kind === "lost") r.lost++;
+        else r.clips++;
         hud.feed = [{ kind: e.kind, points: e.points, at: now }, ...hud.feed].slice(0, 4);
         if (e.kind === "bank" && e.points >= 1000) say(() => sfx.chime(true));
         if (e.kind === "lost") say(() => sfx.chime(false));
@@ -269,7 +286,7 @@ export default function DriftWorld({
         pilot.current = { s: null };
         const frames = recorder.current.all().slice(0, (st.t / TICK_MS + 1) * 4);
         cb.current.onStage("finish");
-        cb.current.onFinish({ frames, score: st.score, splits: [...st.splits] });
+        cb.current.onFinish({ frames, score: st.score, splits: [...st.splits], stats: { ...stats.current } });
       }
       };
   });
@@ -357,7 +374,12 @@ export default function DriftWorld({
 
   return (
     <Boundary onFail={onFail}>
-      <TrackScene track={track} lit={lit} title={title} />
+      {spot.id === "harbor" ? (
+        <HarborScene track={track} clips={course.clips} theme={theme} name={title} />
+      ) : (
+        <TrackScene track={track} lit={lit} title={title} />
+      )}
+      {skyline && <Skyline devs={skyline.devs} norms={skyline.norms} at={SKYLINE_AT[spot.id] ?? [0, -2400]} colors={theme.building} />}
       <Suspense fallback={null}>
         <Physics timeStep={1 / 60} interpolate paused={hidden || paused} gravity={[0, GRAVITY, 0]} updatePriority={-50}>
           <Walls track={track} />
@@ -384,7 +406,7 @@ export default function DriftWorld({
           <DriveAudio car={car} input={input} impact={impact} muted={muted || paused} />
           <Ghost run={pbRef} lapStart={ghostClock} offset={zero} show={pbShow} />
           {rival && <Ghost run={rivalRun} lapStart={ghostClock} offset={zero} show={pbShow} color={rival.color} label={`@${rival.login}`} />}
-          <RaceCamera mode={camera} car={car} track={track} shot={SHOTS[stage]} shotAt={stageAt} frameLeft={frameLeft} />
+          <DriftCamera car={car} mode={camera} stage={stage} stageAt={stageAt} countdownMs={beatMs * TRIAL.beats} />
           <CameraKey input={input} onToggle={onCameraToggle} />
           <Ready onReady={onReady} />
         </Physics>

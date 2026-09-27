@@ -4,6 +4,7 @@ import { getViewer } from "@/lib/leagues/service";
 import { getBoard, getMyRow, getRecords, nextAbove } from "@/lib/drift/board";
 import { getLiveSpot } from "@/lib/drift/spots";
 import { medalScores } from "@/lib/drift/spots/types";
+import { getSkyline } from "@/lib/drift/skyline";
 import SpotClient from "./spot-client";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +28,11 @@ export default async function DriftSpotPage({ params, searchParams }: Props) {
   const spot = getLiveSpot(id);
   if (!spot) notFound();
   const viewer = await getViewer();
-  const [board, me, records] = await Promise.all([
+  const [board, me, records, skyline] = await Promise.all([
     getBoard(spot.id, "world", 50),
     viewer ? getMyRow(spot.id, viewer.id) : Promise.resolve(null),
     getRecords(),
+    getSkyline().catch(() => null),
   ]);
   // The ghost to race: the one asked for (a challenge link, a board row), else
   // the driver just above you (Mario Kart), else the first run past gold.
@@ -50,6 +52,7 @@ export default async function DriftSpotPage({ params, searchParams }: Props) {
       record={records[spot.id] ? { login: records[spot.id]!.login, score: records[spot.id]!.score } : null}
       rivalLogin={rival && rival.toLowerCase() !== viewer?.github_login.toLowerCase() ? rival : null}
       challenger={vs && LOGIN.test(vs) ? vs : null}
+      skyline={skyline}
     />
   );
 }

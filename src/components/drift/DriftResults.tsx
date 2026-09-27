@@ -2,16 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HUD_BOX } from "@/components/league/hud/shared";
+import { carColor } from "@/lib/league-city/drive/net";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
 import { medalFor, medalScores, type LiveSpot } from "@/lib/drift/spots/types";
 import { MEDAL_COLORS, fmt } from "./DriftHud";
 
-// Past the line, in Trackmania's order: FINISH, then the score counts up,
-// then the medal, where it ranks in the world and your country, who it
-// passed, and the next thing to chase (a medal, or the driver just above,
-// with their ghost a key away). A run worse than your best gets no fanfare,
-// just the gap. Retry has the focus and R or Enter takes it in one press.
+// Past the line, the race card's pattern, in Trackmania's order: FINISH, the
+// score counting up, the medal slamming on, where it ranks in the world and
+// your country, who it passed, and the next thing to chase (the driver just
+// above, with their ghost a key away, or the next medal). A run worse than
+// your best gets no fanfare, just the gap. Again has the focus: R or Enter.
 
 export interface PostResult {
   score: number;
@@ -35,8 +36,9 @@ export type PostState =
 export interface DriftResultsProps {
   spot: LiveSpot;
   score: number;
-  /** Your best before this run (board or browser), or null on a first run. */
   before: number | null;
+  /** Banks, drifts lost and clipping points hit in the run. */
+  stats: { banks: number; lost: number; clips: number; bestChain: number };
   post: PostState;
   you: string | null;
   onRetry: () => void;
@@ -51,19 +53,19 @@ export default function DriftResults(p: DriftResultsProps) {
   const [beat, setBeat] = useState(0);
   const [shown, setShown] = useState(0);
   const [copied, setCopied] = useState(false);
-  const retry = useRef<HTMLButtonElement>(null);
+  const again = useRef<HTMLButtonElement>(null);
   const better = p.before === null || p.score > p.before;
   const medal = medalFor(p.spot, p.score);
-  const medals = medalScores(p.spot);
-  const nextMedal = [...medals].reverse().find(([, at]) => at > p.score) ?? null;
+  const nextMedal = [...medalScores(p.spot)].reverse().find(([, at]) => at > p.score) ?? null;
 
-  // 0 FINISH · 1 panel and count-up · 2 medal · 3 ranks · 4 passed and next goal.
+  // 0 FINISH · 1 card and count-up · 2 medal · 3 ranks and what's next.
   useEffect(() => {
-    const ts = [1200, 2400, 3000, 3600].map((ms, i) => setTimeout(() => setBeat(i + 1), ms));
+    const ts = [1300, 2500, 3100].map((ms, i) => setTimeout(() => setBeat(i + 1), ms));
     return () => ts.forEach(clearTimeout);
   }, []);
+  const showing = beat >= 1;
   useEffect(() => {
-    if (beat < 1) return;
+    if (!showing) return;
     const start = performance.now();
     let raf = 0;
     const tick = () => {
@@ -72,9 +74,9 @@ export default function DriftResults(p: DriftResultsProps) {
       if (k < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    retry.current?.focus();
+    again.current?.focus({ preventScroll: true });
     return () => cancelAnimationFrame(raf);
-  }, [beat >= 1, p.score]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once the panel shows
+  }, [showing, p.score]);
 
   const cb = useRef(p);
   useEffect(() => {
@@ -101,96 +103,116 @@ export default function DriftResults(p: DriftResultsProps) {
       () => setCopied(false),
     );
   };
-  const signIn = async () => {
-    await signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=/drift/${p.spot.id}`);
-  };
+  const signIn = () => void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=/drift/${p.spot.id}`);
 
   return (
     <div className="pointer-events-none fixed inset-0 z-40 font-pixel uppercase">
-      {beat === 0 && <div className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2 text-6xl text-cream drop-shadow-[0_4px_0_#000]">Finish</div>}
+      {beat === 0 && (
+        <div className="absolute left-1/2 top-[34%] -translate-x-1/2 -translate-y-1/2">
+          <span className="block animate-[race-slam_0.3s_ease-out_both] text-6xl tracking-[0.2em] text-cream drop-shadow-[0_5px_0_rgba(0,0,0,0.6)]">Finish</span>
+        </div>
+      )}
 
-      {beat >= 1 && (
-        <div className={`${HUD_BOX} absolute right-6 top-1/2 flex w-80 -translate-y-1/2 flex-col gap-3 p-5`}>
-          <span className="text-[10px] text-muted">{p.spot.name}</span>
-          <span className="text-4xl text-cream tabular-nums">{fmt(shown)}</span>
+      {showing && (
+        <section className={`${HUD_BOX} pointer-events-auto absolute right-[6vw] top-1/2 w-[380px] max-w-[calc(100vw-2rem)] animate-[race-card-in_0.35s_ease-out_both] px-5 py-4`} style={{ transform: "translateY(-50%)" }}>
+          <div className="flex items-start justify-between">
+            <p className="text-[11px] text-muted">{p.spot.name}</p>
+            {beat >= 2 && medal && (
+              <span className="animate-[race-slam_0.3s_ease-out_both] border-[3px] px-2 py-0.5 text-[11px]" style={{ borderColor: MEDAL_COLORS[medal], color: MEDAL_COLORS[medal] }}>
+                {medal}
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-4xl text-cream tabular-nums">{fmt(shown)}</p>
+          <p className="mt-2 flex items-center gap-3 text-xs tabular-nums">
+            {beat >= 2 && better && p.before !== null && <span className="animate-pulse bg-lime px-2 py-0.5 text-bg">New best</span>}
+            {beat >= 2 && !better && p.before !== null && <span className="text-[#ff6b6b]">−{fmt(p.before - p.score)} to your best</span>}
+            {beat >= 2 && p.before === null && <span className="text-lime">First run</span>}
+          </p>
 
-          {beat >= 2 && (
-            <span className="text-[11px]" style={{ color: medal ? MEDAL_COLORS[medal] : undefined }}>
-              {medal ? `${medal} medal` : "No medal yet"}
-              {!better && p.before !== null && <span className="ml-2 normal-case text-muted">{fmt(p.before - p.score)} short of your best</span>}
-              {better && p.before !== null && <span className="ml-2 text-lime">New best</span>}
-            </span>
-          )}
+          <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t-2 border-border pt-3 text-[10px] tabular-nums">
+            <li className="flex justify-between"><span className="text-muted">Banked</span><span className="text-cream">{p.stats.banks}</span></li>
+            <li className="flex justify-between"><span className="text-muted">Lost</span><span className={p.stats.lost ? "text-[#ff6b6b]" : "text-cream"}>{p.stats.lost}</span></li>
+            <li className="flex justify-between"><span className="text-muted">Clips</span><span className="text-cream">{p.stats.clips}</span></li>
+            <li className="flex justify-between"><span className="text-muted">Best chain</span><span className="text-cream">{fmt(p.stats.bestChain)}</span></li>
+          </ul>
 
           {beat >= 3 && (
-            <div className="flex flex-col gap-1 text-[10px]">
-              {p.post.status === "posting" && <span className="text-muted">Posting…</span>}
+            <div className="mt-3 flex flex-col gap-2 text-[11px]">
+              {p.post.status === "posting" && <p className="text-muted">Posting…</p>}
               {p.post.status === "failed" && (
-                <span className="pointer-events-auto flex items-center justify-between text-[#ff9f1c]">
+                <p className="flex items-center justify-between border-2 border-[#ff9a3c] px-3 py-2 text-[#ff9a3c]">
                   Not posted yet
-                  <button type="button" onClick={p.onRetryPost} className="btn-press border-2 border-border px-2 py-0.5 text-cream">
+                  <button type="button" onClick={p.onRetryPost} className="border-2 border-border px-2 py-0.5 text-[10px] text-cream hover:text-lime">
                     Try again
                   </button>
-                </span>
+                </p>
               )}
               {p.post.status === "signed-out" && (
-                <button type="button" onClick={signIn} className="btn-press pointer-events-auto border-2 border-lime px-3 py-2 text-left normal-case text-lime">
-                  Sign in with GitHub to post {fmt(p.score)}
+                <button type="button" onClick={signIn} className="flex items-center justify-between border-2 border-lime px-3 py-2 text-left text-lime">
+                  <span>Sign in to post {fmt(p.score)}</span>
+                  <span className="text-[9px] normal-case">GitHub →</span>
                 </button>
               )}
               {r && (
                 <>
-                  <span className="flex justify-between text-cream">
-                    <span>World</span>
-                    <span className="tabular-nums">
-                      #{r.rankWorld} <span className="text-muted">of {fmt(r.totalWorld)}</span>
+                  <p className="flex gap-5 text-muted">
+                    <span>
+                      World <span className="text-cream">#{r.rankWorld}</span> <span className="text-dim">/ {fmt(r.totalWorld)}</span>
                     </span>
-                  </span>
-                  {r.country && (
-                    <span className="flex justify-between text-cream">
-                      <span>{flag(r.country)} {r.country}</span>
-                      <span className="tabular-nums">
-                        #{r.rankCountry} <span className="text-muted">of {fmt(r.totalCountry)}</span>
+                    {r.country && (
+                      <span>
+                        {flag(r.country)} <span className="text-cream">#{r.rankCountry}</span> <span className="text-dim">/ {fmt(r.totalCountry)}</span>
                       </span>
-                    </span>
+                    )}
+                  </p>
+                  {r.passed.length > 0 && <p className="normal-case text-lime">Passed {r.passed.map((l) => `@${l}`).join(", ")}</p>}
+                  {r.next && (
+                    <button type="button" onClick={() => p.onRaceGhost(r.next!.login)} className="flex items-center justify-between border-2 border-border px-3 py-2 text-left hover:border-lime">
+                      <span className="normal-case" style={{ color: carColor(r.next.login) }}>
+                        @{r.next.login} · #{r.next.rank}
+                      </span>
+                      <span className="text-[10px] text-cream">+{fmt(r.next.score - r.best)} · race ghost</span>
+                    </button>
                   )}
-                  {!r.improved && <span className="normal-case text-muted">Your best stays {fmt(r.best)}</span>}
                 </>
               )}
-            </div>
-          )}
-
-          {beat >= 4 && (
-            <div className="flex flex-col gap-1 text-[10px] normal-case">
-              {r && r.passed.length > 0 && <span className="text-lime">Passed {r.passed.map((l) => `@${l}`).join(", ")}</span>}
-              {r?.next ? (
-                <button type="button" onClick={() => p.onRaceGhost(r.next!.login)} className="btn-press pointer-events-auto border-2 border-border px-3 py-2 text-left text-cream">
-                  @{r.next.login} is {fmt(r.next.score - r.best)} above you. Race their ghost
-                </button>
-              ) : nextMedal ? (
-                <span className="text-muted">
-                  {nextMedal[0]} at {fmt(nextMedal[1])}
-                </span>
-              ) : null}
-            </div>
-          )}
-
-          <div className="pointer-events-auto mt-1 flex flex-col gap-2 text-[11px]">
-            <button ref={retry} type="button" onClick={p.onRetry} className="btn-press border-2 border-lime px-3 py-2 text-lime focus:outline-none">
-              Retry <span className="text-muted">R</span>
-            </button>
-            <div className="flex gap-2">
-              {p.you && (
-                <button type="button" onClick={challenge} className="btn-press flex-1 border-2 border-border px-3 py-2 text-cream">
-                  {copied ? "Link copied" : "Challenge"}
-                </button>
+              {!r?.next && nextMedal && (
+                <p className="flex justify-between text-muted">
+                  <span>Next</span>
+                  <span style={{ color: MEDAL_COLORS[nextMedal[0]] }}>
+                    {nextMedal[0]} {fmt(nextMedal[1])}
+                  </span>
+                </p>
               )}
-              <button type="button" onClick={p.onSpots} className="btn-press flex-1 border-2 border-border px-3 py-2 text-cream">
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              ref={again}
+              type="button"
+              onClick={p.onRetry}
+              className="flex items-center justify-center gap-2 bg-lime px-3 py-2.5 text-[11px] text-bg outline-none transition-[filter] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-cream active:translate-y-px"
+            >
+              <span className="border-2 border-bg px-1">R</span> Again
+            </button>
+            {p.you ? (
+              <button type="button" onClick={challenge} className="flex items-center justify-center gap-2 border-2 border-border px-3 py-2.5 text-[11px] text-cream transition-colors hover:text-lime">
+                {copied ? "Link copied" : "Challenge"}
+              </button>
+            ) : (
+              <button type="button" onClick={p.onSpots} className="flex items-center justify-center gap-2 border-2 border-border px-3 py-2.5 text-[11px] text-cream transition-colors hover:text-lime">
                 Spots
               </button>
-            </div>
+            )}
           </div>
-        </div>
+          {p.you && (
+            <button type="button" onClick={p.onSpots} className="mt-2 w-full text-center text-[10px] text-muted hover:text-lime">
+              Back to spots
+            </button>
+          )}
+        </section>
       )}
     </div>
   );

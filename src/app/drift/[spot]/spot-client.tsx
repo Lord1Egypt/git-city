@@ -6,11 +6,15 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { THEMES, ThemeLights, type CityTheme } from "@/components/city/theme";
+import { ThemeLights } from "@/components/city/theme";
+import ThemeSkyFX from "@/components/ThemeSkyFX";
+import { EXPOSURE, townTheme } from "@/components/league/townTheme";
+import type { LayoutNorms } from "@/lib/city-layout-core";
+import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import { HUD_BOX } from "@/components/league/hud/shared";
 import { isDesktop } from "@/components/towns/useDesktop";
-import type { RaceCameraMode } from "@/components/race/RaceCamera";
-import DriftHud, { MEDAL_COLORS, fmt } from "@/components/drift/DriftHud";
+import DriftHud from "@/components/drift/DriftHud";
+import DriftTitle, { DriftLoading } from "@/components/drift/DriftTitle";
 import DriftResults, { type PostResult, type PostState } from "@/components/drift/DriftResults";
 import type { DriftFinish } from "@/components/drift/DriftWorld";
 import { carColor } from "@/lib/league-city/drive/net";
@@ -19,9 +23,9 @@ import type { GhostRun } from "@/lib/league-city/race/ghost";
 import { pointAt } from "@/lib/league-city/race/track";
 import { TRIAL, type TrialStage } from "@/lib/league-city/race/trial";
 import type { Frames } from "@/lib/drift/frames";
-import { loadRun, markSeen, saveRun, seen, type LocalRun } from "@/lib/drift/local";
+import { loadRun, saveRun, type LocalRun } from "@/lib/drift/local";
 import { courseOf, getLiveSpot } from "@/lib/drift/spots";
-import { medalScores, type LiveSpot, type SpotId } from "@/lib/drift/spots/types";
+import type { LiveSpot, SpotId } from "@/lib/drift/spots/types";
 import { createDriftTelemetry } from "@/lib/drift/telemetry";
 
 // A drift spot: one Canvas, the world (DriftWorld, client only), the HUD and
@@ -33,31 +37,8 @@ const DriftWorld = dynamic(() => import("@/components/drift/DriftWorld"), { ssr:
 
 const MUTE_KEY = "gc:drive-muted";
 
-// Greybox light: the race track's clear afternoon until each spot gets its own sky.
-const DAY: CityTheme = {
-  ...THEMES[0],
-  sky: [
-    [0, "#2f7fd6"],
-    [0.35, "#6fb2ec"],
-    [0.5, "#cfe7f8"],
-    [0.52, "#e8f3fb"],
-    [1, "#e8f3fb"],
-  ],
-  fogColor: "#cfe7f8",
-  fogNear: 900,
-  fogFar: 4500,
-  ambientColor: "#ffffff",
-  ambientIntensity: 0.55,
-  sunColor: "#fff1d6",
-  sunIntensity: 0.95,
-  sunPos: [300, 400, 200],
-  fillColor: "#bcd8ff",
-  fillIntensity: 0.3,
-  fillPos: [-200, 150, -200],
-  hemiSky: "#cfe7ff",
-  hemiGround: "#5d8a45",
-  hemiIntensity: 0.35,
-};
+// Every spot sits under the town's Midnight sky, stars and moon: Git City's night.
+const SKY = townTheme(1);
 
 const toGhost = (frames: Frames, splits: number[]): GhostRun => ({ ms: frames[frames.length - 4] ?? 0, splits, frames });
 
@@ -69,6 +50,7 @@ export default function SpotClient({
   record,
   rivalLogin,
   challenger,
+  skyline,
 }: {
   spotId: SpotId;
   viewerLogin: string | null;
@@ -77,6 +59,7 @@ export default function SpotClient({
   record: { login: string; score: number } | null;
   rivalLogin: string | null;
   challenger: string | null;
+  skyline: { devs: Record<string, unknown>[]; norms: LayoutNorms } | null;
 }) {
   const spot = getLiveSpot(spotId) as LiveSpot;
   const course = useMemo(() => courseOf(spot), [spot]);
@@ -90,7 +73,7 @@ export default function SpotClient({
   const [telemetry] = useState(createDriftTelemetry);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [camera, setCamera] = useState<RaceCameraMode>("high");
+  const [camera, setCamera] = useState<DriveCameraMode>("chase");
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [showGhosts, setShowGhosts] = useState(true);
@@ -150,7 +133,7 @@ export default function SpotClient({
       return !m;
     });
   }, []);
-  const toggleCamera = useCallback(() => setCamera((c) => (c === "high" ? "close" : "high")), []);
+  const toggleCamera = useCallback(() => setCamera((c) => (c === "chase" ? "top" : "chase")), []);
   const toggleGhosts = useCallback(() => setShowGhosts((g) => !g), []);
 
   const [leaving, setLeaving] = useState(false);
@@ -159,12 +142,8 @@ export default function SpotClient({
     router.push(`/drift?spot=${spot.id}`);
   }, [router, spot.id]);
 
-  // Title → flyover (first time) → countdown.
-  const begin = useCallback(() => {
-    if (seen(`intro:${spot.id}`)) return goStage("countdown", TRIAL.beatMs);
-    markSeen(`intro:${spot.id}`);
-    goStage("intro");
-  }, [goStage, spot.id]);
+  // Title → countdown: the 3-2-1 is the camera coming down onto the car (one shot, no flyover).
+  const begin = useCallback(() => goStage("countdown", TRIAL.beatMs), [goStage]);
   useEffect(() => {
     if (!ready || paused) return;
     if (trial.stage === "menu") {
@@ -187,17 +166,19 @@ export default function SpotClient({
     }
   }, [ready, paused, trial.stage, goStage, begin]);
 
-  // Esc pauses; Esc again leaves for the spots.
+  // Esc pauses and resumes; Q on the pause menu leaves for the spots. On the title, Esc goes back.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || leaving) return;
-      e.preventDefault();
-      if (paused) exit();
-      else setPaused(true);
+      if (leaving) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (trial.stage === "menu") exit();
+        else setPaused((v) => !v);
+      } else if (e.code === "KeyQ" && paused) exit();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, exit, leaving]);
+  }, [paused, exit, leaving, trial.stage]);
 
   // Posting a run.
   const [finish, setFinish] = useState<{ run: DriftFinish; before: number | null } | null>(null);
@@ -277,7 +258,6 @@ export default function SpotClient({
 
   const start = pointAt(course.track, course.track.closed ? -30 : 0);
   const look = pointAt(course.track, 20);
-  const medals = medalScores(spot);
 
   if (desktop === false) {
     return (
@@ -298,11 +278,12 @@ export default function SpotClient({
         dpr={[1, 1.5]}
         camera={{ position: [(start.x - start.tx * 10) * M_TO_UNIT, 40, (start.z - start.tz * 10) * M_TO_UNIT], fov: 60, near: 2, far: 8000 }}
         onCreated={({ camera: c }) => c.lookAt(look.x * M_TO_UNIT, 0, look.z * M_TO_UNIT)}
-        gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1 }}
+        gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: EXPOSURE }}
         style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh" }}
       >
-        <fog attach="fog" args={[DAY.fogColor, DAY.fogNear, DAY.fogFar]} />
-        <ThemeLights theme={DAY} themeIndex={21} />
+        <fog attach="fog" args={[SKY.theme.fogColor, SKY.theme.fogNear * 2, SKY.theme.fogFar * 1.2]} />
+        <ThemeLights theme={SKY.theme} themeIndex={SKY.key} />
+        <ThemeSkyFX themeIndex={SKY.fx} theme={SKY.theme} lowSky />
         {desktop && !failed && (
           <DriftWorld
             spot={spot}
@@ -310,6 +291,8 @@ export default function SpotClient({
             title={spot.name}
             color={carColor(viewerLogin ?? "guest")}
             telemetry={telemetry}
+            theme={SKY.theme}
+            skyline={skyline}
             camera={camera}
             onCameraToggle={toggleCamera}
             muted={muted || leaving}
@@ -318,7 +301,6 @@ export default function SpotClient({
             stageAt={trial.at}
             beatMs={trial.beat}
             onStage={goStage}
-            frameLeft={trial.stage === "finish" && !!finish}
             pb={pb}
             rival={rival}
             showGhosts={showGhosts}
@@ -331,45 +313,11 @@ export default function SpotClient({
         )}
       </Canvas>
 
-      {/* Title card */}
       {ready && trial.stage === "menu" && (
-        <div className="pointer-events-none fixed inset-0 z-30 flex flex-col justify-between font-pixel uppercase">
-          <div className="h-16 bg-black" />
-          <div className="bg-black px-8 py-6">
-            <div className="mx-auto flex max-w-4xl flex-wrap items-end justify-between gap-6">
-              <div className="flex flex-col gap-2">
-                {challenger && <span className="text-[10px] text-lime">@{challenger} challenges you</span>}
-                <span className="text-4xl text-cream">{spot.name}</span>
-                <span className="text-[10px] normal-case text-muted">{spot.tagline}</span>
-                <span className="flex gap-4 text-[10px]">
-                  {medals.map(([m, at]) => (
-                    <span key={m} style={{ color: MEDAL_COLORS[m] }}>
-                      {m} {fmt(at)}
-                    </span>
-                  ))}
-                </span>
-              </div>
-              <div className="flex flex-col items-end gap-2 text-[10px]">
-                {best !== null && <span className="text-cream">Your best {fmt(best)}</span>}
-                {record && <span className="normal-case text-muted">Record {fmt(record.score)} by @{record.login}</span>}
-                {rival && <span className="normal-case text-muted">Racing @{rival.login}&apos;s ghost</span>}
-                <div className="pointer-events-auto flex gap-2">
-                  <button type="button" onClick={exit} className="btn-press border-2 border-border px-4 py-2 text-[11px] text-cream">
-                    Spots
-                  </button>
-                  <button type="button" onClick={begin} className="btn-press border-2 border-lime px-6 py-2 text-[11px] text-lime">
-                    Drift <span className="text-muted">Enter</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DriftTitle spot={spot} best={best} record={record} rival={rival?.login ?? null} challenger={challenger} onStart={begin} onSpots={exit} />
       )}
 
-      {!ready && !failed && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg font-pixel text-xs uppercase text-muted">Loading {spot.name}…</div>
-      )}
+      {!failed && <DriftLoading spot={spot} ready={ready} />}
       {failed && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-bg font-pixel text-xs uppercase text-cream">
           Something broke loading {spot.name}.
@@ -403,6 +351,7 @@ export default function SpotClient({
           spot={spot}
           score={finish.run.score}
           before={finish.before}
+          stats={finish.run.stats}
           post={post}
           you={viewerLogin}
           onRetry={retry}
