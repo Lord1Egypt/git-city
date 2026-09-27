@@ -78,7 +78,7 @@ import {
   trackEArcadeClicked,
 } from "@/lib/himetrica";
 import posthog from "posthog-js";
-import { SHOW_TOWNS } from "@/lib/towns/visibility";
+import { SHOW_TOWNS, TOWNS_LAUNCH_LABEL } from "@/lib/towns/visibility";
 import TownMonument, { MONUMENT_VARIANT } from "@/components/towns/TownMonument";
 import type { TownOfWeek } from "@/lib/towns/weekly";
 
@@ -2992,14 +2992,16 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
         raidDefender={raidState.defenderBuilding}
         onRaidPhaseComplete={raidActions.onPhaseComplete}
         plazaCenter={
-          // Towns are URL-only until launch, so the plaza stays empty until then.
+          // Towns are URL-only until launch: the gate announces them, with no link.
           SHOW_TOWNS ? (
             <TownMonument
               town={townOfWeek}
               variant={MONUMENT_VARIANT}
               onClick={() => router.push(townOfWeek ? `/town/${townOfWeek.slug}` : "/towns/new")}
             />
-          ) : undefined
+          ) : (
+            <TownMonument town={null} variant={MONUMENT_VARIANT} teaser={TOWNS_LAUNCH_LABEL} />
+          )
         }
         rabbitSighting={rabbitSighting}
         onRabbitCaught={onRabbitCaught}

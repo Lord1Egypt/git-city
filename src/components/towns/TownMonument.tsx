@@ -69,7 +69,24 @@ function fitFont(ctx: CanvasRenderingContext2D, text: string, maxW: number, size
 }
 
 /** Plaque (8:3): "TOWN OF THE WEEK" over the score, or over the call to create one. */
-function plaqueTexture(town: MonumentTown | null): THREE.CanvasTexture {
+/** Before launch: the billboard announces Towns and its date. */
+function teaserWideTexture(date: string): THREE.CanvasTexture {
+  const [c, ctx] = emptyCanvas(256, 128);
+  ctx.strokeStyle = LIME;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(4, 4, 248, 120);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ffffff";
+  fitFont(ctx, "GIT CITY TOWNS", 220, 26);
+  ctx.fillText("GIT CITY TOWNS", 128, 40);
+  ctx.fillStyle = LIME;
+  fitFont(ctx, date, 220, 44);
+  ctx.fillText(date, 128, 88);
+  return pixelTexture(c);
+}
+
+function plaqueTexture(town: MonumentTown | null, teaser = false): THREE.CanvasTexture {
   const W = 256;
   const H = 96;
   const c = document.createElement("canvas");
@@ -86,7 +103,7 @@ function plaqueTexture(town: MonumentTown | null): THREE.CanvasTexture {
   ctx.fillStyle = town ? GOLD : "#8a93a3";
   fitFont(ctx, "TOWN OF THE WEEK", W - 24, 22);
   ctx.fillText("TOWN OF THE WEEK", W / 2, 28);
-  const main = town ? `${Math.round(town.perDev).toLocaleString("en-US")} PER DEV` : "CREATE A TOWN";
+  const main = town ? `${Math.round(town.perDev).toLocaleString("en-US")} PER DEV` : teaser ? "SOON" : "CREATE A TOWN";
   ctx.fillStyle = town ? "#ffffff" : LIME;
   fitFont(ctx, main, W - 24, 34);
   ctx.fillText(main, W / 2, 64);
@@ -187,20 +204,20 @@ interface MonumentTextures {
   plaque: THREE.Texture;
 }
 
-function useMonumentTextures(town: MonumentTown | null): MonumentTextures {
+function useMonumentTextures(town: MonumentTown | null, teaser: string | null): MonumentTextures {
   const logo = useLogo(town?.logoUrl ?? null);
   const fontReady = useFontReady();
   const tex = useMemo<MonumentTextures>(
     () => ({
-      id: `${town?.slug ?? "-"}:${town?.name ?? ""}:${town?.perDev ?? ""}:${logo ? "l" : "n"}:${fontReady ? "f" : "-"}`,
-      wide: town ? wideTexture(logo, town.name) : emptyWideTexture(),
+      id: `${town?.slug ?? "-"}:${town?.name ?? ""}:${town?.perDev ?? ""}:${logo ? "l" : "n"}:${fontReady ? "f" : "-"}:${teaser ?? ""}`,
+      wide: town ? wideTexture(logo, town.name) : teaser ? teaserWideTexture(teaser) : emptyWideTexture(),
       cloth: town ? clothTexture(logo, town.name) : emptyClothTexture(),
       logo: town && logo ? logoTexture(logo) : emptyLogoTexture(),
-      plaque: plaqueTexture(town),
+      plaque: plaqueTexture(town, !!teaser),
     }),
     // fontReady: redraw once Silkscreen is in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [logo, town?.slug, town?.name, town?.perDev, fontReady],
+    [logo, town?.slug, town?.name, town?.perDev, fontReady, teaser],
   );
   useEffect(
     () => () => {
@@ -424,8 +441,23 @@ const HITBOX: Record<MonumentVariant, [number, number, number, number]> = {
 
 // ─── Monument ────────────────────────────────────────────────
 
-export default function TownMonument({ town, variant, onClick }: { town: MonumentTown | null; variant: MonumentVariant; onClick?: () => void }) {
-  const tex = useMonumentTextures(town);
+/**
+ * The plaza monument. `teaser` (a date like "OCT 1") shows the pre-launch
+ * billboard; without an `onClick` the monument isn't clickable.
+ */
+export default function TownMonument({
+  town,
+  variant,
+  onClick,
+  teaser = null,
+}: {
+  town: MonumentTown | null;
+  variant: MonumentVariant;
+  onClick?: () => void;
+  teaser?: string | null;
+}) {
+  const tex = useMonumentTextures(town, teaser);
+  const clickable = !!onClick;
   const groupRef = useRef<THREE.Group>(null);
   const hitRef = useRef<THREE.Mesh>(null);
   const onClickRef = useRef(onClick);
@@ -438,6 +470,7 @@ export default function TownMonument({ town, variant, onClick }: { town: Monumen
   // Capture-phase pointer handlers, like the Founder Spire: they run before
   // InstancedBuildings, which skips its own click while __monumentClicked is set.
   useEffect(() => {
+    if (!clickable) return;
     const canvas = gl.domElement;
     const w = window as MonumentWindowFlags;
     const raycaster = new THREE.Raycaster();
@@ -510,7 +543,7 @@ export default function TownMonument({ town, variant, onClick }: { town: Monumen
       w.__monumentClicked = false;
       w.__monumentCursor = false;
     };
-  }, [gl, camera, scene]);
+  }, [gl, camera, scene, clickable]);
 
   const [hw, hh, hd, hz] = HITBOX[variant];
   return (
