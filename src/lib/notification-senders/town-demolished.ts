@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "../supabase";
 import { sendNotification } from "../notifications";
-import { EMAIL_BASE_URL, button, heading, heroImage, paragraph, statTiles, trackedUrl } from "../email/components";
+import { EMAIL_BASE_URL, button, heading, heroImage, paragraph, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { townDisplayName } from "../towns/names";
 import { RIVALRY } from "../towns/rivalry";
@@ -10,8 +10,8 @@ import { rubbleBySlug } from "../league-city/rubble";
 
 // "@x knocked your building down" — sent when a rival takes the last floor of
 // your building in your rivalry town (the drive room's signed save). The
-// raid alert's loop: who did it, the picture (their flag on your rubble), the
-// score between the towns, and one way back: hit their town. At most one
+// raid alert's loop: who did it, the picture (their flag on your rubble and
+// the score between the towns), and one way back: hit their town. At most one
 // every 3 days per dev, however many times it falls.
 
 const EVERY_MS = 3 * 86_400_000;
@@ -24,8 +24,6 @@ export interface TownDemolishedEmailData {
   /** The attacker's town (where to hit back). */
   rivalSlug: string;
   rivalName: string;
-  /** Floors the building had. It grows back one an hour. */
-  floors: number;
   /** Buildings in rubble right now: your town's, and theirs (your side's score). */
   downHere: number;
   downThere: number;
@@ -46,14 +44,8 @@ export function renderTownDemolishedEmail(d: TownDemolishedEmailData, links: Ema
   const { town, rival, subject, preheader } = header(d);
   const hitBack = trackedUrl(`/town/${d.rivalSlug}?drive=1`, "town_demolished");
   const hero = `${EMAIL_BASE_URL}/town/${d.leagueSlug}/demolished-image?attacker=${encodeURIComponent(d.attackerLogin)}&victim=${encodeURIComponent(d.victimLogin)}&v=${d.downHere}-${d.downThere}`;
-  const intro = `@${d.attackerLogin} drove through your building in ${town} until the last floor came down, and planted the ${rival} flag on the rubble. Everyone who drives by sees it.`;
-  const tiles = [
-    { value: String(d.floors), label: "Floors knocked out" },
-    { value: `${d.downHere}`, label: `${town} buildings down` },
-    { value: `${d.downThere}`, label: `${rival} buildings down` },
-  ];
-  const revenge = `Get even: take a car into ${rival} and drive through their buildings. Every pass takes a floor, a bomb takes three.`;
-  const rebuild = `Rather rebuild? Park against your building and it comes back a floor a second. Left alone it grows back a floor an hour, and a floor for every contribution you make.`;
+  const intro = `Their flag is on your rubble in ${town}.`;
+  const rebuild = "Or park against your building to rebuild it.";
   const reason = `You're getting this because a rival knocked down your building in ${town} on Git City.`;
 
   const html = renderLayout({
@@ -63,28 +55,15 @@ export function renderTownDemolishedEmail(d: TownDemolishedEmailData, links: Ema
     body: [
       heading("", `@${d.attackerLogin}`, " knocked you down"),
       paragraph(intro),
-      statTiles(tiles),
-      paragraph(revenge),
       button(`Hit ${rival} back`, hitBack),
-      `<div style="height:20px; line-height:20px; font-size:0;">&nbsp;</div>`,
+      `<div style="height:16px; line-height:16px; font-size:0;">&nbsp;</div>`,
       paragraph(rebuild, { muted: true }),
     ].join("\n"),
     reason,
     links,
   });
   const text = renderText({
-    lines: [
-      `@${d.attackerLogin} knocked you down`,
-      "",
-      intro,
-      "",
-      ...tiles.map((t) => `${t.label}: ${t.value}`),
-      "",
-      revenge,
-      `Hit ${rival} back: ${hitBack}`,
-      "",
-      rebuild,
-    ],
+    lines: [`@${d.attackerLogin} knocked you down`, "", intro, "", `Hit ${rival} back: ${hitBack}`, "", rebuild],
     reason,
     links,
   });
@@ -118,7 +97,6 @@ export async function notifyDemolished(league: League, town: SmashTown, victim: 
     victimLogin: victim,
     rivalSlug: rival.slug,
     rivalName: rivalLeague?.name ?? rival.name,
-    floors: town.targets.find((t) => t.login === victim)?.floors ?? 0,
     downHere: down[league.slug] ?? 1,
     downThere: down[rival.slug] ?? 0,
   };

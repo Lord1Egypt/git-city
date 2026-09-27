@@ -41,7 +41,7 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
     ),
   "town-demolished": () =>
     renderTownDemolishedEmail(
-      { leagueSlug: "codex-town", leagueName: "Codex Town", attackerLogin: "srizzon", victimLogin: "yuripulga", rivalSlug: "claude-code-town", rivalName: "Claude Code Town", floors: 18, downHere: 3, downThere: 1 },
+      { leagueSlug: "codex-town", leagueName: "Codex Town", attackerLogin: "srizzon", victimLogin: "yuripulga", rivalSlug: "claude-code-town", rivalName: "Claude Code Town", downHere: 3, downThere: 1 },
       PREVIEW_LINKS,
     ),
   "race-passed": () =>
