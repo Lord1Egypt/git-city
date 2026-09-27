@@ -80,6 +80,7 @@ export interface DriftWorldProps {
 }
 
 const U = M_TO_UNIT;
+const SKID = ["#0e4429", "#006d32", "#26a641", "#39d353", "#9be9a8"];
 const NONE: never[] = [];
 
 class Boundary extends Component<{ onFail: () => void; children: ReactNode }, { failed: boolean }> {
@@ -384,6 +385,17 @@ export default function DriftWorld({
   // The ghosts play on the run's own clock (Ghost reads Date.now() − lapStart), so they stop when the run is paused.
   const ghostClock = useCallback(() => (recorder.current.running ? Date.now() - recorder.current.elapsed(performance.now()) : null), []);
   const zero = useCallback(() => 0, []);
+  const carAt = useCallback(() => {
+    const g = car.current?.group;
+    return g ? { x: g.position.x, z: g.position.z } : null;
+  }, []);
+  // Skid marks carry the multiplier, like Trackmania Stunt's trail: dark out of a chain,
+  // then the contribution graph's greens from 1× to 5×.
+  const skidTint = useCallback(() => {
+    const d = tel.current.drift;
+    if (!d || !d.drifting) return null;
+    return SKID[Math.min(SKID.length - 1, Math.floor(d.mult) - 1)];
+  }, []);
   const pbShow = useCallback(() => ghostsOn.current && stageRef.current.stage === "run", []);
 
   return (
@@ -415,11 +427,11 @@ export default function DriftWorld({
             <Lights braking={() => !!car.current?.state.braking} />
           </Car>
           <LocalFx car={car} sources={fx} />
-          <SkidMarks sources={fx} />
+          <SkidMarks sources={fx} tint={skidTint} />
           <Smoke sources={fx} />
           <DriveAudio car={car} input={input} impact={impact} muted={muted || paused} />
-          <Ghost run={pbRef} lapStart={ghostClock} offset={zero} show={pbShow} />
-          {rival && <Ghost run={rivalRun} lapStart={ghostClock} offset={zero} show={pbShow} color={rival.color} label={`@${rival.login}`} />}
+          <Ghost run={pbRef} lapStart={ghostClock} offset={zero} show={pbShow} near={carAt} />
+          {rival && <Ghost run={rivalRun} lapStart={ghostClock} offset={zero} show={pbShow} color={rival.color} label={`@${rival.login}`} near={carAt} />}
           <DriftCamera car={car} mode={camera} stage={stage} stageAt={stageAt} countdownMs={beatMs * TRIAL.beats} />
           <CameraKey input={input} onToggle={onCameraToggle} />
           <PhysicsTick step={physicsStep} />

@@ -43,7 +43,7 @@ function NameTag({ text, color }: { text: string; color: string }) {
   );
 }
 
-export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label }: {
+export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label, near }: {
   run: React.MutableRefObject<GhostRun | null>;
   /** Server-clock ms the lap under way started, or null. */
   lapStart: () => number | null;
@@ -53,6 +53,8 @@ export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label }:
   color?: string;
   /** A name tag over it (a rival's login). */
   label?: string;
+  /** Where your car is (city units): the ghost fades out as you get close, so it never hides the line. */
+  near?: () => { x: number; z: number } | null;
 }) {
   const group = useRef<THREE.Group>(null);
   const wheels = useRef<(THREE.Object3D | null)[]>([]);
@@ -89,6 +91,16 @@ export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label }:
     if (!p) return;
     g.position.set(p.x * M_TO_UNIT, 0, p.z * M_TO_UNIT);
     g.rotation.set(0, p.yaw, 0);
+    const me = near?.();
+    if (me) {
+      // 0.38 from 12 m out, down to nothing within 4 m.
+      const d = Math.hypot(me.x - g.position.x, me.z - g.position.z) / M_TO_UNIT;
+      const k = Math.max(0, Math.min(1, (d - 4) / 8));
+      g.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh && mesh.userData.ghosted) (mesh.material as THREE.Material).opacity = 0.38 * k;
+      });
+    }
   });
 
   return (
