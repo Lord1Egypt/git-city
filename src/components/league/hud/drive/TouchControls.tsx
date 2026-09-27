@@ -1,47 +1,80 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bomb, ChevronsDown, Megaphone, Rocket, Zap, type LucideIcon } from "lucide-react";
+import { ArrowBigDown, Bomb, ChevronsDown, Megaphone, Rocket, Wind, Zap, type LucideIcon } from "lucide-react";
 import type { DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { ITEM_NAMES, isItem, type BattleItem } from "@/lib/league-city/drive/battle";
 import { BOOST } from "@/lib/league-city/drive/tuning";
 import { autoDrift, dragSteer, type TouchDrive } from "@/lib/league-city/drive/touch";
 
-// Phone controls (lib drive/touch), laid out for a phone held upright and
-// reachable with thumbs at the bottom corners:
+// Phone controls (lib drive/touch), laid out for a phone held upright, on one
+// grid so everything lines up:
 //   anywhere   touch starts the car; drag left and right to steer (a ring
-//              marks where the finger went down, a dot how far it went)
-//   bottom     BRAKE (hold; reverses once stopped) left, BOOST (hold) right,
-//              the speed between them
-//   above it   the attack you hold, and HONK when you're parked at a
-//              teammate's building, only while they apply
-// Everything under the other HUD pieces, so their buttons still take taps.
+//              marks where the finger went down, a dot how far it went);
+//              steering hard at speed drifts by itself
+//   primary    big, in the bottom corners: BRAKE (hold), which says REVERSE
+//              once the car has stopped since that's what it does then, and
+//              BOOST (hold); the speed between them
+//   secondary  smaller, centered over them: DRIFT (hold while steering) and
+//              HORN, which lights up with the teammate's name when you're
+//              parked at their building (honking opens it)
+//   attack     between the two, only while you hold one
+// The button a prompt is teaching pulses (`lesson`). Everything sits under the
+// other HUD pieces, so their buttons still take taps.
 
 const ITEM_ICON: Record<BattleItem, LucideIcon> = { shock: Zap, bomb: Bomb, missile: Rocket };
+/** Attacks: the ? boxes' orange. */
+export const ATTACK = "#ff9a3c";
 const BLOCKS = 10;
 /** A tap on the attack or the horn holds its input this long, so the car sees it (ms). */
 const TAP_MS = 150;
+/** Under this (m/s, forward) the brake button reverses. */
+const REVERSE_BELOW = 0.5;
 
-const PAD =
-  "pointer-events-auto flex touch-none select-none flex-col items-center justify-center gap-1 border-[3px] bg-bg/75 backdrop-blur-sm [-webkit-touch-callout:none] transition-colors";
+const BASE =
+  "pointer-events-auto relative flex touch-none select-none items-center justify-center border-[3px] bg-bg/80 backdrop-blur-sm [-webkit-touch-callout:none] transition-colors";
+/** Two sizes, for two ranks: brake and boost you hold all the time, drift and horn now and then. */
+const BIG = `${BASE} h-20 w-20 flex-col gap-1 text-[10px]`;
+const SMALL = `${BASE} h-14 w-14 flex-col gap-0.5 text-[8px]`;
+/** The attack: as tall as the small buttons, icon and name on one line. */
+const CHIP = `${BASE} h-14 gap-2 px-3 text-[10px] whitespace-nowrap`;
+/** The button a prompt teaches: a ring pulses around it, the button stays as it is. */
+function Pulse({ on }: { on: boolean }) {
+  if (!on) return null;
+  return <span className="pointer-events-none absolute -inset-[7px] animate-ping border-[3px] border-lime" aria-hidden />;
+}
 
-export default function TouchControls({ touchRef, telemetry }: { touchRef: React.MutableRefObject<TouchDrive>; telemetry: DriveTelemetry }) {
+export type TouchLesson = "boost" | "drift" | "attack" | null;
+
+export default function TouchControls({
+  touchRef,
+  telemetry,
+  lesson = null,
+}: {
+  touchRef: React.MutableRefObject<TouchDrive>;
+  telemetry: DriveTelemetry;
+  /** The button a prompt is teaching right now. */
+  lesson?: TouchLesson;
+}) {
   const drag = useRef<{ id: number; origin: number; x: number; y: number } | null>(null);
   const ring = useRef<HTMLDivElement>(null);
   const dot = useRef<HTMLDivElement>(null);
   const speed = useRef<HTMLSpanElement>(null);
   const bar = useRef<HTMLDivElement>(null);
   const [brake, setBrake] = useState(false);
+  const [drift, setDrift] = useState(false);
   const [boost, setBoost] = useState(false);
+  const [reverse, setReverse] = useState(true);
   const [item, setItem] = useState<BattleItem | null>(null);
   const [near, setNear] = useState<string | null>(null);
 
   // On while mounted; a clean slate either way.
   useEffect(() => {
     const t = touchRef.current;
-    Object.assign(t, { on: true, started: false, steer: 0, brake: false, boost: false, drift: false, fire: false, horn: false });
+    const idle = { started: false, steer: 0, brake: false, boost: false, drift: false, driftButton: false, fire: false, horn: false };
+    Object.assign(t, idle, { on: true });
     return () => {
-      Object.assign(t, { on: false, started: false, steer: 0, brake: false, boost: false, drift: false, fire: false, horn: false });
+      Object.assign(t, idle, { on: false });
     };
   }, [touchRef]);
 
@@ -52,6 +85,7 @@ export default function TouchControls({ touchRef, telemetry }: { touchRef: React
     let held = 0;
     let shownItem: BattleItem | null = null;
     let shownNear: string | null = null;
+    let shownReverse = true;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       const dt = Math.min(0.1, (now - last) / 1000);
@@ -66,6 +100,11 @@ export default function TouchControls({ touchRef, telemetry }: { touchRef: React
         bar.current.dataset.boost = String(telemetry.boosting);
         const blocks = bar.current.children;
         for (let i = 0; i < blocks.length; i++) (blocks[i] as HTMLElement).dataset.on = String(i < lit);
+      }
+      const rev = telemetry.speed < REVERSE_BELOW;
+      if (rev !== shownReverse) {
+        shownReverse = rev;
+        setReverse(rev);
       }
       const it = isItem(telemetry.held) ? telemetry.held : null;
       if (it !== shownItem) {
@@ -116,24 +155,24 @@ export default function TouchControls({ touchRef, telemetry }: { touchRef: React
   };
 
   /** Hold-to-use buttons: on while the finger is on them. */
-  const hold = (key: "brake" | "boost", set: (v: boolean) => void) => ({
-    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
-      e.currentTarget.setPointerCapture(e.pointerId);
-      touchRef.current[key] = true;
-      // Braking or boosting counts as a first touch too.
-      touchRef.current.started = true;
-      set(true);
-    },
-    onPointerUp: () => {
+  const hold = (key: "brake" | "boost" | "driftButton", set: (v: boolean) => void) => {
+    const off = () => {
       touchRef.current[key] = false;
       set(false);
-    },
-    onPointerCancel: () => {
-      touchRef.current[key] = false;
-      set(false);
-    },
-    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-  });
+    };
+    return {
+      onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        touchRef.current[key] = true;
+        // Any button counts as a first touch too.
+        touchRef.current.started = true;
+        set(true);
+      },
+      onPointerUp: off,
+      onPointerCancel: off,
+      onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+    };
+  };
   const tap = (key: "fire" | "horn") => () => {
     touchRef.current[key] = true;
     window.setTimeout(() => (touchRef.current[key] = false), TAP_MS);
@@ -164,70 +203,87 @@ export default function TouchControls({ touchRef, telemetry }: { touchRef: React
         aria-hidden
       />
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        {/* What applies right now */}
-        <div className="flex items-end gap-3">
-          {near && (
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto grid max-w-md grid-cols-[5rem_minmax(0,1fr)_5rem] items-center gap-x-3 gap-y-3">
+          {/* Row 1, secondary: Drift over Brake, Horn over Boost; the attack between them. */}
+          <button
+            type="button"
+            aria-label="Drift, hold while steering"
+            {...hold("driftButton", setDrift)}
+            className={`${SMALL} justify-self-center ${drift ? "border-lime bg-lime text-bg" : "border-lime/80 text-lime"}`}
+          >
+            <Pulse on={lesson === "drift"} />
+            <Wind size={18} strokeWidth={2.5} aria-hidden />
+            Drift
+          </button>
+          <div className="flex min-w-0 justify-center">
+            {item && Icon && (
+              <button
+                type="button"
+                onClick={tap("fire")}
+                aria-label={`Throw the ${ITEM_NAMES[item].toLowerCase()}`}
+                className={`${CHIP} text-cream active:bg-[#ff9a3c] active:text-bg`}
+                style={{ borderColor: ATTACK }}
+              >
+                <Pulse on={lesson === "attack"} />
+                <Icon size={18} strokeWidth={2.5} color={ATTACK} className="shrink-0" aria-hidden />
+                {ITEM_NAMES[item]}
+              </button>
+            )}
+          </div>
+          <div className="relative justify-self-center">
+            {/* Parked at a teammate's building: whose, over the horn that opens it. */}
+            {near && (
+              <span className="pointer-events-none absolute bottom-full right-0 mb-2 max-w-[9rem] truncate border-2 border-lime bg-bg px-1.5 py-0.5 text-[9px] text-lime">
+                @{near}
+              </span>
+            )}
             <button
               type="button"
               onClick={tap("horn")}
-              className={`${PAD} h-12 flex-row gap-2 border-lime px-3 text-[10px] text-lime active:bg-lime active:text-bg`}
+              aria-label={near ? `Honk at @${near}` : "Horn"}
+              className={`${SMALL} ${near ? "border-lime text-lime" : "border-cream/40 text-cream/80"} active:bg-cream active:text-bg`}
             >
-              <Megaphone size={16} strokeWidth={2.5} aria-hidden />
-              <span className="max-w-[9rem] truncate">Honk @{near}</span>
+              <Megaphone size={18} strokeWidth={2.5} aria-hidden />
+              Horn
             </button>
-          )}
-          {item && Icon && (
-            <button
-              type="button"
-              onClick={tap("fire")}
-              aria-label={`Throw the ${ITEM_NAMES[item].toLowerCase()}`}
-              className={`${PAD} h-16 w-16 border-[#ff5ad8] bg-[#ff5ad8]/20 text-[9px] text-[#ff9be8] active:bg-[#ff5ad8] active:text-bg`}
-            >
-              <Icon size={24} strokeWidth={2.5} aria-hidden />
-              {ITEM_NAMES[item]}
-            </button>
-          )}
-        </div>
+          </div>
 
-        <div className="flex w-full max-w-md items-end justify-between gap-3">
+          {/* Row 2, primary: Brake, the speed, Boost. */}
           <button
             type="button"
-            aria-label="Brake, hold to reverse"
+            aria-label={reverse ? "Reverse, hold" : "Brake, hold"}
             {...hold("brake", setBrake)}
-            className={`${PAD} h-[4.5rem] w-[4.5rem] text-[10px] ${brake ? "border-cream bg-cream text-bg" : "border-border text-cream"}`}
+            className={`${BIG} ${brake ? "border-cream bg-cream text-bg" : "border-cream/70 text-cream"}`}
           >
-            <ChevronsDown size={22} strokeWidth={2.5} aria-hidden />
-            Brake
+            {reverse ? <ArrowBigDown size={24} strokeWidth={2.5} aria-hidden /> : <ChevronsDown size={24} strokeWidth={2.5} aria-hidden />}
+            {reverse ? "Reverse" : "Brake"}
           </button>
-
-          <div className="mb-1 flex flex-col items-center gap-1.5 bg-bg/60 px-3 py-2 backdrop-blur-sm">
-            <div className="flex items-baseline gap-1 tabular-nums">
-              <span ref={speed} className="text-xl leading-none text-cream">
+          <div className="flex flex-col items-center justify-center gap-1.5">
+            <div className="flex items-baseline gap-1 tabular-nums [text-shadow:2px_2px_0_rgba(0,0,0,0.6)]">
+              <span ref={speed} className="text-2xl leading-none text-cream">
                 0
               </span>
-              <span className="text-[8px] text-muted">km/h</span>
+              <span className="text-[9px] text-cream/70">km/h</span>
             </div>
             <div ref={bar} data-boost="false" className="group flex gap-[3px]" aria-hidden>
               {Array.from({ length: BLOCKS }, (_, i) => (
                 <span
                   key={i}
                   data-on="false"
-                  className="h-1.5 w-1.5 bg-border data-[on=true]:bg-lime group-data-[boost=true]:data-[on=true]:bg-[#7ee8ff]"
+                  className="h-1.5 w-2 bg-bg/70 data-[on=true]:bg-lime group-data-[boost=true]:data-[on=true]:bg-[#7ee8ff]"
                 />
               ))}
             </div>
           </div>
-
           <button
             type="button"
             aria-label="Boost, hold"
             {...hold("boost", setBoost)}
-            className={`${PAD} h-[4.5rem] w-[4.5rem] text-[10px] ${
-              boost ? "border-[#7ee8ff] bg-[#7ee8ff] text-bg" : "border-[#7ee8ff] text-[#7ee8ff]"
-            }`}
+            className={`${BIG} ${boost ? "border-[#7ee8ff] bg-[#7ee8ff] text-bg" : "border-[#7ee8ff] text-[#7ee8ff]"}`}
           >
-            <Zap size={22} strokeWidth={2.5} aria-hidden />
+            <Pulse on={lesson === "boost"} />
+            <Zap size={24} strokeWidth={2.5} aria-hidden />
             Boost
           </button>
         </div>

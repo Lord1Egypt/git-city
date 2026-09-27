@@ -22,8 +22,8 @@ export const CONTROLS: [string, string][] = [
 export const TOUCH_CONTROLS: [string, string][] = [
   ["Touch", "go"],
   ["Drag left / right", "steer"],
-  ["Steer hard", "drift"],
-  ["Hold Brake", "brake, reverse"],
+  ["Hold Drift", "drift (or steer hard)"],
+  ["Hold Brake", "brake, then reverse"],
   ["Hold Boost", "boost"],
   ["Tap the item", "attack (from ? boxes)"],
 ];
