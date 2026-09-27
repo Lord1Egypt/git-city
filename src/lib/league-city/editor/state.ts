@@ -299,7 +299,8 @@ export function hDelta(ops: readonly CityOp[]): number {
 }
 
 function resized(h: number, ops: readonly CityOp[]): number {
-  return Math.min(MAX_H, Math.max(START_H, h + hDelta(ops)));
+  // A rivalry town grows past MAX_H on its own; never shrink it back here.
+  return Math.min(Math.max(MAX_H, h), Math.max(START_H, h + hDelta(ops)));
 }
 
 function normalize(o: CityObject): CityObject {
@@ -632,7 +633,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
       const next: EditorState = {
         ...s,
         objects,
-        h: Math.min(MAX_H, Math.max(START_H, h)),
+        h: Math.min(Math.max(MAX_H, s.h), Math.max(START_H, h)),
         inflight: null,
         pending: [],
         undo: dropEntries(s.undo, ids),
