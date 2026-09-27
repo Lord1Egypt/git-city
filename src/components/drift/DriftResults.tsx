@@ -50,7 +50,7 @@ export interface DriftResultsProps {
 }
 
 const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
-const T = { hero: "clamp(52px, 11vh, 128px)", big: "clamp(20px, 3vh, 34px)", body: "clamp(12px, 1.8vh, 19px)", small: "clamp(10px, 1.4vh, 15px)" };
+const T = { hero: "clamp(40px, min(11vh, 14vw), 128px)", big: "clamp(16px, min(3vh, 4.4vw), 34px)", body: "clamp(11px, min(1.8vh, 3.2vw), 19px)", small: "clamp(10px, min(1.4vh, 2.6vw), 15px)" };
 
 /** Rows around a score that isn't on the board yet: two above, you, two below. */
 function projected(board: BoardRowLite[], score: number, you: string): BoardRowLite[] {
@@ -137,7 +137,7 @@ export default function DriftResults(p: DriftResultsProps) {
       {showing && (
         <>
           <Backdrop side="right" />
-          <div className="absolute right-[6vw] top-[10vh] flex w-[min(620px,46vw)] flex-col items-stretch">
+          <div className="absolute left-4 right-4 top-[5vh] flex flex-col items-stretch md:left-auto md:right-[6vw] md:top-[10vh] md:w-[min(620px,46vw)]">
             <Band className="justify-between px-5 py-2.5" style={{ fontSize: T.small }}>
               <span className="text-lime">{p.spot.name} · finish</span>
               {beat >= 2 && medal && (
@@ -233,7 +233,7 @@ export default function DriftResults(p: DriftResultsProps) {
 
           {/* What's next */}
           {beat >= 3 && (
-            <div className="pointer-events-auto absolute bottom-[6vh] right-[6vw] flex flex-wrap items-stretch justify-end" style={{ fontSize: T.body }}>
+            <div className="pointer-events-auto absolute bottom-[4vh] left-4 right-4 grid grid-cols-2 items-stretch md:bottom-[6vh] md:left-auto md:right-[6vw] md:flex md:flex-wrap md:justify-end" style={{ fontSize: T.body }}>
               <button type="button" onClick={p.onSpots} className={`${act} bg-[#141417] px-4 text-cream hover:text-lime`} style={{ animationDelay: "560ms" }}>
                 <Chip>Esc</Chip> Spots
               </button>
@@ -262,7 +262,7 @@ export default function DriftResults(p: DriftResultsProps) {
                   <Chip>G</Chip> Race @{r.next.login}
                 </button>
               )}
-              <button type="button" onClick={p.onRetry} autoFocus className={`${act} bg-cream px-7 py-4 text-bg outline-none hover:bg-lime focus-visible:bg-lime`} style={{ fontSize: T.big, animationDelay: "420ms" }}>
+              <button type="button" onClick={p.onRetry} autoFocus className={`${act} col-span-2 justify-center bg-cream px-7 py-4 text-bg outline-none hover:bg-lime focus-visible:bg-lime`} style={{ fontSize: T.big, animationDelay: "420ms" }}>
                 <Chip tone="dark">R</Chip> Again
               </button>
             </div>

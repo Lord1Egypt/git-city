@@ -17,7 +17,8 @@ export interface BoardRowLite {
   score: number;
 }
 
-const TEXT = { hero: "clamp(52px, 11vh, 128px)", big: "clamp(20px, 3vh, 34px)", body: "clamp(12px, 1.7vh, 18px)", small: "clamp(10px, 1.4vh, 15px)" };
+// Sized to the shorter of height and width, so a phone held upright fits too.
+const TEXT = { hero: "clamp(40px, min(11vh, 15vw), 128px)", big: "clamp(16px, min(3vh, 4.4vw), 34px)", body: "clamp(11px, min(1.7vh, 3.2vw), 18px)", small: "clamp(10px, min(1.4vh, 2.6vw), 15px)" };
 
 function SpotBands({ spot, delay = 0 }: { spot: LiveSpot; delay?: number }) {
   return (
@@ -104,7 +105,7 @@ export default function DriftTitle({
       <Backdrop side="left" />
 
       {/* The spot */}
-      <div className="absolute bottom-[14vh] left-[6vw] flex flex-col items-start gap-5">
+      <div className="absolute bottom-[16vh] left-4 right-4 flex flex-col items-start gap-5 md:bottom-[14vh] md:left-[6vw] md:right-auto md:max-w-[60vw]">
         {challenger && (
           <Band tone="cream" className="px-4 py-2 normal-case" style={{ fontSize: TEXT.body }}>
             @{challenger} challenges you
@@ -169,15 +170,15 @@ export default function DriftTitle({
       </div>
 
       {/* What to do */}
-      <div className="pointer-events-auto absolute bottom-[6vh] right-[6vw] flex items-stretch">
+      <div className="pointer-events-auto absolute bottom-[4vh] left-4 right-4 flex items-stretch md:bottom-[6vh] md:left-auto md:right-[6vw]">
         <button type="button" onClick={onSpots} className="drift-band flex items-center gap-3 bg-[#141417] px-5 text-cream shadow-[0_6px_0_rgba(0,0,0,0.35)] hover:text-lime" style={{ fontSize: TEXT.body, animationDelay: "560ms" }}>
           <Chip>Esc</Chip> Spots
         </button>
-        <button type="button" onClick={onStart} autoFocus className="drift-band flex items-center gap-3 bg-cream px-7 py-4 text-bg shadow-[0_6px_0_rgba(0,0,0,0.35)] outline-none hover:bg-lime focus-visible:bg-lime" style={{ fontSize: TEXT.big, animationDelay: "600ms" }}>
+        <button type="button" onClick={onStart} autoFocus className="drift-band flex flex-1 items-center justify-center gap-3 bg-cream px-7 py-4 text-bg shadow-[0_6px_0_rgba(0,0,0,0.35)] outline-none hover:bg-lime focus-visible:bg-lime" style={{ fontSize: TEXT.big, animationDelay: "600ms" }}>
           <Chip tone="dark">Enter</Chip> Drift
         </button>
       </div>
-      <div className="absolute bottom-[6vh] left-[6vw]">
+      <div className="absolute bottom-[6vh] left-[6vw] hidden md:block">
         <Band delay={640} className="gap-3 px-4 py-2 text-muted" style={{ fontSize: TEXT.small }}>
           <Chip>Space</Chip> + steer to drift
         </Band>

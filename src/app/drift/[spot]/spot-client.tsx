@@ -9,7 +9,9 @@ import * as THREE from "three";
 import { THEMES, ThemeLights, type CityTheme } from "@/components/city/theme";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import { HUD_BOX } from "@/components/league/hud/shared";
-import { isDesktop } from "@/components/towns/useDesktop";
+import { isDesktop, isTouch } from "@/components/towns/useDesktop";
+import TouchControls from "@/components/league/hud/drive/TouchControls";
+import { createTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
 import DriftHud from "@/components/drift/DriftHud";
 import DriftTitle, { DriftLoading, type BoardRowLite } from "@/components/drift/DriftTitle";
 import DriftResults, { type PostResult, type PostState } from "@/components/drift/DriftResults";
@@ -82,13 +84,19 @@ export default function SpotClient({
   const spot = getLiveSpot(spotId) as LiveSpot;
   const course = useMemo(() => courseOf(spot), [spot]);
   const router = useRouter();
-  const [desktop, setDesktop] = useState<boolean | null>(null);
+  // What drives the car here, known only in the browser (null until then, so neither screen flashes):
+  // keys or a pad on a computer, the touch controls on a phone or tablet, or neither.
+  const [device, setDevice] = useState<"desktop" | "touch" | "none" | null>(null);
   useEffect(() => {
-    const check = () => setDesktop(isDesktop());
+    const check = () => setDevice(isTouch() ? "touch" : isDesktop() ? "desktop" : "none");
     check();
   }, []);
+  const desktop = device === "desktop";
 
   const [telemetry] = useState(createDriftTelemetry);
+  // Phones: the town drive's touch controls, drift mode (a held DRIFT, no auto drift).
+  const touch = device === "touch";
+  const touchRef = useRef<TouchDrive>(createTouch());
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [camera, setCamera] = useState<DriveCameraMode>("chase");
@@ -296,7 +304,7 @@ export default function SpotClient({
   const start = pointAt(course.track, course.track.closed ? -30 : 0);
   const look = pointAt(course.track, 20);
 
-  if (desktop === false) {
+  if (device === "none") {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-bg px-6 text-center font-pixel uppercase">
         <p className="text-xs text-cream">Drift needs a keyboard or a gamepad for now.</p>
@@ -320,7 +328,7 @@ export default function SpotClient({
       >
         <fog attach="fog" args={[DAY.fogColor, DAY.fogNear, DAY.fogFar]} />
         <ThemeLights theme={DAY} themeIndex={21} />
-        {desktop && !failed && (
+        {(desktop || touch) && !failed && (
           <DriftWorld
             key={runKey}
             spot={spot}
@@ -344,6 +352,7 @@ export default function SpotClient({
             respawnRef={respawnRef}
             onReady={onReady}
             onFail={onFail}
+            touch={touch ? touchRef : undefined}
           />
         )}
       </Canvas>
@@ -362,7 +371,13 @@ export default function SpotClient({
         </div>
       )}
 
+      {touch && ready && (trial.stage === "countdown" || trial.stage === "run") && !paused && (
+        <div className="pointer-events-none fixed inset-0 z-20 font-pixel uppercase">
+          <TouchControls touchRef={touchRef} telemetry={telemetry} mode="drift" />
+        </div>
+      )}
       <DriftHud
+        touch={touch}
         spot={spot}
         telemetry={telemetry}
         ready={ready}

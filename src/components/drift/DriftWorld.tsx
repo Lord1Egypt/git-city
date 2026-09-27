@@ -19,6 +19,7 @@ import KenneyProps from "./KenneyProps";
 import { sceneryFor } from "@/lib/drift/scenery";
 import { Ghost } from "@/components/race/Ghost";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
+import type { TouchDrive } from "@/lib/league-city/drive/touch";
 import { GRAVITY, M_TO_UNIT } from "@/lib/league-city/drive/tuning";
 import { carHeading, placeCar } from "@/lib/league-city/drive/vehicle";
 import { autopilot, type AutopilotState } from "@/lib/league-city/race/autopilot";
@@ -74,6 +75,8 @@ export interface DriftWorldProps {
   respawnRef: React.MutableRefObject<(() => void) | null>;
   onReady: () => void;
   onFail: () => void;
+  /** Phone controls, written by the HUD (lib drive/touch). */
+  touch?: React.MutableRefObject<TouchDrive>;
 }
 
 const U = M_TO_UNIT;
@@ -156,6 +159,7 @@ export default function DriftWorld({
   respawnRef,
   onReady,
   onFail,
+  touch,
 }: DriftWorldProps) {
   const track = course.track;
   const [hidden, setHidden] = useState(false);
@@ -174,7 +178,7 @@ export default function DriftWorld({
 
   // Dev only: ?autodrive puts the run on autopilot, to check the finish and what follows without driving a lap.
   const [autodrive] = useState(() => process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("autodrive"));
-  const input = useDriveInput(paused || stage === "menu" || stage === "intro" || stage === "finish");
+  const input = useDriveInput(paused || stage === "menu" || stage === "intro" || stage === "finish", touch);
   const car = useRef<CarApi | null>(null);
   const impact = useRef({ strength: 0, at: 0 });
   const fx = useRef(new Map<string, FxSource>());

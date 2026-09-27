@@ -21,6 +21,9 @@ import { autoDrift, dragSteer, type TouchDrive } from "@/lib/league-city/drive/t
 //   attack     between the two, only while you hold one
 // The button a prompt is teaching pulses (`lesson`). Everything sits under the
 // other HUD pieces, so their buttons still take taps.
+// `mode="drift"` (the drift spots): no auto drift (a held DRIFT only, like
+// Mario Kart 8's time trials without smart steering), no boost, horn or
+// attack; BRAKE and DRIFT are the two big buttons, the speed between them.
 
 const ITEM_ICON: Record<BattleItem, LucideIcon> = { shock: Zap, bomb: Bomb, missile: Rocket };
 /** Attacks: the ? boxes' orange. */
@@ -50,12 +53,15 @@ export default function TouchControls({
   touchRef,
   telemetry,
   lesson = null,
+  mode = "town",
 }: {
   touchRef: React.MutableRefObject<TouchDrive>;
   telemetry: DriveTelemetry;
   /** The button a prompt is teaching right now. */
   lesson?: TouchLesson;
+  mode?: "town" | "drift";
 }) {
+  const driftMode = mode === "drift";
   const drag = useRef<{ id: number; origin: number; x: number; y: number } | null>(null);
   const ring = useRef<HTMLDivElement>(null);
   const dot = useRef<HTMLDivElement>(null);
@@ -91,9 +97,11 @@ export default function TouchControls({
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const t = touchRef.current;
-      const d = autoDrift(t.drift, held, drag.current ? t.steer : 0, telemetry.speed, dt);
-      t.drift = d.drift;
-      held = d.held;
+      if (!driftMode) {
+        const d = autoDrift(t.drift, held, drag.current ? t.steer : 0, telemetry.speed, dt);
+        t.drift = d.drift;
+        held = d.held;
+      }
       if (speed.current) speed.current.textContent = String(Math.round(Math.abs(telemetry.speed) * 3.6));
       if (bar.current) {
         const lit = Math.round(Math.min(1, Math.abs(telemetry.speed) / BOOST.topSpeed) * BLOCKS);
@@ -118,7 +126,7 @@ export default function TouchControls({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [touchRef, telemetry]);
+  }, [touchRef, telemetry, driftMode]);
 
   const showDrag = () => {
     const d = drag.current;
@@ -203,6 +211,38 @@ export default function TouchControls({
         aria-hidden
       />
 
+      {driftMode && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto grid max-w-md grid-cols-[5rem_minmax(0,1fr)_5rem] items-center gap-x-3">
+            <button
+              type="button"
+              aria-label="Brake, hold"
+              {...hold("brake", setBrake)}
+              className={`${BIG} ${brake ? "border-cream bg-cream text-bg" : "border-cream/70 text-cream"}`}
+            >
+              <ChevronsDown size={24} strokeWidth={2.5} aria-hidden />
+              Brake
+            </button>
+            <div className="flex items-baseline justify-center gap-1 tabular-nums [text-shadow:2px_2px_0_rgba(0,0,0,0.6)]">
+              <span ref={speed} className="text-2xl leading-none text-cream">
+                0
+              </span>
+              <span className="text-[9px] text-cream/70">km/h</span>
+            </div>
+            <button
+              type="button"
+              aria-label="Drift, hold while steering"
+              {...hold("driftButton", setDrift)}
+              className={`${BIG} ${drift ? "border-lime bg-lime text-bg" : "border-lime text-lime"}`}
+            >
+              <Pulse on={lesson === "drift"} />
+              <Wind size={24} strokeWidth={2.5} aria-hidden />
+              Drift
+            </button>
+          </div>
+        </div>
+      )}
+      {!driftMode && (
       <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto grid max-w-md grid-cols-[5rem_minmax(0,1fr)_5rem] items-center gap-x-3 gap-y-3">
           {/* Row 1, secondary: Drift over Brake, Horn over Boost; the attack between them. */}
@@ -288,6 +328,7 @@ export default function TouchControls({
           </button>
         </div>
       </div>
+      )}
     </>
   );
 }

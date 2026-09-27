@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Ghost as GhostIcon, Volume2, VolumeX, X } from "lucide-react";
+import { Camera, Ghost as GhostIcon, Pause, Volume2, VolumeX, X } from "lucide-react";
 import type { TrialStage } from "@/lib/league-city/race/trial";
 import { DRIFT_SCORE, driftGrade, type SlideHint } from "@/lib/drift/score";
 import { medalScores, type LiveSpot, type Medal } from "@/lib/drift/spots/types";
@@ -47,14 +47,20 @@ const FIRST_HINTS: { keys: string[]; text: string }[] = [
   { keys: ["→"], text: "Steer in to open the angle" },
   { keys: ["↑"], text: "Straighten out to bank it" },
 ];
+const FIRST_HINTS_TOUCH: { keys: string[]; text: string }[] = [
+  { keys: ["Drift"], text: "Hold and drag to drift" },
+  { keys: [], text: "Drag in to open the angle" },
+  { keys: [], text: "Let go to bank it" },
+];
 
+// Sized to the shorter of height and width, so a phone held upright fits too.
 const T = {
-  count: "clamp(64px, 13vh, 150px)",
-  combo: "clamp(40px, 9vh, 108px)",
-  total: "clamp(26px, 5vh, 58px)",
-  speed: "clamp(28px, 5.5vh, 64px)",
-  mid: "clamp(14px, 2.2vh, 24px)",
-  small: "clamp(10px, 1.4vh, 15px)",
+  count: "clamp(56px, min(13vh, 24vw), 150px)",
+  combo: "clamp(30px, min(9vh, 10vw), 108px)",
+  total: "clamp(22px, min(5vh, 7vw), 58px)",
+  speed: "clamp(24px, min(5.5vh, 8vw), 64px)",
+  mid: "clamp(12px, min(2.2vh, 3.4vw), 24px)",
+  small: "clamp(10px, min(1.4vh, 2.6vw), 15px)",
 };
 
 /** What the center of the screen shows. */
@@ -83,6 +89,8 @@ export interface DriftHudProps {
   onRestart: () => void;
   onRespawn: () => void;
   onExit: () => void;
+  /** A phone: the touch controls show the speed, the prompts speak touch. */
+  touch?: boolean;
 }
 
 function same(a: Center, b: Center): boolean {
@@ -257,7 +265,7 @@ export default function DriftHud(p: DriftHudProps) {
           </div>
 
           {/* The center */}
-          <div className="absolute left-1/2 top-[5vh] flex -translate-x-1/2 flex-col items-center">
+          <div className={`absolute left-1/2 flex -translate-x-1/2 flex-col items-center ${p.touch ? "top-[19vh]" : "top-[5vh]"}`}>
             {center.kind === "combo" && (
               <div ref={comboBox} className="flex flex-col items-stretch">
                 <Band animate={false} className={`justify-center px-4 py-1.5 ${center.warn ? "text-[#ff9a3c]" : "text-lime"}`} style={{ fontSize: T.mid }}>
@@ -304,8 +312,8 @@ export default function DriftHud(p: DriftHudProps) {
             )}
           </div>
 
-          {/* Speed */}
-          <div className="absolute bottom-[5vh] right-[3vw]">
+          {/* Speed (the touch controls show it on a phone) */}
+          <div className={`absolute bottom-[5vh] right-[3vw] ${p.touch ? "hidden" : ""}`}>
             <Band animate={false} className="items-baseline gap-3 px-4 py-2.5">
               <span ref={speed} className="w-[3ch] text-right leading-none tabular-nums" style={{ fontSize: T.speed }}>
                 0
@@ -318,12 +326,12 @@ export default function DriftHud(p: DriftHudProps) {
 
           {/* First-run prompts */}
           {hint !== null && (
-            <div className="absolute bottom-[8vh] left-1/2 -translate-x-1/2">
-              <Band className="gap-3 px-4 py-3" style={{ fontSize: T.mid }}>
-                {FIRST_HINTS[hint].keys.map((k) => (
+            <div className={`absolute left-1/2 -translate-x-1/2 ${p.touch ? "bottom-[150px]" : "bottom-[8vh]"}`}>
+              <Band className="gap-3 whitespace-nowrap px-4 py-3" style={{ fontSize: T.mid }}>
+                {(p.touch ? FIRST_HINTS_TOUCH : FIRST_HINTS)[hint].keys.map((k) => (
                   <Chip key={k}>{k}</Chip>
                 ))}
-                <span>{FIRST_HINTS[hint].text}</span>
+                <span>{(p.touch ? FIRST_HINTS_TOUCH : FIRST_HINTS)[hint].text}</span>
               </Band>
             </div>
           )}
@@ -331,7 +339,14 @@ export default function DriftHud(p: DriftHudProps) {
       )}
 
       {/* Buttons */}
-      {live && !hidden && (
+      {live && !hidden && p.touch && (
+        <div className="pointer-events-auto absolute right-[3vw] top-[4vh]">
+          <button type="button" onClick={() => p.onPause(true)} title="Pause" className={`${btn} text-[11px]`}>
+            <Pause size={14} /> Pause
+          </button>
+        </div>
+      )}
+      {live && !hidden && !p.touch && (
         <div className="pointer-events-auto absolute right-[3vw] top-[4vh] flex gap-1">
           <button type="button" onClick={p.onToggleGhosts} title="Ghosts (G)" className={`${btn} ${p.showGhosts ? "" : "text-muted"}`}>
             <GhostIcon size={16} />
@@ -348,12 +363,12 @@ export default function DriftHud(p: DriftHudProps) {
         </div>
       )}
 
-      {p.paused && <Pause {...p} medals={medals} />}
+      {p.paused && <PauseMenu {...p} medals={medals} />}
     </div>
   );
 }
 
-function Pause(p: DriftHudProps & { medals: [Medal, number][] }) {
+function PauseMenu(p: DriftHudProps & { medals: [Medal, number][] }) {
   const next = [...p.medals].reverse().find(([, at]) => p.best === null || at > p.best) ?? null;
   const items: { id: string; chip?: string; label: string; act: () => void }[] = [
     { id: "resume", chip: "Esc", label: "Resume", act: () => p.onPause(false) },

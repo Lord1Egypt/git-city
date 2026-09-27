@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTouch } from "@/components/towns/useDesktop";
 import DriftResults from "@/components/drift/DriftResults";
 import DriftHud from "@/components/drift/DriftHud";
 import { createDriftTelemetry } from "@/lib/drift/telemetry";
@@ -24,6 +25,7 @@ const STATE: DriftState = {
 /** ?hud=combo|warn|bank|hint: the driving HUD in one state, over a still frame. */
 function HudPreview({ mode }: { mode: string }) {
   const spot = getLiveSpot("harbor") as LiveSpot;
+  const touch = useTouch();
   const [tel] = useState(() => {
     const t = createDriftTelemetry();
     t.speed = 74 / 3.6;
@@ -41,7 +43,7 @@ function HudPreview({ mode }: { mode: string }) {
   const noop = () => {};
   return (
     <div className="fixed inset-0 bg-[url('/models/drift/preview-bg.jpg')] bg-cover">
-      <DriftHud spot={spot} telemetry={tel} ready stage="run" paused={false} muted={false} showGhosts best={19_535} boardScores={[71_200, 57_900, 55_020, 54_300, 41_000]} onToggleGhosts={noop} onToggleMute={noop} onToggleCamera={noop} onPause={noop} onRestart={noop} onRespawn={noop} onExit={noop} />
+      <DriftHud touch={touch} spot={spot} telemetry={tel} ready stage="run" paused={false} muted={false} showGhosts best={19_535} boardScores={[71_200, 57_900, 55_020, 54_300, 41_000]} onToggleGhosts={noop} onToggleMute={noop} onToggleCamera={noop} onPause={noop} onRestart={noop} onRespawn={noop} onExit={noop} />
     </div>
   );
 }
