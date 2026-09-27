@@ -23,6 +23,8 @@ const vertexShader = /* glsl */ `
   attribute vec4 aTint;
   attribute float aLive;
   attribute float aInvited;
+  // The building this instance belongs to (a broken building's columns carry its index).
+  attribute float aOwner;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -51,7 +53,7 @@ const vertexShader = /* glsl */ `
 
     vec4 mvPos = modelViewMatrix * instanceMatrix * vec4(localPos, 1.0);
     vViewPos = mvPos.xyz;
-    vInstanceId = float(gl_InstanceID);
+    vInstanceId = aOwner;
 
     gl_Position = projectionMatrix * mvPos;
     #include <logdepthbuf_vertex>
@@ -305,8 +307,9 @@ export default memo(function InstancedBuildings({
   }, [material, atlasTexture, colors.roof, colors.face]);
 
   // Per-instance attribute buffers
-  const { uvFrontData, uvSideData, riseData, tintData, invitedData } = useMemo(() => {
+  const { uvFrontData, uvSideData, riseData, tintData, invitedData, ownerData } = useMemo(() => {
     const invited = new Float32Array(capacity);
+    const owner = new Float32Array(capacity);
     const uvF = new Float32Array(capacity * 4);
     const uvS = new Float32Array(capacity * 4);
     const rise = new Float32Array(capacity).fill(1);
@@ -338,6 +341,7 @@ export default memo(function InstancedBuildings({
       rise[i] = 0;
 
       invited[i] = b.invited ? 1 : 0;
+      owner[i] = i;
 
       // Custom color tint (rgb = color, a = flag)
       if (b.custom_color) {
@@ -355,11 +359,12 @@ export default memo(function InstancedBuildings({
       for (let c = 0; c < capacity - count && c < SMASH_SLOTS; c++) {
         const slot = count + i * SMASH_SLOTS + c;
         invited[slot] = invited[i];
+        owner[slot] = i;
         for (let k = 0; k < 4; k++) tint[slot * 4 + k] = tint[i * 4 + k];
       }
     }
 
-    return { uvFrontData: uvF, uvSideData: uvS, riseData: rise, tintData: tint, invitedData: invited };
+    return { uvFrontData: uvF, uvSideData: uvS, riseData: rise, tintData: tint, invitedData: invited, ownerData: owner };
   }, [buildings, count, capacity]);
 
   // Live presence attribute (updated dynamically)
@@ -422,6 +427,7 @@ export default memo(function InstancedBuildings({
     riseAttr.setUsage(THREE.DynamicDrawUsage);
     const tintAttr = new THREE.InstancedBufferAttribute(tintData, 4);
     const invitedAttr = new THREE.InstancedBufferAttribute(invitedData, 1);
+    const ownerAttr = new THREE.InstancedBufferAttribute(ownerData, 1);
 
     const liveAttr = new THREE.InstancedBufferAttribute(liveData, 1);
     liveAttr.setUsage(THREE.DynamicDrawUsage);
@@ -432,6 +438,7 @@ export default memo(function InstancedBuildings({
     mesh.geometry.setAttribute("aTint", tintAttr);
     mesh.geometry.setAttribute("aLive", liveAttr);
     mesh.geometry.setAttribute("aInvited", invitedAttr);
+    mesh.geometry.setAttribute("aOwner", ownerAttr);
 
     if (hasPlayedRiseGlobal) {
       // Skip rise animation on return visits / subsequent updates
@@ -451,7 +458,7 @@ export default memo(function InstancedBuildings({
     }
 
     mesh.count = capacity;
-  }, [buildings, count, capacity, uvFrontData, uvSideData, riseData, tintData, invitedData, liveData]);
+  }, [buildings, count, capacity, uvFrontData, uvSideData, riseData, tintData, invitedData, ownerData, liveData]);
 
   // Sync fog uniforms (only when values actually change, e.g. theme switch)
   // Also smoothly lerp cityEnergy uniform toward target value
