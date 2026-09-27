@@ -10,7 +10,8 @@ import type { LiveSpot } from "./types";
 
 const P = path(
   [
-    straight(176.7, "quay"),
+    // The line sits 45 m into the quay, so the grid behind it is on the straight, not in the last corner.
+    straight(131.7, "quay"),
     left(120, 52, "sweeper"),
     straight(47.5, "east"),
     left(60, 32),
@@ -25,6 +26,7 @@ const P = path(
     straight(25),
     right(40, 40),
     left(150, 38, "wall"),
+    straight(45),
   ],
   [0, 0],
   [1, 0],

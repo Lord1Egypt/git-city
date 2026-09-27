@@ -166,6 +166,8 @@ export default function DriftWorld({
     return { x: g.x * U, z: g.z * U, rot: rotOf(g.heading) };
   }, [track]);
 
+  // Dev only: ?autodrive puts the run on autopilot, to check the finish and what follows without driving a lap.
+  const [autodrive] = useState(() => process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("autodrive"));
   const input = useDriveInput(paused || stage === "menu" || stage === "intro" || stage === "finish");
   const car = useRef<CarApi | null>(null);
   const impact = useRef({ strength: 0, at: 0 });
@@ -348,6 +350,11 @@ export default function DriftWorld({
           ? autopilot(track, pilot.current, p0.x, p0.z, carHeading(c.body), c.state.speed)
           : { throttle: 0, brake: 1, steer: 0, handbrake: false },
       );
+    }
+
+    if (autodrive && sg.stage === "run") {
+      const p0 = c.body.translation();
+      override(input, autopilot(track, pilot.current, p0.x, p0.z, carHeading(c.body), c.state.speed));
     }
 
     if (sg.stage === "run" && recorder.current.running) {

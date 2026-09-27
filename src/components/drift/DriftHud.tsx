@@ -389,8 +389,8 @@ function Pause(p: DriftHudProps & { medals: [Medal, number][] }) {
           <span className="tabular-nums">{p.best !== null ? fmt(p.best) : "-"}</span>
         </Band>
         {next && (
-          <Band delay={220} tab={MEDAL_COLORS[next[0]]} className="justify-between gap-3 px-4 py-2" style={{ fontSize: T.mid }}>
-            <span className="text-muted">{next[0]}</span>
+          <Band delay={220} className="justify-between gap-3 px-4 py-2" style={{ fontSize: T.mid }}>
+            <span style={{ color: MEDAL_COLORS[next[0]] }}>{next[0]}</span>
             <span className="tabular-nums">{fmt(next[1])}</span>
           </Band>
         )}

@@ -146,18 +146,32 @@ export default function DriftResults(p: DriftResultsProps) {
                 </span>
               )}
             </Band>
-            <Band tone="cream" delay={60} tab={beat >= 2 && medal ? MEDAL_COLORS[medal] : undefined} className="items-baseline justify-between gap-6 px-6 pb-4 pt-5">
+            <Band tone="cream" delay={60} tab={beat >= 2 && medal ? MEDAL_COLORS[medal] : undefined} className="px-6 pb-4 pt-5">
               <span className="leading-none tabular-nums" style={{ fontSize: T.hero }}>
                 {fmt(shown)}
               </span>
-              {beat >= 2 && (
-                <span className="animate-[drift-pop_0.3s_ease-out_both] text-right" style={{ fontSize: T.body }}>
-                  {better && p.before !== null && <span className="bg-bg px-2 py-1 text-lime">New best</span>}
-                  {!better && p.before !== null && <span className="text-[#c0392b]">−{fmt(p.before - p.score)} to best</span>}
-                  {p.before === null && <span>First run</span>}
-                </span>
-              )}
             </Band>
+            {beat >= 2 && (
+              <Band
+                tone={better && p.before !== null ? "lime" : "dark"}
+                className="justify-between gap-4 whitespace-nowrap px-5 py-2.5 tabular-nums"
+                style={{ fontSize: T.body }}
+              >
+                {better && p.before !== null && (
+                  <>
+                    <span>New best</span>
+                    <span>+{fmt(p.score - p.before)}</span>
+                  </>
+                )}
+                {!better && p.before !== null && (
+                  <>
+                    <span className="text-muted">Your best {fmt(p.before)}</span>
+                    <span className="text-[#ff5a52]">−{fmt(p.before - p.score)}</span>
+                  </>
+                )}
+                {p.before === null && <span>First run</span>}
+              </Band>
+            )}
 
             {beat >= 3 && (
               <>
@@ -207,11 +221,10 @@ export default function DriftResults(p: DriftResultsProps) {
                   </span>
                 </Band>
                 {!r?.next && nextMedal && (
-                  <Band delay={480} tab={MEDAL_COLORS[nextMedal[0]]} className="gap-3 px-5 py-2.5" style={{ fontSize: T.small }}>
+                  <Band delay={480} className="gap-3 px-5 py-2.5" style={{ fontSize: T.small }}>
                     <span className="text-muted">Next</span>
-                    <span>
-                      {nextMedal[0]} {fmt(nextMedal[1])}
-                    </span>
+                    <span style={{ color: MEDAL_COLORS[nextMedal[0]] }}>{nextMedal[0]}</span>
+                    <span className="tabular-nums">{fmt(nextMedal[1])}</span>
                   </Band>
                 )}
               </>

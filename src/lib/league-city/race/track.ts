@@ -217,9 +217,9 @@ function gridSlots(t: Track, count: number): GridSlot[] {
   const { gridFirst, gridGap, width } = t.spec;
   const out: GridSlot[] = [];
   for (let i = 0; i < count; i++) {
-    // A run has nothing behind its start: the grid stands past the start gantry instead.
+    // A run has nothing behind its start: the grid stands well past the start gantry, so the camera behind the car never passes through it.
     const back = gridFirst + i * (gridGap / 2);
-    const s = t.closed ? t.length - back : Math.min(t.length, 12 + i * (gridGap / 2));
+    const s = t.closed ? t.length - back : Math.min(t.length, 36 + i * (gridGap / 2));
     const p = pointAt(t, s);
     const side = i % 2 === 0 ? 1 : -1; // pole on the left of the grid
     const off = side * (width / 4);

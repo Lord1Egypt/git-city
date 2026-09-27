@@ -111,18 +111,16 @@ export default function DriftTitle({
           </Band>
         )}
         <SpotBands spot={spot} delay={challenger ? 60 : 0} />
-        <div className="flex flex-wrap">
-          {medals.map(([m, at], i) => (
-            <Band key={m} delay={260 + i * 50} tab={MEDAL_COLORS[m]} className="flex-col items-start gap-1 px-4 py-2">
-              <span className="text-muted" style={{ fontSize: TEXT.small }}>
-                {m}
-              </span>
+        <Band delay={260} className="flex-wrap gap-x-7 gap-y-2 px-5 py-3">
+          {medals.map(([m, at]) => (
+            <span key={m} className="flex items-baseline gap-2.5">
+              <span style={{ color: MEDAL_COLORS[m], fontSize: TEXT.small }}>{m}</span>
               <span className="tabular-nums" style={{ fontSize: TEXT.body }}>
                 {fmt(at)}
               </span>
-            </Band>
+            </span>
           ))}
-        </div>
+        </Band>
         <div className="flex flex-wrap">
           <Band delay={480} className="gap-3 px-4 py-2" style={{ fontSize: TEXT.body }}>
             <span className="text-muted">Your best</span>

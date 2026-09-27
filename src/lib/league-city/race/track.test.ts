@@ -63,9 +63,9 @@ describe("an open track (a run)", () => {
   });
 
   it("puts the grid just past the start gantry, facing down the track", () => {
-    expect(t.grid[0].z).toBeGreaterThan(8);
-    expect(t.grid[0].z).toBeLessThan(16);
-    expect(t.grid[0].heading).toBeCloseTo(0, 2);
+    expect(t.grid[0].z).toBeGreaterThan(30);
+    expect(t.grid[0].z).toBeLessThan(40);
+    expect(Math.abs(t.grid[0].heading)).toBeLessThan(0.3);
   });
 
   it("walls both ends shut", () => {

@@ -55,8 +55,8 @@ export function bounds(t: Track) {
 /** Grandstands, pits and tents along the start straight; `big` false for a small paddock. */
 function paddock(t: Track, out: PropItem[], big: boolean) {
   const w = wallOffset(t.spec);
-  const s0 = t.closed ? -40 : 24;
-  const s1 = t.closed ? 56 : 70;
+  const s0 = t.closed ? -40 : 44;
+  const s1 = t.closed ? 56 : 90;
   if (big) {
     for (let s = s0; s <= s1; s += 13.5) {
       const p = place(t, s, -(w + 15));
