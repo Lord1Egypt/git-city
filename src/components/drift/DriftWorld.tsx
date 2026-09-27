@@ -39,7 +39,7 @@ import type { DriftTelemetry } from "@/lib/drift/telemetry";
 // server will check. Stages come from the page, like the race's time trial:
 // the car waits on the grid through the title and the flyover, is held
 // through 3-2-1, runs from GO to the finish, and then drives itself.
-// R starts over from the grid; Enter puts you back on the last checkpoint
+// R starts over from the grid with the full 3-2-1; Enter puts you back on the last checkpoint
 // you passed (the drift at risk is lost).
 
 export interface DriftFinish {
@@ -236,7 +236,7 @@ export default function DriftWorld({
   const onReset = useCallback(() => {
     clearRun();
     const st = stageRef.current.stage;
-    if (st !== "menu" && st !== "intro") cb.current.onStage("countdown", TRIAL.retryBeatMs);
+    if (st !== "menu" && st !== "intro") cb.current.onStage("countdown", TRIAL.beatMs);
   }, [clearRun]);
   useEffect(() => {
     restartRef.current = () => {
