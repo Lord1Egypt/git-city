@@ -31,7 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ spot: st
   const { spot: id } = await params;
   const spot = getLiveSpot(id);
   const vs = new URL(req.url).searchParams.get("vs");
-  const login = vs && /^[A-Za-z0-9-]{1,39}$/.test(vs) ? vs : null;
+  const login = vs && /^[A-Za-z0-9_-]{1,39}$/.test(vs) ? vs : null;
 
   const fonts = [{ name: "Silkscreen", data: await readFile(join(process.cwd(), "public/fonts/Silkscreen-Regular.ttf")), style: "normal" as const, weight: 400 as const }];
   const photo = spot
@@ -44,7 +44,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ spot: st
       .from("drift_runs")
       .select("score, developers!inner(github_login, avatar_url)")
       .eq("spot", spot.id)
-      .ilike("developers.github_login", login)
+      .ilike("developers.github_login", login.replace(/[\\%_]/g, (c) => `\\${c}`))
       .maybeSingle();
     const r = data as unknown as { score: number; developers: { avatar_url: string | null } } | null;
     if (r) run = { score: r.score, avatar: r.developers.avatar_url ? await dataUrl(`${r.developers.avatar_url}${r.developers.avatar_url.includes("?") ? "&" : "?"}s=200`, 200) : null };

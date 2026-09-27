@@ -35,6 +35,8 @@ export interface RecordResult {
 }
 
 const isCountry = (scope: Scope) => /^[A-Z]{2}$/.test(scope);
+/** A login for ilike: case-insensitive, with "_" (a wildcard there) matched literally. */
+const exact = (login: string) => login.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 type Joined = { score: number; country: string | null; set_at: string; developers: { github_login: string; avatar_url: string | null } };
 
@@ -118,7 +120,7 @@ export async function getGhost(spot: SpotId, login: string): Promise<DriftGhost 
     .from("drift_runs")
     .select("score, ghost, developers!inner(github_login)")
     .eq("spot", spot)
-    .ilike("developers.github_login", login)
+    .ilike("developers.github_login", exact(login))
     .maybeSingle();
   if (error || !data) return null;
   const r = data as unknown as { score: number; ghost: { frames: Frames; splits: number[] }; developers: { github_login: string } };
@@ -187,7 +189,7 @@ export async function setDriftCountry(devId: number, country: string): Promise<b
 /** Takes a driver's run off a spot's board (admins). */
 export async function removeRun(spot: SpotId, login: string): Promise<boolean> {
   const sb = getSupabaseAdmin();
-  const { data: dev } = await sb.from("developers").select("id").ilike("github_login", login).maybeSingle();
+  const { data: dev } = await sb.from("developers").select("id").ilike("github_login", exact(login)).maybeSingle();
   if (!dev) return false;
   const { error } = await sb.from("drift_runs").delete().eq("spot", spot).eq("developer_id", (dev as { id: number }).id);
   if (error) console.error("[drift] remove failed:", error);
