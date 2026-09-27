@@ -6,7 +6,7 @@ import * as THREE from "three";
 import type { CarApi } from "@/components/league/drive/Car";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
 import { carHeading } from "@/lib/league-city/drive/vehicle";
-import { TRACK, arcDelta, locate, pointAt, type Track } from "@/lib/league-city/race/track";
+import { arcDelta, locate, pointAt, type Track } from "@/lib/league-city/race/track";
 import { TRIAL } from "@/lib/league-city/race/trial";
 
 // The race track's camera, after Art of Rally: high up behind the car at
@@ -156,7 +156,7 @@ export default function RaceCamera({
         // Inside of the bend (positive curvature turns left, and left is +lateral); alternate on straights.
         const side = Math.abs(bend) > 0.004 ? Math.sign(bend) : n % 2 ? 1 : -1;
         // Just off the asphalt, well inside the wall, so the wall doesn't fill the foreground.
-        const off = Math.min(TV.lateral, TRACK.width / 2 + TRACK.runoff - 2);
+        const off = Math.min(TV.lateral, track.spec.width / 2 + track.spec.runoff - 2);
         tv.current = {
           x: q.x + q.tz * off * side,
           z: q.z - q.tx * off * side,

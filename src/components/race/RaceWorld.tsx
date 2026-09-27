@@ -22,8 +22,7 @@ import type { FxSource } from "@/components/league/drive/fx";
 import { useDriveInput } from "@/components/league/drive/useDriveInput";
 import { useDrivePresence } from "@/components/league/drive/useDrivePresence";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
-import type { SurfaceGrip } from "@/lib/league-city/drive/surface";
-import { CHASSIS, GRAVITY, M_TO_UNIT, SURFACE, TURBO, UNIT_TO_M } from "@/lib/league-city/drive/tuning";
+import { CHASSIS, GRAVITY, M_TO_UNIT, TURBO, UNIT_TO_M } from "@/lib/league-city/drive/tuning";
 import {
   carHeading,
   headingFromRot,
@@ -32,8 +31,9 @@ import {
   turboLevel,
 } from "@/lib/league-city/drive/vehicle";
 import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
-import { TRACK, locate, pointAt, type Track } from "@/lib/league-city/race/track";
-import { curbRuns, wallSegments } from "@/lib/league-city/race/layout";
+import { TRACK, pointAt, type Track } from "@/lib/league-city/race/track";
+import { wallSegments } from "@/lib/league-city/race/layout";
+import { trackSurface } from "@/lib/league-city/race/surface";
 import { newLapState, restartLaps, startRaceLaps, stepLaps } from "@/lib/league-city/race/laps";
 import { RACE, idleRace, inRace, litLights, type RaceState } from "@/lib/league-city/race/race";
 import type { RaceServerMsg, RaceWelcome, RoomBests } from "@/lib/league-city/race/net";
@@ -143,23 +143,6 @@ const rotOf = (heading: number) => ((Math.PI - heading) * 180) / Math.PI;
 
 function spotSpawn(x: number, z: number, heading: number): Spawn {
   return { x: x * U, z: z * U, rot: rotOf(heading) };
-}
-
-/** Surface under a point in city units: asphalt, curbs (plaza grip) or the grass runoff. */
-function trackSurface(track: Track): (wx: number, wz: number) => SurfaceGrip {
-  const curbs = curbRuns(track);
-  const onCurb = (s: number) => curbs.some(([a, b]) => s >= a && s <= b);
-  const road: SurfaceGrip = { surface: "road", ...SURFACE.road };
-  const curb: SurfaceGrip = { surface: "plaza", ...SURFACE.plaza };
-  const grass: SurfaceGrip = { surface: "grass", ...SURFACE.grass };
-  return (wx, wz) => {
-    const spot = locate(track, wx * UNIT_TO_M, wz * UNIT_TO_M, 24);
-    if (!spot) return grass;
-    const d = Math.abs(spot.lateral);
-    if (d <= TRACK.width / 2) return road;
-    if (d <= TRACK.width / 2 + TRACK.curb && onCurb(spot.s)) return curb;
-    return grass;
-  };
 }
 
 function Walls({ track }: { track: Track }) {

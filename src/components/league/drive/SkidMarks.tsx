@@ -6,7 +6,8 @@ import * as THREE from "three";
 import type { FxSources } from "./fx";
 
 // Tire marks: a 256-slot ring of flat instanced quads, laid under every car's
-// rear wheels while they slip. The oldest mark is reused first.
+// rear wheels while they slip. The oldest mark is reused first. `tint`, when
+// given, colors each new mark (the drift spots paint the multiplier into them).
 
 const SLOTS = 256;
 const SLIP = 0.15;
@@ -19,7 +20,10 @@ const _s = new THREE.Vector3(0.8, 1, 2.2);
 const _flat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 const _hidden = new THREE.Matrix4().makeScale(0, 0, 0);
 
-export default function SkidMarks({ sources }: { sources: FxSources }) {
+const BASE = new THREE.Color("#0a0a0c");
+const _c = new THREE.Color();
+
+export default function SkidMarks({ sources, tint }: { sources: FxSources; tint?: () => string | null }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const next = useRef(0);
   // Last mark per car and wheel, so marks are spaced along each track.
@@ -30,14 +34,19 @@ export default function SkidMarks({ sources }: { sources: FxSources }) {
   useEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
-    for (let i = 0; i < SLOTS; i++) mesh.setMatrixAt(i, _hidden);
+    for (let i = 0; i < SLOTS; i++) {
+      mesh.setMatrixAt(i, _hidden);
+      mesh.setColorAt(i, BASE);
+    }
     mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, []);
 
   useFrame(() => {
     const mesh = ref.current;
     if (!mesh) return;
     let changed = false;
+    const color = tint?.() ?? null;
     for (const [key, c] of sources.current) {
       if (c.slip < SLIP || !c.grounded) continue;
       let prev = last.current.get(key);
@@ -54,19 +63,21 @@ export default function SkidMarks({ sources }: { sources: FxSources }) {
         prev[k].copy(_p);
         _q.copy(c.group.quaternion).multiply(_flat);
         mesh.setMatrixAt(next.current, _m.compose(_p, _q, _s));
+        mesh.setColorAt(next.current, color ? _c.set(color) : BASE);
         next.current = (next.current + 1) % SLOTS;
         changed = true;
       }
     }
     if (changed) {
       mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.computeBoundingSphere();
     }
   });
 
   return (
     <instancedMesh ref={ref} args={[geo, undefined, SLOTS]} frustumCulled={false} renderOrder={2}>
-      <meshBasicMaterial color="#0a0a0c" transparent opacity={0.55} depthWrite={false} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={0.55} depthWrite={false} />
     </instancedMesh>
   );
 }

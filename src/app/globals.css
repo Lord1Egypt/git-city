@@ -328,3 +328,26 @@ button:not(:disabled) {
   from { opacity: 1; transform: translateY(0); }
   to   { opacity: 0; transform: translateY(-40px); }
 }
+
+/* ─── Drift: broadcast bands ─── */
+@keyframes drift-band-in {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+@keyframes drift-pop {
+  0%   { transform: scale(1.35); }
+  60%  { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+@keyframes drift-drop {
+  0%   { transform: translateY(0) rotate(0); opacity: 1; }
+  100% { transform: translateY(48px) rotate(-5deg); opacity: 0; }
+}
+@keyframes drift-blur-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.drift-band { animation: drift-band-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .drift-band { animation: none; }
+}

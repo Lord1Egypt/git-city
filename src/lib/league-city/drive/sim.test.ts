@@ -6,8 +6,8 @@ import type { SurfaceGrip } from "./surface";
 import { LOT } from "../grid";
 import type { CityObject } from "../types";
 import { buildColliders } from "./colliders";
-import { CHASSIS, GRAVITY, SURFACE } from "./tuning";
-import { carHeading, createVehicle, headingFromRot, newCarState, placeCar, spinOut, stepCar } from "./vehicle";
+import { CHASSIS, DRIFT_MODE, GRAVITY, SURFACE } from "./tuning";
+import { carHeading, createVehicle, driftAngleStep, headingFromRot, newCarState, placeCar, spinOut, stepCar } from "./vehicle";
 
 type World = RapierContext["world"];
 const DT = 1 / 60;
@@ -207,5 +207,48 @@ describe("vehicle (headless rapier)", () => {
     const q = body.rotation();
     const upY = 1 - 2 * (q.x * q.x + q.z * q.z);
     expect(upY).toBeGreaterThan(0.9);
+  });
+
+  it("drift mode: the angle opens steering into the drift, closes countersteering, and spins past the limit", () => {
+    const slipOf = (body: RapierRigidBody) => {
+      const v = body.linvel();
+      const travel = Math.atan2(v.x, v.z);
+      return Math.abs(Math.atan2(Math.sin(carHeading(body) - travel), Math.cos(carHeading(body) - travel)));
+    };
+    const drift = (into: number, seconds: number) => {
+      const car = setup();
+      car.s.driftMode = true;
+      car.run({ throttle: 1 }, 4);
+      car.run({ throttle: 1, steer: 1, handbrake: true }, 0.1);
+      car.run({ throttle: 1, steer: into, handbrake: true }, seconds);
+      return car;
+    };
+    const opened = drift(1, 0.5);
+    const closed = drift(-1, 0.5);
+    expect(opened.s.drifting).toBe(true);
+    expect(opened.s.driftAngle).toBeGreaterThan(DRIFT_MODE.start + 0.3);
+    expect(closed.s.driftAngle).toBeLessThan(DRIFT_MODE.start - 0.2);
+    expect(slipOf(opened.body)).toBeGreaterThan(slipOf(closed.body));
+    const over = drift(1, 1);
+    expect(over.s.spinLeft).toBeGreaterThan(0);
+    expect(over.s.drifting).toBe(false);
+  });
+});
+
+describe("driftAngleStep", () => {
+  it("opens into the drift, closes against it, holds when straight on dry asphalt", () => {
+    expect(driftAngleStep(0.5, 1, 0.1, "asphalt").angle).toBeCloseTo(0.5 + DRIFT_MODE.open * 0.1, 6);
+    expect(driftAngleStep(0.5, -1, 0.1, "asphalt").angle).toBeCloseTo(0.5 - DRIFT_MODE.close * 0.1, 6);
+    expect(driftAngleStep(0.5, 0, 0.1, "asphalt").angle).toBe(0.5);
+  });
+
+  it("never closes under the floor, and spins past the limit", () => {
+    expect(driftAngleStep(DRIFT_MODE.min, -1, 1, "road").angle).toBe(DRIFT_MODE.min);
+    expect(driftAngleStep(DRIFT_MODE.spin - 0.01, 1, 0.1, "road").spin).toBe(true);
+    expect(driftAngleStep(0.8, 1, 0.1, "road").spin).toBe(false);
+  });
+
+  it("walks the tail out on the wet when you don't countersteer", () => {
+    expect(driftAngleStep(0.5, 0, 1, "wet").angle).toBeGreaterThan(0.5);
   });
 });
