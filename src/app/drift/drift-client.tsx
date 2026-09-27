@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Backdrop, Band, Chip } from "@/components/drift/ui";
+import { PixelSelect, type PixelOption } from "@/components/ui/PixelSelect";
 import { MEDAL_COLORS, fmt } from "@/components/drift/DriftHud";
 import type { BoardRowLite } from "@/components/drift/DriftTitle";
 import { loadRun } from "@/lib/drift/local";
@@ -24,7 +25,12 @@ export interface SpotBoard {
 
 const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
 const T = { hero: "clamp(52px, 11vh, 128px)", big: "clamp(18px, 2.8vh, 30px)", body: "clamp(12px, 1.8vh, 19px)", small: "clamp(10px, 1.4vh, 15px)" };
-const COUNTRIES = ["AR", "AU", "BR", "CA", "CL", "CN", "CO", "DE", "ES", "FR", "GB", "ID", "IN", "IT", "JP", "KR", "MX", "NG", "NL", "PH", "PL", "PT", "RU", "SE", "TR", "UA", "US", "VN"];
+// ISO 3166-1 alpha-2, every country, named in English and sorted by name.
+const CODES = "AD AE AF AG AI AL AM AO AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CD CF CG CH CI CK CL CM CN CO CR CU CV CW CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GT GU GW GY HK HN HR HT HU ID IE IL IM IN IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MQ MR MS MT MU MV MW MX MY MZ NA NC NE NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SI SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TG TH TJ TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VG VI VN VU WS XK YE YT ZA ZM ZW".split(" ");
+const flag = (cc: string) => String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+const COUNTRY_OPTIONS: PixelOption[] = CODES.map((cc) => ({ cc, name: COUNTRY.of(cc) ?? cc }))
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map(({ cc, name }) => ({ value: cc, label: `${flag(cc)} ${name}`, hint: cc }));
 
 export default function DriftClient({
   boards,
@@ -110,7 +116,10 @@ export default function DriftClient({
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.repeat || (e.target as HTMLElement | null)?.tagName === "SELECT") return;
+      const el = e.target as HTMLElement | null;
+      // The country picker takes its own keys (↑↓ Enter Esc, typing to search).
+      if (e.repeat || el?.closest('[aria-haspopup="listbox"], [role="listbox"], input')) return;
+      if (document.querySelector('[role="listbox"]')) return;
       if (e.code === "ArrowDown" || e.code === "KeyS") {
         e.preventDefault();
         setSel((i) => (i + 1) % SPOTS.length);
@@ -226,24 +235,19 @@ export default function DriftClient({
                   <button type="button" onClick={() => setTab("country")} className={`drift-band px-5 py-2.5 shadow-[0_6px_0_rgba(0,0,0,0.35)] ${tab === "country" ? "bg-lime text-bg" : "bg-[#141417] text-cream hover:text-lime"}`} style={{ animationDelay: "180ms" }}>
                     {country ? COUNTRY.of(country) ?? country : "Country"}
                   </button>
-                  <label className="drift-band ml-auto flex items-center gap-2 bg-[#141417] px-4 text-muted shadow-[0_6px_0_rgba(0,0,0,0.35)]" style={{ animationDelay: "210ms" }}>
-                    <span className="sr-only">Your country</span>
-                    <select
-                      id="drift-country"
+                  {/* No band animation here: its clip would cut the open menu off. */}
+                  <div className="ml-auto w-[min(260px,45vw)] shadow-[0_6px_0_rgba(0,0,0,0.35)]">
+                    <PixelSelect
                       value={country ?? ""}
-                      onChange={(e) => e.target.value && pickCountry(e.target.value)}
-                      className="cursor-pointer bg-transparent uppercase text-cream outline-none"
-                    >
-                      <option value="" disabled>
-                        Pick country
-                      </option>
-                      {[...new Set([...(country ? [country] : []), ...COUNTRIES])].map((cc) => (
-                        <option key={cc} value={cc} className="bg-bg">
-                          {COUNTRY.of(cc) ?? cc}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      onChange={pickCountry}
+                      options={COUNTRY_OPTIONS}
+                      placeholder="Pick your country"
+                      ariaLabel="Your country"
+                      searchable
+                      searchPlaceholder="Search a country"
+                      className="h-full [&>button]:h-full [&>button]:bg-[#141417]"
+                    />
+                  </div>
                 </div>
 
                 <div className="mt-2 flex flex-col">

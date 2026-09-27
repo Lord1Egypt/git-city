@@ -10,8 +10,12 @@ import { TICK_MS, MAX_FRAMES, type Frames } from "./frames";
 import { scoreRun, type Course } from "./score";
 
 export const VALIDATE = {
-  /** Fastest the car moves (m/s): the drift spots' top speed plus room. */
-  maxSpeed: 34,
+  /**
+   * Fastest the car moves between two ticks (m/s). A real drift run touches ~35 for a
+   * tick (a slide off a wall, the drift carrying speed); 45 (162 km/h) leaves room for
+   * that and still stops any speed cheat.
+   */
+  maxSpeed: 45,
   /** Fastest it turns (rad/s): a spin-out plus room. */
   maxYawRate: 9,
   /** How far from the grid slot the first frame may be (m). */

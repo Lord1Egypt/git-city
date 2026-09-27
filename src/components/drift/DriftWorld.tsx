@@ -371,7 +371,9 @@ export default function DriftWorld({
     if (autodrive) (window as unknown as { __drift?: unknown }).__drift = { x: c.body.translation().x, z: c.body.translation().z, stage: sg.stage, clock: Math.round(recorder.current.elapsed(now)) };
     if (autodrive && sg.stage === "run") {
       const p0 = c.body.translation();
-      override(input, autopilot(track, pilot.current, p0.x, p0.z, carHeading(c.body), c.state.speed));
+      const ai = autopilot(track, pilot.current, p0.x, p0.z, carHeading(c.body), c.state.speed);
+      // Dev drifting: hold the drift through the corners, so a run scores.
+      override(input, { ...ai, handbrake: Math.abs(ai.steer) > 0.35 && c.state.speed > 9, throttle: 1, brake: 0 });
     }
 
     if (sg.stage === "run" && recorder.current.running) {

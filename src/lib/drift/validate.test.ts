@@ -50,7 +50,7 @@ describe("validateRun", () => {
 
   it("rejects driving faster than the car can", () => {
     const f: Frames = [];
-    for (let t = 0, z = slot.z; t <= 8000; t += TICK_MS, z += 45 * (TICK_MS / 1000)) f.push(t, slot.x, z, 0);
+    for (let t = 0, z = slot.z; t <= 8000; t += TICK_MS, z += 60 * (TICK_MS / 1000)) f.push(t, slot.x, z, 0);
     expect(validateRun(course, f, 0, 0)).toEqual({ ok: false, reason: "speed" });
   });
 

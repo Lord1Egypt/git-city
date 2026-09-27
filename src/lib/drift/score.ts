@@ -53,8 +53,8 @@ export const DRIFT_SCORE = {
   clipPoints: 500,
   /** A corner of the car this close to a wall's face (m) is touching it. */
   wallSlack: 0.1,
-  /** Farther than this between two ticks (m) is a jump: the car can't move that fast (34 m/s). */
-  jump: 1.7,
+  /** Farther than this between two ticks (m) is a jump: the car can't move that fast (45 m/s). */
+  jump: 2.25,
 } as const;
 
 /** Where a respawn at checkpoint k puts the car: on the centerline, facing down the track. */
@@ -92,7 +92,7 @@ export type DriftEvent =
 export type AngleBand = "dead" | "ideal" | "over";
 
 /** Why a slide isn't scoring right now (the HUD says it), or null. */
-export type SlideHint = "shallow" | "over" | "slow" | "off" | null;
+export type SlideHint = "shallow" | "over" | "slow" | "off" | "wrong" | null;
 
 /** How good a scoring drift is: the word the HUD shows instead of degrees (Forza, CarX, NFS). */
 export function driftGrade(angle: number, kmh: number): "Good" | "Great" | "Insane" {
@@ -239,9 +239,14 @@ export class Scorer {
     const finish = t.closed ? st.progress >= t.length : st.progress >= finishOf(t) - 1;
 
     const onAsphalt = Math.abs(lateral) <= this.asphalt;
+    // Travel must follow the track: backwards (or across it) scores nothing.
+    const along = speed > 1 ? (vx * p.tx + vz * p.tz) / speed : 1;
+    const wrongWay = along < 0.2;
     // A slide that doesn't count, and why (the scoring below doesn't read this).
     const sliding = st.angle > 5 && st.angle < DRIFT_SCORE.spinAngle && st.kmh > 8;
-    st.hint = !sliding
+    st.hint = wrongWay && speed > 3
+      ? "wrong"
+      : !sliding
       ? null
       : st.angle < DRIFT_SCORE.minAngle
         ? "shallow"
@@ -258,7 +263,7 @@ export class Scorer {
       if (st.risk >= 0.5) st.events.push({ t: f.t, kind: "lost", points: Math.round(st.risk), why: wall ? "wall" : spin ? "spin" : "limiter" });
       this.reset();
     } else {
-      st.drifting = st.band === "ideal" && st.kmh > DRIFT_SCORE.minKmh && onAsphalt;
+      st.drifting = st.band === "ideal" && st.kmh > DRIFT_SCORE.minKmh && onAsphalt && !wrongWay;
       st.braking = st.drifting && decel > DRIFT_SCORE.brakeDecel;
       if (st.drifting) {
         this.segment += DT;
@@ -273,7 +278,7 @@ export class Scorer {
         this.segment = 0;
         if (st.risk > 0 || st.mult > 1) {
           st.gap += DT;
-          if (st.risk > 0 && (!onAsphalt || st.kmh <= DRIFT_SCORE.minKmh)) {
+          if (st.risk > 0 && (!onAsphalt || st.kmh <= DRIFT_SCORE.minKmh || wrongWay)) {
             st.risk -= st.risk * DRIFT_SCORE.drain * DT;
             st.mult = Math.max(1, st.mult - DT);
           }

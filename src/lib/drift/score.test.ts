@@ -172,6 +172,26 @@ describe("scoring a drift", () => {
   });
 });
 
+describe("going the wrong way", () => {
+  it("scores nothing for a drift driven backwards down the track", () => {
+    // Start far down the straight and drive back toward the start, sideways.
+    const f: number[] = [];
+    let z = 600;
+    let yaw = Math.PI;
+    for (let t = 0; t <= 6000; t += TICK_MS) {
+      const want = t > 1000 ? Math.PI - 0.7 : Math.PI;
+      yaw += Math.max(-0.15, Math.min(0.15, want - yaw));
+      f.push(t, 0, Math.round(z * 100) / 100, Math.round(yaw * 1000) / 1000);
+      z -= 17 * (TICK_MS / 1000);
+    }
+    const sc = new Scorer(course());
+    let hint = null;
+    for (let i = 0; i < f.length / 4; i++) hint = sc.step(frameAt(f, i)).hint ?? hint;
+    expect(sc.state.score + sc.state.risk).toBe(0);
+    expect(hint).toBe("wrong");
+  });
+});
+
 describe("FrameRecorder", () => {
   it("records exact ticks between uneven steps, interpolated", () => {
     const r = new FrameRecorder();
