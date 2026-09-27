@@ -229,39 +229,46 @@ export default function SpotClient({
     async (run: { frames: Frames; score: number; splits: number[] }) => {
       if (!viewerLogin) return setPost({ status: "signed-out" });
       setPost({ status: "posting" });
+      // Didn't reach the board: kept as not posted, so a later visit posts it.
+      const failed = () => {
+        const mine = loadRun(spot.id);
+        if (mine && mine.score === run.score) saveRun(spot.id, { ...mine, posted: false });
+        setPost({ status: "failed" });
+      };
       try {
         const res = await fetch(`/api/drift/${spot.id}/run`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ frames: run.frames, score: run.score }),
         });
-        if (!res.ok) return setPost({ status: "failed" });
+        if (!res.ok) return failed();
         const result = (await res.json()) as PostResult;
         setServerBest(result.best);
         const mine = loadRun(spot.id);
         if (mine && mine.score <= result.best) saveRun(spot.id, { ...mine, posted: true });
         setPost({ status: "posted", result });
       } catch {
-        setPost({ status: "failed" });
+        failed();
       }
     },
     [viewerLogin, spot.id],
   );
+  const postedOld = useRef(false);
   const onFinish = useCallback(
     (run: DriftFinish) => {
       setFinish({ run, before: best });
       const mine = loadRun(spot.id);
       if (!mine || run.score > mine.score) {
-        const next = { score: run.score, frames: run.frames, splits: run.splits, posted: false };
+        // Signed in, it posts right below (send): only a signed-out run waits to be posted later.
+        const next = { score: run.score, frames: run.frames, splits: run.splits, posted: !!viewerLogin };
         saveRun(spot.id, next);
         setLocal(next);
       }
       void send(run);
     },
-    [best, spot.id, send],
+    [best, spot.id, send, viewerLogin],
   );
   // Signed in with a better run from before signing in: post it once.
-  const postedOld = useRef(false);
   useEffect(() => {
     if (!viewerLogin || !local || local.posted || postedOld.current) return;
     if (serverBest !== null && local.score <= serverBest) return;
