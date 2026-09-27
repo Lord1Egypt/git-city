@@ -84,6 +84,18 @@ export class FrameRecorder {
     return out;
   }
 
+  /**
+   * The car was put somewhere else (a respawn): the ticks up to now keep the
+   * old pose, and interpolation goes on from the new one, so no tick lands
+   * halfway between.
+   */
+  snap(now: number, x: number, z: number, yaw: number): Frame[] {
+    if (this.start === null || !this.prev) return [];
+    const out = this.push(now, this.prev.x, this.prev.z, this.prev.yaw);
+    this.prev = { t: now - this.start, x, z, yaw };
+    return out;
+  }
+
   /** Everything recorded so far. */
   all(): Frames {
     return [...this.frames];

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
-import { TRACK, WALL_OFFSET, pointAt, type Track } from "@/lib/league-city/race/track";
+import { pointAt, wallOffset, type Track } from "@/lib/league-city/race/track";
 import { along, clearOfTrack, curbRuns, hash, offsetAt, treeSpots } from "@/lib/league-city/race/layout";
 import { RACE } from "@/lib/league-city/race/race";
 
@@ -59,10 +59,10 @@ function useDispose<T extends { dispose: () => void }>(v: T): T {
 }
 
 function Surface({ track }: { track: Track }) {
-  const asphalt = useDispose(useMemo(() => ribbon(track, 0, track.length, TRACK.width / 2, -TRACK.width / 2, 0.05), [track]));
+  const asphalt = useDispose(useMemo(() => ribbon(track, 0, track.length, track.spec.width / 2, -track.spec.width / 2, 0.05), [track]));
   const edges = useDispose(
     useMemo(() => {
-      const w = TRACK.width / 2;
+      const w = track.spec.width / 2;
       const l = ribbon(track, 0, track.length, w - 0.3, w - 0.8, 0.1);
       const r = ribbon(track, 0, track.length, -w + 0.8, -w + 0.3, 0.1);
       const g = mergeFlat([l, r]);
@@ -74,10 +74,10 @@ function Surface({ track }: { track: Track }) {
   const curbs = useDispose(
     useMemo(() => {
       const colors: [THREE.Color, THREE.Color] = [new THREE.Color(CURB_RED), new THREE.Color(CURB_WHITE)];
-      const w = TRACK.width / 2;
+      const w = track.spec.width / 2;
       const parts = curbRuns(track).flatMap(([s0, s1]) => [
-        ribbon(track, s0, s1, w + TRACK.curb, w, 0.1, 1, { every: 2.5, colors }),
-        ribbon(track, s0, s1, -w, -w - TRACK.curb, 0.1, 1, { every: 2.5, colors }),
+        ribbon(track, s0, s1, w + track.spec.curb, w, 0.1, 1, { every: 2.5, colors }),
+        ribbon(track, s0, s1, -w, -w - track.spec.curb, 0.1, 1, { every: 2.5, colors }),
       ]);
       const g = mergeFlat(parts);
       parts.forEach((p) => p.dispose());
@@ -192,17 +192,17 @@ function Walls({ track }: { track: Track }) {
       const a = new THREE.Color(WALL_A);
       const b = new THREE.Color(WALL_B);
       const h = WALL_H * U;
-      const t = TRACK.wallThickness / 2;
+      const t = track.spec.wallThickness / 2;
       const n = Math.round(track.length / 2);
       for (const side of [1, -1]) {
         for (let i = 0; i < n; i++) {
           const s0 = (i * track.length) / n;
           const s1 = ((i + 1) * track.length) / n;
           const c = Math.floor(s0 / WALL_STRIPE) % 2 === 0 ? a : b;
-          const in0 = offsetAt(track, s0, side * (WALL_OFFSET - t));
-          const in1 = offsetAt(track, s1, side * (WALL_OFFSET - t));
-          const out0 = offsetAt(track, s0, side * (WALL_OFFSET + t));
-          const out1 = offsetAt(track, s1, side * (WALL_OFFSET + t));
+          const in0 = offsetAt(track, s0, side * (wallOffset(track.spec) - t));
+          const in1 = offsetAt(track, s1, side * (wallOffset(track.spec) - t));
+          const out0 = offsetAt(track, s0, side * (wallOffset(track.spec) + t));
+          const out1 = offsetAt(track, s1, side * (wallOffset(track.spec) + t));
           const P = (p: { x: number; z: number }, y: number) => [p.x * U, y, p.z * U];
           const quads = [
             [P(in0, 0), P(in1, 0), P(in1, h), P(in0, h)],
@@ -269,7 +269,7 @@ function Chevrons({ track }: { track: Track }) {
       for (let i = 0; i < n; i++) {
         const s = s0 + ((i + 0.5) * len) / n;
         // Standing just in front of the wall's inner face, above it.
-        const p = offsetAt(track, s, side * (WALL_OFFSET - TRACK.wallThickness / 2 - 0.3));
+        const p = offsetAt(track, s, side * (wallOffset(track.spec) - track.spec.wallThickness / 2 - 0.3));
         const tangent = new THREE.Vector3(p.tx, 0, p.tz);
         // Facing the track: the normal points back across it.
         const normal = new THREE.Vector3(p.tz * -side, 0, -p.tx * -side);
@@ -307,10 +307,10 @@ function StartLine({ track }: { track: Track }) {
     const p = pointAt(track, 0);
     const rotY = Math.atan2(p.tx, p.tz);
     const cells = 14;
-    const size = TRACK.width / cells;
+    const size = track.spec.width / cells;
     for (let row = 0; row < 2; row++) {
       for (let c = 0; c < cells; c++) {
-        const off = -TRACK.width / 2 + size * (c + 0.5);
+        const off = -track.spec.width / 2 + size * (c + 0.5);
         const q = offsetAt(track, (row - 0.5) * size, off);
         out.push({ x: q.x, y: 0.07, z: q.z, rotY, w: size, h: 0.1, d: size, color: (row + c) % 2 ? "#111318" : "#f4f4f4" });
       }
@@ -328,7 +328,7 @@ function StartLine({ track }: { track: Track }) {
 function Gantry({ track, lit, title }: { track: Track; lit: React.MutableRefObject<number>; title: string }) {
   const p = pointAt(track, 0);
   const rotY = Math.atan2(p.tx, p.tz);
-  const span = TRACK.width / 2 + 1.5;
+  const span = track.spec.width / 2 + 1.5;
   const lamps = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   const group = useRef<THREE.Group>(null);
   const mats = useRef<THREE.Material[] | null>(null);
@@ -419,7 +419,7 @@ function Stands({ track }: { track: Track }) {
   const items = useMemo(() => {
     const out: Parameters<typeof Boxes>[0]["items"] = [];
     // Grandstands on the outside of the main straight, the pits on the inside.
-    const stands = along(track, -40, 56, 12, -(WALL_OFFSET + 9)).filter((p) => clearOfTrack(track, p.x, p.z, WALL_OFFSET + 5));
+    const stands = along(track, -40, 56, 12, -(wallOffset(track.spec) + 9)).filter((p) => clearOfTrack(track, p.x, p.z, wallOffset(track.spec) + 5));
     stands.forEach((p, k) => {
       for (let step = 0; step < 4; step++) {
         const back = -step * 2.2;
@@ -443,10 +443,10 @@ function Stands({ track }: { track: Track }) {
       out.push({ x: p.x - Math.cos(p.rotY) * 8, y: 6.5, z: p.z + Math.sin(p.rotY) * 8, rotY: p.rotY, w: 0.6, h: 13, d: 12, color: "#2b303b" });
     });
     // Low and set back, so the high camera sees over them.
-    const pits = along(track, -40, 50, 10, WALL_OFFSET + 14).filter((p) => clearOfTrack(track, p.x, p.z, WALL_OFFSET + 8));
+    const pits = along(track, -40, 50, 10, wallOffset(track.spec) + 14).filter((p) => clearOfTrack(track, p.x, p.z, wallOffset(track.spec) + 8));
     pits.forEach((p, k) => {
       out.push({ x: p.x, y: 1.5, z: p.z, rotY: p.rotY, w: 10, h: 3, d: 9.8, color: "#5b6272" });
-      const f = offsetAt(track, p.s, WALL_OFFSET + 8.9);
+      const f = offsetAt(track, p.s, wallOffset(track.spec) + 8.9);
       out.push({ x: f.x, y: 1.1, z: f.z, rotY: p.rotY, w: 0.2, h: 2.2, d: 7, color: k % 3 === 0 ? "#c8ff3a" : "#9aa3b5" });
     });
     return out;

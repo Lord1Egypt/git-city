@@ -51,7 +51,7 @@ export interface CarState {
   lateral: number;
   /** Surface under the rear wheels. */
   surface: SurfaceGrip["surface"];
-  /** Drift spots: the drift's angle is held by the driver (DRIFT_MODE), not set by the steer. */
+  /** Drift spots: the drift's angle is held by the driver (DRIFT_MODE), not set by the steer. No mini-turbo (with `turbo` on, no boost either). */
   driftMode: boolean;
   /** Drift mode: the nose angle off the direction of travel (rad). */
   driftAngle: number;
@@ -169,7 +169,7 @@ export function stepCar(
     s.drifting = false;
     s.recovering = DRIFT.recoverTime;
     // Let go of a charged drift (not one that just died out): the mini-turbo is banked for Shift.
-    const level = s.turbo && speed >= DRIFT.endSpeed ? turboLevel(s.driftCharge) : 0;
+    const level = s.turbo && !s.driftMode && speed >= DRIFT.endSpeed ? turboLevel(s.driftCharge) : 0;
     if (level > s.turboStored) s.turboStored = level;
     s.driftCharge = 0;
   }
