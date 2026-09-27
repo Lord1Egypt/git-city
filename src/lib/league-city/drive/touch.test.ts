@@ -52,4 +52,8 @@ describe("mergeTouch", () => {
     const m = mergeTouch(NONE, { ...createTouch(), on: true, started: true, steer: -0.4, drift: true, boost: true, fire: true, horn: true });
     expect(m).toMatchObject({ steer: -0.4, handbrake: true, boost: true, fire: true, horn: true });
   });
+
+  it("drifts on the Drift button too", () => {
+    expect(mergeTouch(NONE, { ...createTouch(), on: true, driftButton: true }).handbrake).toBe(true);
+  });
 });

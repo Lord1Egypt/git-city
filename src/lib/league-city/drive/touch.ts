@@ -2,8 +2,8 @@
 // Phone controls, as Mario Kart Tour settled them for a phone held upright:
 // the car drives itself from the first touch, a drag anywhere steers (relative
 // to where the finger went down, so any spot works), and steering hard at
-// speed drifts by itself. Brake (and reverse), boost, the attack and the horn
-// are buttons. The HUD writes this state; useDriveInput merges it with the
+// speed drifts by itself. Brake (and reverse), drift, boost, the attack and
+// the horn are buttons. The HUD writes this state; useDriveInput merges it with the
 // keys and the pad.
 
 import type { DriveInput } from "./input";
@@ -20,12 +20,14 @@ export interface TouchDrive {
   boost: boolean;
   /** Auto drift (see autoDrift). */
   drift: boolean;
+  /** The Drift button, held. */
+  driftButton: boolean;
   fire: boolean;
   horn: boolean;
 }
 
 export function createTouch(): TouchDrive {
-  return { on: false, started: false, steer: 0, brake: false, boost: false, drift: false, fire: false, horn: false };
+  return { on: false, started: false, steer: 0, brake: false, boost: false, drift: false, driftButton: false, fire: false, horn: false };
 }
 
 /** Share of the screen width a full-lock drag takes. */
@@ -71,7 +73,7 @@ export function mergeTouch(input: DriveInput, t: TouchDrive): DriveInput {
     throttle: Math.max(input.throttle, auto),
     brake: Math.max(input.brake, t.brake ? 1 : 0),
     steer: Math.abs(t.steer) > Math.abs(input.steer) ? t.steer : input.steer,
-    handbrake: input.handbrake || t.drift,
+    handbrake: input.handbrake || t.drift || t.driftButton,
     boost: input.boost || t.boost,
     horn: input.horn || t.horn,
     fire: input.fire || t.fire,
