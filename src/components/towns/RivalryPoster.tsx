@@ -10,6 +10,8 @@ import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
 import { Avatar, fmt } from "@/components/league/hud/shared";
 import { BATTLE_START, BATTLE_START_LABEL, timeUntil } from "@/lib/towns/rivalry";
+import type { GridTown } from "@/lib/towns/discover";
+import { GridTownCard } from "./TownCard";
 import { useDesktop } from "./useDesktop";
 
 const TownHero = dynamic(() => import("./TownHero"), { ssr: false });
@@ -35,8 +37,11 @@ export default function RivalryPoster({
   mine,
   signedIn,
   pickOnLoad,
+  others,
 }: {
   sides: Pair;
+  /** Every other town, secondary, under the rivalry. */
+  others: GridTown[];
   mine: 0 | 1 | null;
   signedIn: boolean;
   /** Back from sign-in with ?pick=<slug>: finish that pick. */
@@ -89,6 +94,11 @@ export default function RivalryPoster({
         <Link href="/" className="text-sm text-muted transition-colors hover:text-cream">
           &larr; City
         </Link>
+        {others.length > 0 && (
+          <a href="#other-towns" className="text-xs text-muted transition-colors hover:text-cream">
+            Other towns &darr;
+          </a>
+        )}
       </nav>
 
       <section className="border-t-[3px] border-border">
@@ -135,6 +145,7 @@ export default function RivalryPoster({
       </section>
 
       <WhoPicked sides={sides} />
+      <OtherTowns towns={others} />
     </main>
   );
 }
@@ -264,3 +275,25 @@ function WhoPicked({ sides }: { sides: Pair }) {
   );
 }
 
+function OtherTowns({ towns }: { towns: GridTown[] }) {
+  return (
+    <section id="other-towns" className="mx-auto mt-20 max-w-6xl scroll-mt-6 px-4 sm:px-6">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base text-cream sm:text-lg">Other towns</h2>
+          <p className="mt-1 text-xs text-muted normal-case">Every town also races for the monument in the center of Git City.</p>
+        </div>
+        <Link href="/towns/new" className="btn-press shrink-0 border-[3px] border-border px-3 py-2 text-xs text-muted hover:border-lime hover:text-lime">
+          + Create a town
+        </Link>
+      </div>
+      {towns.length > 0 && (
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {towns.map((t) => (
+            <GridTownCard key={t.slug} town={t} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
