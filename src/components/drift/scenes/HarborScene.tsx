@@ -12,8 +12,7 @@ import { Barriers, Blinker, Boxes, ClipMarks, Lamps, LightPools, Road, StartGant
 // outside it stacked with containers, gantry cranes at the pier head and
 // along the quay with red lights blinking on top, the city's street lamps
 // throwing warm pools on the asphalt, and the container wall on the last
-// corner that the tail grazes. The city itself stands on the horizon
-// (Skyline, drawn by the world).
+// corner that the tail grazes.
 
 // Night-muted container paint: rust, navy, teal, mustard, grey, plum, dirty white.
 const CONTAINER = ["#6e3124", "#1e3f5f", "#23564d", "#7d5b1f", "#434956", "#46305f", "#7e838d"];
@@ -149,17 +148,6 @@ export default function HarborScene({ track, clips, theme, name }: { track: Trac
   // Pools of light from the cranes' floodlights onto the quay.
   const floods = useMemo<[number, number][]>(() => cranes.lights.filter((_, i) => i % 2 === 1).map(([x, , z]) => [x, z]), [cranes]);
 
-  const reflect = useMemo<Box[]>(() => {
-    // Light streaks on the water toward the city (east, past the quay's end), like its windows reflected.
-    const out: Box[] = [];
-    for (let i = 0; i < 48; i++) {
-      const x = (300 + hash(i * 5.3) * 560) * U;
-      const z = (-160 + hash(i * 2.1) * 260) * U;
-      out.push({ x, y: -1.4, z, w: (1.2 + hash(i) * 2) * U, h: 0.05, d: (20 + hash(i * 9) * 60) * U, rotY: Math.PI / 2, color: hash(i * 4.4) < 0.5 ? "#ffd98a" : "#9fc4ff" });
-    }
-    return out;
-  }, []);
-
   return (
     <group>
       <mesh position={[0, -1.5, 0]} rotation={[-Math.PI / 2, 0, 0]} material={waterMat}>
@@ -180,7 +168,6 @@ export default function HarborScene({ track, clips, theme, name }: { track: Trac
       ))}
       <LightPools spots={floods} color="#ffe2a8" radius={22 * U} />
       <Lamps track={track} marking={theme.roadMarkingColor} />
-      <Boxes boxes={reflect} glow={1.2} />
       <StartGantry track={track} name={name} accent="#c8ff3a" />
     </group>
   );

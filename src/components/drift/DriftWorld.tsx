@@ -14,9 +14,7 @@ import { useDriveInput } from "@/components/league/drive/useDriveInput";
 import TrackScene from "@/components/race/TrackScene";
 import type { CityTheme } from "@/components/city/theme";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
-import type { LayoutNorms } from "@/lib/city-layout-core";
 import DriftCamera from "./DriftCamera";
-import Skyline from "./Skyline";
 import HarborScene from "./scenes/HarborScene";
 import { Ghost } from "@/components/race/Ghost";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
@@ -57,8 +55,6 @@ export interface DriftWorldProps {
   color: string;
   telemetry: DriftTelemetry;
   theme: CityTheme;
-  /** The city on the horizon: its biggest developers and the city's height norms. */
-  skyline: { devs: Record<string, unknown>[]; norms: LayoutNorms } | null;
   camera: DriveCameraMode;
   onCameraToggle: () => void;
   muted: boolean;
@@ -81,8 +77,6 @@ export interface DriftWorldProps {
 }
 
 const U = M_TO_UNIT;
-/** Where each spot sees the city (city units): from Harbor, across the water at the end of the quay, dead ahead from the start. */
-const SKYLINE_AT: Partial<Record<string, [number, number]>> = { harbor: [1850, -120] };
 const NONE: never[] = [];
 
 class Boundary extends Component<{ onFail: () => void; children: ReactNode }, { failed: boolean }> {
@@ -141,7 +135,6 @@ export default function DriftWorld({
   color,
   telemetry,
   theme,
-  skyline,
   camera,
   onCameraToggle,
   muted,
@@ -379,7 +372,6 @@ export default function DriftWorld({
       ) : (
         <TrackScene track={track} lit={lit} title={title} />
       )}
-      {skyline && <Skyline devs={skyline.devs} norms={skyline.norms} at={SKYLINE_AT[spot.id] ?? [0, -2400]} colors={theme.building} />}
       <Suspense fallback={null}>
         <Physics timeStep={1 / 60} interpolate paused={hidden || paused} gravity={[0, GRAVITY, 0]} updatePriority={-50}>
           <Walls track={track} />

@@ -9,7 +9,6 @@ import * as THREE from "three";
 import { ThemeLights } from "@/components/city/theme";
 import ThemeSkyFX from "@/components/ThemeSkyFX";
 import { EXPOSURE, townTheme } from "@/components/league/townTheme";
-import type { LayoutNorms } from "@/lib/city-layout-core";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import { HUD_BOX } from "@/components/league/hud/shared";
 import { isDesktop } from "@/components/towns/useDesktop";
@@ -50,7 +49,6 @@ export default function SpotClient({
   record,
   rivalLogin,
   challenger,
-  skyline,
 }: {
   spotId: SpotId;
   viewerLogin: string | null;
@@ -59,7 +57,6 @@ export default function SpotClient({
   record: { login: string; score: number } | null;
   rivalLogin: string | null;
   challenger: string | null;
-  skyline: { devs: Record<string, unknown>[]; norms: LayoutNorms } | null;
 }) {
   const spot = getLiveSpot(spotId) as LiveSpot;
   const course = useMemo(() => courseOf(spot), [spot]);
@@ -292,7 +289,6 @@ export default function SpotClient({
             color={carColor(viewerLogin ?? "guest")}
             telemetry={telemetry}
             theme={SKY.theme}
-            skyline={skyline}
             camera={camera}
             onCameraToggle={toggleCamera}
             muted={muted || leaving}
