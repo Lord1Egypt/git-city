@@ -121,8 +121,8 @@ export default function Battle({
   telemetryRef: React.MutableRefObject<DriveTelemetry>;
   /** A blast caught your car (the crown falls off if you hold it). */
   onKnocked: () => void;
-  /** Every blast (meters, reach, strength in m/s), for the town's bots. */
-  onBlast?: (x: number, z: number, reach: number, power: number) => void;
+  /** Every blast (meters, reach, strength in m/s), for the town's bots; `fx` says which attack and whether it's yours (rival buildings). */
+  onBlast?: (x: number, z: number, reach: number, power: number, fx?: { id: number; mine: boolean }) => void;
   muted: boolean;
 }) {
   const spots = useMemo(() => boxSpots(objects), [objects]);
@@ -169,8 +169,8 @@ export default function Battle({
     blastRef.current = onBlast;
   });
 
-  const explode = (x: number, z: number, big: boolean) => {
-    blastRef.current?.(x, z, big ? 14 : 9, big ? 22 : 16);
+  const explode = (x: number, z: number, big: boolean, f?: Fx) => {
+    blastRef.current?.(x, z, big ? 14 : 9, big ? 22 : 16, f ? { id: f.id, mine: f.from === selfId.current } : undefined);
     bursts.current?.burst(x * M_TO_UNIT, 2, z * M_TO_UNIT, { count: big ? 90 : 50, speed: big ? 55 : 40, colors: FIRE, size: big ? 2 : 1.5, life: 1.1 });
     const me = myPos();
     if (me && boom.current && !silent.current) {
@@ -239,7 +239,7 @@ export default function Battle({
         if (f.item === "missile") f.m = { x: f.x, z: f.z, h: Math.atan2(f.dx, f.dz) };
         fxs.current.set(e.id, f);
         if (f.item === "shock") {
-          blastRef.current?.(f.x, f.z, 18, 14);
+          blastRef.current?.(f.x, f.z, 18, 14, { id: f.id, mine: f.from === selfId.current });
           bursts.current?.burst(f.x * M_TO_UNIT, 1.2, f.z * M_TO_UNIT, { count: 110, speed: 70, colors: SHOCK_COLORS, size: 1.6, life: 0.8, flat: 1, gravity: 10 });
           const me = myPos();
           if (me && f.from !== selfId.current) {
@@ -256,7 +256,7 @@ export default function Battle({
         setFxList([...fxs.current.values()]);
         // It went off: boom, and whoever's close (other than the one it caught) gets thrown too.
         const at = f.m ?? { x: f.x, z: f.z };
-        explode(at.x, at.z, f.item === "bomb");
+        explode(at.x, at.z, f.item === "bomb", f);
         const me = myPos();
         if (me && !done.current.has(f.id) && Math.hypot(me.x - at.x, me.z - at.z) < SPLASH) {
           done.current.add(f.id);
@@ -337,7 +337,7 @@ export default function Battle({
       if (age > LIFE[f.item]) {
         fxs.current.delete(f.id);
         changed = true;
-        if (f.item === "missile" && f.m) explode(f.m.x, f.m.z, false);
+        if (f.item === "missile" && f.m) explode(f.m.x, f.m.z, false, f);
         continue;
       }
       if (done.current.has(f.id)) continue;

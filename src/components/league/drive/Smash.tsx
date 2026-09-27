@@ -4,35 +4,52 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Howl } from "howler";
 import { SMASH, type SmashHit, type SmashStore } from "@/lib/league-city/smash";
+import { BLAST_ROWS, REBUILD_REACH, REBUILD_SPEED, toFootprint } from "@/lib/league-city/smash-net";
+import type { ClientMsg } from "@/lib/league-city/drive/net";
+import type { DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
 import type { CarApi } from "./Car";
 import { Bursts, type VoxelBursts } from "./Voxels";
 
 // Your car against the rival town's buildings (lib/league-city/smash): every
 // frame at speed, the columns under the car lose their bottom floor, with a
-// burst of wall and window cubes, a shake and a thud. Blasts (bombs,
-// missiles, shockwaves) go through `blast`. The building renderer draws what
-// is left from the same store.
+// burst of wall and window cubes, a shake and a thud. Your blasts (bombs,
+// missiles, shockwaves) go through `blast`. Hits show at once and go to the
+// drive room, which has the last word (DriveWorld applies its `damage`);
+// someone else's hits come back through `debris`. Without a side you can't
+// break anything: running into a rival building shows the "pick a side" hint.
+// Parked against your own broken building, the HUD counts it back up.
+
+export type SmashSide = "rival" | "home" | "none";
 
 export interface SmashApi {
-  /** A blast at (x, z) meters with `reach` meters. */
-  blast: (x: number, z: number, reach: number) => void;
+  /** A blast at (x, z) meters with `reach` meters; `fx` is the attack (yours or not). */
+  blast: (x: number, z: number, reach: number, fx?: { id: number; mine: boolean }) => void;
+  /** Floors someone else knocked off a column: the same burst yours make. */
+  debris: (target: number, col: number) => void;
 }
 
-const CHUNK = ["#141a2a"];
 const DEBRIS = ["#1c2233", "#2a3147", "#ffd76a", "#ffe9a8", "#8fa3c7", "#3a4462"];
-/** Floors a blast takes from each column it reaches, and how much of its reach counts. */
-const BLAST_ROWS = 3;
+const CHUNK = ["#141a2a"];
+/** How much of a blast's reach breaks floors. */
 const BLAST_REACH = 0.7;
+/** Running into a rival building without a side: the hint shows at most this often (ms). */
+const HINT_EVERY_MS = 8000;
 
 interface Props {
   store: SmashStore;
   car: React.MutableRefObject<CarApi | null>;
   impactRef: React.MutableRefObject<{ strength: number; at: number }>;
   muted: boolean;
+  /** What the room said about you: on the other side (you break), on this one (home), or neither yet. */
+  sideRef: React.MutableRefObject<SmashSide>;
+  send: (msg: ClientMsg) => void;
+  /** Your login (lowercase), for your own building. */
+  me: string;
+  telemetryRef: React.MutableRefObject<DriveTelemetry>;
 }
 
-export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRef, muted }, ref) {
+export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRef, muted, sideRef, send, me, telemetryRef }, ref) {
   const bursts = useRef<VoxelBursts | null>(null);
   const crash = useRef<Howl | null>(null);
   const silent = useRef(muted);
@@ -47,13 +64,17 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
     };
   }, []);
 
+  const burst = (x: number, y: number, z: number, floorH: number, power: number) => {
+    // The floor itself flies off as a big block, with bits of wall and window.
+    bursts.current?.burst(x, y, z, { count: 1, speed: 22, colors: CHUNK, size: floorH * 0.85, life: 1.6, gravity: 60 });
+    bursts.current?.burst(x, y, z, { count: 8 + power * 5, speed: 24 + power * 10, colors: DEBRIS, size: Math.min(2.2, floorH * 0.3), life: 1.1 });
+  };
+
   const show = (hits: SmashHit[], power: number) => {
     let down = false;
     for (const h of hits) {
       const t = store.targets[h.target];
-      // The floor itself flies off as a big block, with bits of wall and window.
-      bursts.current?.burst(h.x, h.y, h.z, { count: 1, speed: 22, colors: CHUNK, size: t.floorH * 0.85, life: 1.6, gravity: 60 });
-      bursts.current?.burst(h.x, h.y, h.z, { count: 8 + power * 5, speed: 24 + power * 10, colors: DEBRIS, size: Math.min(2.2, t.floorH * 0.3), life: 1.1 });
+      burst(h.x, h.y, h.z, t.floorH, power);
       if (h.down) {
         down = true;
         bursts.current?.burst(t.x, t.floorH, t.z, { count: 80, speed: 45, colors: DEBRIS, size: 2.4, life: 1.6 });
@@ -68,20 +89,64 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
     }
   };
 
+  /** One `smash` per building hit. */
+  const report = (hits: SmashHit[], k: "car" | "blast", fx?: number) => {
+    const byTarget = new Map<number, number[]>();
+    for (const h of hits) byTarget.set(h.target, [...(byTarget.get(h.target) ?? []), h.col]);
+    for (const [target, c] of byTarget) send({ t: "smash", b: store.targets[target].login, c, k, ...(fx !== undefined ? { fx } : {}) });
+  };
+
   useImperativeHandle(ref, () => ({
-    blast(x, z, reach) {
-      show(store.hitCircle(x * M_TO_UNIT, z * M_TO_UNIT, reach * BLAST_REACH * M_TO_UNIT, BLAST_ROWS, performance.now()), 2);
+    blast(x, z, reach, fx) {
+      // Only your own attacks break floors from here; others' come back from the room.
+      if (!fx?.mine || sideRef.current !== "rival") return;
+      const hits = store.hitCircle(x * M_TO_UNIT, z * M_TO_UNIT, reach * BLAST_REACH * M_TO_UNIT, BLAST_ROWS, Date.now());
+      show(hits, 2);
+      report(hits, "blast", fx.id);
+    },
+    debris(target, col) {
+      const t = store.targets[target];
+      const [x, z] = store.columnCenter(target, col);
+      burst(x, t.floorH / 2, z, t.floorH, 0);
     },
   }));
 
+  const lastHint = useRef(0);
   useFrame(() => {
     const c = car.current;
+    const tele = telemetryRef.current;
     if (!c) return;
-    if (Math.abs(c.state.speed) < SMASH.minSpeed) return;
     const p = c.body.translation();
+    const x = p.x * M_TO_UNIT;
+    const z = p.z * M_TO_UNIT;
+    const speed = Math.abs(c.state.speed);
+
+    // Parked against your own broken building: the room builds it back; the HUD counts.
+    const mine = store.index.get(me);
+    if (mine !== undefined && store.isDamaged(mine) && speed < REBUILD_SPEED && toFootprint(store, mine, x, z) <= REBUILD_REACH) {
+      tele.rebuildFloors = store.standing(mine);
+      tele.rebuildOf = store.targets[mine].floors * store.rowsOf(mine).length;
+    } else tele.rebuildOf = 0;
+
+    if (sideRef.current !== "rival") {
+      // Not the other side: the buildings are solid. Without a side, running into one shows the hint.
+      const now = performance.now();
+      if (sideRef.current === "none" && speed > 2 && now - lastHint.current > HINT_EVERY_MS) {
+        for (let i = 0; i < store.targets.length; i++) {
+          if (store.targets[i].login === me || toFootprint(store, i, x, z) > SMASH.carRadius) continue;
+          lastHint.current = now;
+          tele.sideHintAt = now;
+          break;
+        }
+      }
+      return;
+    }
+    if (speed < SMASH.minSpeed) return;
     const n = c.state.boosting ? SMASH.boostRows : SMASH.rows;
-    const hits = store.hitCircle(p.x * M_TO_UNIT, p.z * M_TO_UNIT, SMASH.carRadius, n, performance.now(), SMASH.cooldownMs);
+    const hits = store.hitCircle(x, z, SMASH.carRadius, n, Date.now(), SMASH.cooldownMs);
+    if (!hits.length) return;
     show(hits, c.state.boosting ? 1 : 0);
+    report(hits, "car");
   });
 
   return <Bursts ref={bursts} />;

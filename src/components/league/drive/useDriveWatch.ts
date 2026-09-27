@@ -10,8 +10,17 @@ import { syncBotClock } from "@/lib/league-city/drive/bots";
 // the car right now and where, batched by the server a few times a second.
 // Opens only while `enabled` (view mode); the drive room takes over in the car.
 
-export function useDriveWatch(slug: string, enabled: boolean) {
+export function useDriveWatch(
+  slug: string,
+  enabled: boolean,
+  /** Rivalry towns: the room's floor changes (damage, damage_all). */
+  onDamage?: (msg: { t: string } & Record<string, unknown>) => void,
+) {
   const remotes = useRef(new Map<string, RemoteDriver>());
+  const onDamageRef = useRef(onDamage);
+  useEffect(() => {
+    onDamageRef.current = onDamage;
+  });
   const [drivers, setDrivers] = useState<DriverInfo[]>([]);
 
   useEffect(() => {
@@ -62,6 +71,8 @@ export function useDriveWatch(slug: string, enabled: boolean) {
       } else if (msg.t === "leave") {
         map.delete(msg.id);
         publish();
+      } else if (msg.t === "damage" || msg.t === "damage_all") {
+        onDamageRef.current?.(msg as unknown as { t: string } & Record<string, unknown>);
       }
     });
     return () => {

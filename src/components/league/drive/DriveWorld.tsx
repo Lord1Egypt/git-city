@@ -37,8 +37,10 @@ import type { FxSource } from "./fx";
 import { CameraKey, DriveAudio, LocalFx } from "./carFx";
 import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
 import { useDriveInput } from "./useDriveInput";
-import Smash, { type SmashApi } from "./Smash";
+import Smash, { type SmashApi, type SmashSide } from "./Smash";
 import type { SmashStore } from "@/lib/league-city/smash";
+import { createBrowserSupabase } from "@/lib/supabase";
+import { applyRoomDamage } from "@/lib/league-city/smash-net";
 
 // Drive mode's physics world. Loaded with next/dynamic only when someone
 // presses Drive, so the Rapier WASM never reaches viewers or editors.
@@ -80,8 +82,14 @@ export interface DriveWorldProps {
   crownApi: React.MutableRefObject<CrownApi | null>;
   /** Crown Rush state for the HUD. */
   onCrown: (v: CrownView) => void;
-  /** The rival town: its buildings have no collider, the car drives through and breaks them. */
+  /** A rivalry town's floors (lib/league-city/smash). On the other side, its buildings have no collider: the car drives through and breaks them. */
   smash?: SmashStore;
+}
+
+/** Your Supabase access token for the drive room (null signed out: you drive, you don't smash). */
+async function smashToken(): Promise<string | null> {
+  const { data } = await createBrowserSupabase().auth.getSession();
+  return data.session?.access_token ?? null;
 }
 
 /** A bump carries this share of the hitter's relative velocity, plus a small hop (m/s). */
@@ -239,15 +247,19 @@ export default function DriveWorld({
     return () => document.removeEventListener("visibilitychange", on);
   }, []);
 
-  const solid = useMemo(() => (smash ? buildings.filter((b) => !smash.index.has(b.loginLower)) : buildings), [smash, buildings]);
+  // The room tells us which side we're on (smash_me); until then, and on this
+  // side or none, the buildings are solid.
+  const [side, setSide] = useState<SmashSide>("none");
+  const sideRef = useRef<SmashSide>("none");
+  useEffect(() => {
+    sideRef.current = side;
+  }, [side]);
+  const solid = useMemo(
+    () => (smash && side === "rival" ? buildings.filter((b) => !smash.index.has(b.loginLower)) : buildings),
+    [smash, side, buildings],
+  );
   const specs = useMemo(() => buildColliders(objects, solid, h), [objects, solid, h]);
   const smashApi = useRef<SmashApi | null>(null);
-  // The smash test build is driven from the console too (window.__car).
-  useEffect(() => {
-    if (!smash) return;
-    const id = setInterval(() => ((window as unknown as { __car?: CarApi | null }).__car = car.current), 500);
-    return () => clearInterval(id);
-  }, [smash]);
   const fixed = useMemo(() => specs.filter((s) => s.body === "fixed"), [specs]);
   const dynamic = useMemo(() => specs.filter((s) => s.body === "dynamic"), [specs]);
   const spawn = useMemo(() => spawnPoint(objects, viewerDevId, h), [objects, viewerDevId, h]);
@@ -284,14 +296,22 @@ export default function DriveWorld({
       impact.current = { strength: Math.min(1, Math.hypot(x, z) / 12), at: performance.now() };
     },
     onBattle: (e) => (e.t === "crown" ? crownSink.current(e) : battleSink.current(e)),
+    // Rivalry smash: the room asks the site who you are, and has the last word on the floors.
+    auth: smash ? smashToken : undefined,
+    onOther: smash
+      ? (msg) => {
+          if (msg.t === "smash_me") setSide(msg.can === true ? "rival" : msg.home === true ? "home" : "none");
+          for (const { target, col } of applyRoomDamage(smash, msg, Date.now())) smashApi.current?.debris(target, col);
+        }
+      : undefined,
   });
   // Bots fill in for missing drivers (you count as one).
   const bots = useTownBots(slug, objects, drivers.length + 1);
   const cars = [...drivers.flatMap((d) => remotes.current.get(d.id) ?? []), ...bots];
   const botTargets = useRef(new Map<string, BotTarget>());
   /** A blast at (x, z) meters throws every bot in reach, harder the closer. */
-  const blastBots = (x: number, z: number, reach: number, power: number) => {
-    smashApi.current?.blast(x, z, reach);
+  const blastBots = (x: number, z: number, reach: number, power: number, fx?: { id: number; mine: boolean }) => {
+    smashApi.current?.blast(x, z, reach, fx);
     for (const t of botTargets.current.values()) {
       const p = t.pos();
       if (!p) continue;
@@ -387,7 +407,19 @@ export default function DriveWorld({
             knockRef={crownKnock}
             onView={onCrown}
           />
-          {smash && <Smash ref={smashApi} store={smash} car={car} impactRef={impact} muted={muted || paused} />}
+          {smash && (
+            <Smash
+              ref={smashApi}
+              store={smash}
+              car={car}
+              impactRef={impact}
+              muted={muted || paused}
+              sideRef={sideRef}
+              send={send}
+              me={name.toLowerCase()}
+              telemetryRef={telemetryRef}
+            />
+          )}
           {flash && <HonkFlash key={flash.at} building={flash.b} at={flash.at} />}
           <SkidMarks sources={fx} />
           <Smoke sources={fx} />

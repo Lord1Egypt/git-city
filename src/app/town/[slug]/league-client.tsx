@@ -59,6 +59,8 @@ import { freshQuest, nextStep, parseQuest, questKey, questSteps, type QuestState
 import { chime } from "@/lib/sfx/chime";
 import { useDriveWatch } from "@/components/league/drive/useDriveWatch";
 import { RIVALRY } from "@/lib/towns/rivalry";
+import { smashStoreFor, type DamageEntry } from "@/lib/league-city/smash";
+import { applyRoomDamage } from "@/lib/league-city/smash-net";
 import { useTownBots } from "@/components/league/drive/useTownBots";
 import {
   HOTBAR,
@@ -83,15 +85,6 @@ const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"),
 
 const MUTE_KEY = "gc:drive-muted";
 
-// ?smash=1: the rival town's buildings break when you drive through them (a
-// local test, nothing is saved). ?smashregen=30 grows a floor back every 30s.
-function smashFlags(): { regenMs?: number } | null {
-  if (typeof window === "undefined") return null;
-  const q = new URLSearchParams(window.location.search);
-  if (q.get("smash") !== "1") return null;
-  const regen = Number(q.get("smashregen"));
-  return regen > 0 ? { regenMs: regen * 1000 } : {};
-}
 /** While driving, check for city changes (an admin's Done) this often. */
 const DRIVE_POLL_MS = 5000;
 
@@ -151,11 +144,10 @@ export default function LeagueClient({
 }) {
   const { league, members, viewer } = data;
   const isMember = viewer?.status === "active";
-  const smashTown = useMemo(() => {
-    const side = RIVALRY.find((r) => r.slug === league.slug);
-    const flags = smashFlags();
-    return side && flags && !isMember ? { color: side.color, ...flags } : null;
-  }, [league.slug, isMember]);
+  // Rivalry towns: the other side drives through the buildings and knocks
+  // their floors out (lib/league-city/smash). Everyone sees the damage.
+  const smashColor = RIVALRY.find((r) => r.slug === league.slug)?.color ?? null;
+  const rivalColor = RIVALRY.find((r) => r.slug !== league.slug)?.color ?? "#ffffff";
   const showJoinCta = !isMember && (!!invite || !!inviteToken || viewer?.status === "invited");
   const joinKind = joinAction === "join" || joinAction === "ask" || joinAction === "pending" ? joinAction : null;
   const [panel, setPanel] = useState<PanelId>(showJoinCta || (startJoin && joinKind) ? "join" : null);
@@ -321,6 +313,25 @@ export default function LeagueClient({
       store.dispatch({ type: "resync", city });
   }, [city, store]);
   const buildings = useMemo(() => leagueBuildings(sceneObjects, byDevId), [sceneObjects, byDevId]);
+  const smashStore = useMemo(() => (smashColor ? smashStoreFor(buildings) : null), [smashColor, buildings]);
+  const smashTown = useMemo(
+    () => (smashStore && smashColor ? { store: smashStore, color: smashColor, rivalColor } : null),
+    [smashStore, smashColor, rivalColor],
+  );
+  // The saved damage, once per store (the drive room sends changes from then on).
+  useEffect(() => {
+    if (!smashStore) return;
+    let live = true;
+    fetch(`/api/towns/${league.slug}/smash`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { damage?: DamageEntry[] } | null) => {
+        if (live && body?.damage) smashStore.load(body.damage, Date.now());
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [smashStore, league.slug]);
   // Where each prop's body is, for picking it on screen in the editor.
   useEffect(() => {
     const mid: Partial<Record<string, number>> = {
@@ -468,7 +479,7 @@ export default function LeagueClient({
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
-  const watch = useDriveWatch(league.slug, mode === "view");
+  const watch = useDriveWatch(league.slug, mode === "view", smashStore ? (msg) => applyRoomDamage(smashStore, msg, Date.now()) : undefined);
   // Bots fill the streets when few people are driving (lib/league-city/drive/bots).
   const bots = useTownBots(league.slug, sceneObjects, watch.drivers.length, mode === "view");
   const watchedCars = useMemo(

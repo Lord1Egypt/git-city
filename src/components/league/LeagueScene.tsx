@@ -18,8 +18,9 @@ import type { CityIdentity, CityObject } from "@/lib/league-city/types";
 import { carIntro } from "@/lib/league-city/intro";
 import { approachRoads } from "@/lib/league-city/starter";
 import { APPROACH_LOTS } from "@/lib/league-city/identity-geometry";
-import { SmashStore } from "@/lib/league-city/smash";
+import type { SmashStore } from "@/lib/league-city/smash";
 import IdentityLayer from "./identity/IdentityLayer";
+import RubbleLabels from "./RubbleLabels";
 import TownIntro, { type IntroHandoff } from "./identity/TownIntro";
 import LeagueToys from "./LeagueToys";
 import LeagueRoads from "./LeagueRoads";
@@ -420,8 +421,8 @@ export interface LeagueSceneProps {
   children?: React.ReactNode;
   /** Drive mode: the car and its world. */
   drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
-  /** The rival town: its buildings break when you drive through them (lib/league-city/smash). color: the town's side. regenMs: test override. */
-  smash?: { color: string; regenMs?: number } | null;
+  /** A rivalry town's floors (lib/league-city/smash): broken buildings draw as columns; color: the town's side, for the ghosts. */
+  smash?: { store: SmashStore; color: string; rivalColor: string } | null;
   /** Fill the parent box instead of the viewport, and ignore the pointer (Discover's hero). */
   embedded?: boolean;
   /** A new value raises the city from the ground, streets first (the template picker). */
@@ -460,7 +461,7 @@ export default function LeagueScene({
   framing,
   watching,
   coverRef,
-  smash: smashable = null,
+  smash: smashTown = null,
 }: LeagueSceneProps) {
   const editing = mode === "edit";
   const driving = mode === "drive" && !!drive;
@@ -477,13 +478,7 @@ export default function LeagueScene({
   // The main street runs on outside the grid to the portal (drawn and driven, never edited).
   const approach = useMemo(() => approachRoads(objects), [objects]);
   const withApproach = useMemo(() => (approach.length ? [...objects, ...approach] : objects), [objects, approach]);
-  const smashOn = !!smashable;
-  const smashRegen = smashable?.regenMs;
-  const smash = useMemo(() => (smashOn ? new SmashStore(buildings, smashRegen) : undefined), [smashOn, smashRegen, buildings]);
-  // The test build is poked from the console too: window.__smash.hitCircle(x, z, r, floors, performance.now()).
-  useEffect(() => {
-    if (smash) (window as unknown as { __smash?: SmashStore }).__smash = smash;
-  }, [smash]);
+  const smash = smashTown?.store;
   const driveRef = useRef(drive);
   useEffect(() => {
     driveRef.current = drive;
@@ -586,9 +581,10 @@ export default function LeagueScene({
           focusedBuilding={editing || driving ? null : (focused ?? null)}
           onBuildingClick={editing || driving ? undefined : onBuildingClick}
           smash={smash}
-          ghostColor={smashable?.color}
+          ghostColor={smashTown?.color}
         />
       </Rise>
+      {smashTown && !editing && <RubbleLabels store={smashTown.store} color={smashTown.rivalColor} />}
       {watching && mode === "view" && !playing && watching.length > 0 && <WatchedCars cars={watching} />}
       {driving && drive && <DriveWorld objects={withApproach} buildings={buildings} h={h} smash={smash} {...drive} />}
       {coverRef && <CoverShot apiRef={coverRef} h={h} tallest={tallest} />}
