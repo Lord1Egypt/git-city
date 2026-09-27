@@ -29,7 +29,7 @@ export interface RivalSide {
 
 type Pair = [RivalSide, RivalSide];
 
-// /towns before the first battle week: Claude Code vs Codex, pick a side.
+// /towns before the first battle week: Claude vs Codex, pick a side.
 // The names are the headline; each town sits in its own window with its
 // count and button on a solid bar, so no text ever sits on the sky.
 export default function RivalryPoster({

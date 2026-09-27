@@ -5,7 +5,7 @@ import { OG, building } from "@/lib/og/devHero";
 import { RIVALRY } from "@/lib/towns/rivalry";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-export const alt = "Claude Code vs Codex - Git City Towns";
+export const alt = "Claude vs Codex - Git City Towns";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const revalidate = 3600;
@@ -100,7 +100,7 @@ export default async function Image() {
           }}
         >
           <span style={{ fontSize: 18, color: OG.muted, letterSpacing: 4 }}>GIT CITY TOWNS</span>
-          <span style={{ marginTop: 22, fontSize: 50, color: a.color, lineHeight: 1 }}>CLAUDE CODE</span>
+          <span style={{ marginTop: 22, fontSize: 50, color: a.color, lineHeight: 1 }}>CLAUDE</span>
           <span style={{ marginTop: 14, fontSize: 26, color: OG.dim, lineHeight: 1 }}>VS</span>
           <span style={{ marginTop: 14, fontSize: 50, color: b.color, lineHeight: 1 }}>CODEX</span>
           <div style={{ display: "flex", marginTop: 30, fontSize: 18, color: OG.accent, border: `3px solid ${OG.accent}`, padding: "6px 16px" }}>

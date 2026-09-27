@@ -312,7 +312,7 @@ export async function joinLeague(
   return "active";
 }
 
-// ─── Claude Code vs Codex ───────────────────────────────────
+// ─── Claude vs Codex ───────────────────────────────────
 
 const MEMBER_FIELDS = ["status", "invited_by", "joined_at", "left_at", "removed_by", "joined_via"] as const;
 
@@ -791,7 +791,7 @@ export async function decideJoinRequest(viewer: Viewer, league: League, rawLogin
 // ─── Admin ──────────────────────────────────────────────────
 
 function requireAdmin(viewer: Viewer, league: League) {
-  // Claude Code and Codex belong to Git City: only the site admin runs them.
+  // Claude and Codex belong to Git City: only the site admin runs them.
   if (isRivalry(league.slug)) {
     if (!isAdminGithubLogin(viewer.github_login)) throw new LeagueError("not_admin", "Only Git City can change this town.", 403);
     return;

@@ -11,7 +11,7 @@ import RivalryPoster, { type RivalSide } from "@/components/towns/RivalryPoster"
 
 export const dynamic = "force-dynamic";
 
-const TITLE = "Claude Code vs Codex - Git City";
+const TITLE = "Claude vs Codex - Git City";
 const DESCRIPTION = "Pick your side. From Monday, the side whose devs code more wins the week.";
 
 export const metadata: Metadata = {

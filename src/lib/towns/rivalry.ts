@@ -5,7 +5,7 @@ import { weekStart } from "@/lib/leagues/scoring";
 // whole week: switching happens on Mondays only (Splatfest locks a team for the
 // whole fest; Destiny's pledge held until the next rally).
 export const RIVALRY = [
-  { slug: "claude-code-town", name: "Claude Code", color: "#e07a4f" },
+  { slug: "claude-code-town", name: "Claude", color: "#e07a4f" },
   { slug: "codex-town", name: "Codex", color: "#5b8def" },
 ] as const;
 
