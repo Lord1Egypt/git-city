@@ -19,7 +19,7 @@ const BLOCKS = 14;
 const ITEM_ICON: Record<BattleItem, LucideIcon> = { shock: Zap, bomb: Bomb, missile: Rocket };
 /** A new item flashes this long (ms). */
 const NEW_MS = 900;
-const PINK = "#ff5ad8";
+const ATTACK = "#ff9a3c";
 
 export default function Dash({ telemetry, style }: { telemetry: DriveTelemetry; style?: React.CSSProperties }) {
   const speed = useRef<HTMLSpanElement>(null);
@@ -64,11 +64,11 @@ export default function Dash({ telemetry, style }: { telemetry: DriveTelemetry; 
           <div
             ref={slot}
             data-new="false"
-            className={`relative flex h-11 w-11 items-center justify-center border-[3px] transition-transform duration-150 data-[new=true]:scale-110 data-[new=true]:bg-[#ff5ad8]/40 ${item ? "border-[#ff5ad8] bg-[#ff5ad8]/15" : "border-border"}`}
+            className={`relative flex h-11 w-11 items-center justify-center border-[3px] transition-transform duration-150 data-[new=true]:scale-110 data-[new=true]:bg-[#ff9a3c]/40 ${item ? "border-[#ff9a3c] bg-[#ff9a3c]/15" : "border-border"}`}
           >
-            {Icon ? <Icon size={20} strokeWidth={2.5} color={PINK} aria-hidden /> : <span className="text-lg text-muted">?</span>}
+            {Icon ? <Icon size={20} strokeWidth={2.5} color={ATTACK} aria-hidden /> : <span className="text-lg text-muted">?</span>}
             {item && (
-              <span className="absolute -bottom-2 -right-2 border-2 bg-bg px-1 text-[9px] leading-tight text-cream" style={{ borderColor: PINK }}>
+              <span className="absolute -bottom-2 -right-2 border-2 bg-bg px-1 text-[9px] leading-tight text-cream" style={{ borderColor: ATTACK }}>
                 F
               </span>
             )}
@@ -76,7 +76,7 @@ export default function Dash({ telemetry, style }: { telemetry: DriveTelemetry; 
           <div className="flex w-[8.5rem] flex-col gap-1 whitespace-nowrap text-[9px] leading-tight">
             {item ? (
               <>
-                <span className="text-[11px]" style={{ color: "#ff9be8" }}>
+                <span className="text-[11px]" style={{ color: "#ff9a3c" }}>
                   {ITEM_NAMES[item]}
                 </span>
                 <span className="text-muted">Ready</span>

@@ -24,7 +24,7 @@ import type { TouchDrive } from "@/lib/league-city/drive/touch";
 // once done (every drive teaches what you haven't done yet); an ignored one
 // comes back later. A gamepad counts as driving once the car speeds up.
 
-type Lesson = "drive" | "steer" | "boost" | "drift" | "attack" | "camera";
+export type Lesson = "drive" | "steer" | "boost" | "drift" | "attack" | "camera";
 const REMEMBERED = new Set<Lesson>(["boost", "drift", "attack", "camera"]);
 
 const THROTTLE = new Set(["KeyW", "ArrowUp"]);
@@ -106,16 +106,19 @@ function TouchPrompt({ lesson, item }: { lesson: Lesson; item: string | null }) 
     case "drift":
       return line(
         <>
-          Steer hard to <span className="text-lime">drift</span>
+          Hold <span className="text-lime">Drift</span>
         </>,
+        "while you steer, or just steer hard",
       );
     case "camera":
-      return line("Tap the camera ↗", "for another view");
+      // Shown on the camera button itself (DriveHud).
+      return null;
     case "attack":
       return line(
         <>
-          Tap the <span className="text-[#ff9be8]">{item ?? "item"}</span> to throw it
+          Tap <span className="text-[#ff9a3c]">{item ?? "the item"}</span>
         </>,
+        "to throw it",
       );
   }
 }
@@ -166,7 +169,7 @@ function Prompt({ lesson, item }: { lesson: Lesson; item: string | null }) {
       return (
         <>
           <Key>F</Key>
-          <span className={`${TEXT} text-[#ff9be8]`}>Throw {item ?? "it"}</span>
+          <span className={`${TEXT} text-[#ff9a3c]`}>Throw {item ?? "it"}</span>
         </>
       );
   }
@@ -178,6 +181,7 @@ export default function DrivePrompt({
   camera,
   touchRef,
   onDrive,
+  onLesson,
 }: {
   telemetry: DriveTelemetry;
   /** Handed over by the town intro: starts with drive and steer. */
@@ -188,6 +192,8 @@ export default function DrivePrompt({
   touchRef?: React.MutableRefObject<TouchDrive>;
   /** You pressed the throttle (the HUD comes in). */
   onDrive?: () => void;
+  /** The lesson on screen, so the HUD can point at its button. */
+  onLesson?: (lesson: Lesson | null) => void;
 }) {
   // On a phone the car waits for a first touch every time: always say so.
   const opens = firstRun || !!touchRef;
@@ -203,6 +209,9 @@ export default function DrivePrompt({
   useEffect(() => {
     onDriveRef.current = onDrive;
   }, [onDrive]);
+  useEffect(() => {
+    onLesson?.(lesson);
+  }, [lesson, onLesson]);
 
   useEffect(() => {
     const learned = readLearned();
@@ -324,7 +333,7 @@ export default function DrivePrompt({
     };
   }, [telemetry, firstRun, touchRef]);
 
-  if (!lesson) return null;
+  if (!lesson || (touch && lesson === "camera")) return null;
   return (
     <div className={`pointer-events-none absolute inset-x-0 flex justify-center px-4 ${touch ? "top-[24%]" : "bottom-[22%]"}`}>
       <div

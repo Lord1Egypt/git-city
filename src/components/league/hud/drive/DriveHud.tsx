@@ -7,7 +7,7 @@ import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
 import { HUD_BOX } from "../shared";
 import PauseMenu, { CONTROLS } from "./PauseMenu";
 import StartScreen from "./StartScreen";
-import DrivePrompt from "./DrivePrompt";
+import DrivePrompt, { type Lesson } from "./DrivePrompt";
 import Dash from "./Dash";
 import TouchControls from "./TouchControls";
 import type { TouchDrive } from "@/lib/league-city/drive/touch";
@@ -101,11 +101,14 @@ export default function DriveHud({
   }, [telemetry]);
 
   const touch = !!touchRef;
+  // The prompt on screen: on a phone its button pulses (and the camera's gets a callout).
+  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const touchLesson = lesson === "boost" || lesson === "drift" || lesson === "attack" ? lesson : null;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-30 font-pixel uppercase">
       {/* First, so every other piece of the HUD sits above the steering layer. */}
-      {ready && touchRef && <TouchControls touchRef={touchRef} telemetry={telemetry} />}
+      {ready && touchRef && <TouchControls touchRef={touchRef} telemetry={telemetry} lesson={touchLesson} />}
 
       {ready && entered && (
         <div className={`${HUD_BOX} absolute left-4 top-4 flex flex-col gap-1.5 px-3 py-2 text-[9px]`} style={enter(0)}>
@@ -134,15 +137,29 @@ export default function DriveHud({
 
       {entered && (
         <div className={`${HUD_BOX} absolute right-4 top-4 flex items-stretch divide-x-2 divide-border`} style={enter(0.12)}>
-          <button
-            type="button"
-            onClick={onCamera}
-            aria-label={camera === "chase" ? "Top-down camera (C)" : "Chase camera (C)"}
-            title={camera === "chase" ? "Top-down camera (C)" : "Chase camera (C)"}
-            className={ICON_BTN}
-          >
-            <Camera {...ICON} aria-hidden />
-          </button>
+          <span className="relative flex">
+            <button
+              type="button"
+              onClick={onCamera}
+              aria-label={camera === "chase" ? "Top-down camera (C)" : "Chase camera (C)"}
+              title={camera === "chase" ? "Top-down camera (C)" : "Chase camera (C)"}
+              // Phones: a word next to the icon, since there's no C key to learn it from.
+              className={`${touch ? `${SEG} gap-2 px-3 py-2 text-[10px] text-cream` : ICON_BTN} ${touch && lesson === "camera" ? "animate-pulse bg-lime/20 text-lime" : ""}`}
+            >
+              <Camera {...ICON} aria-hidden />
+              {touch && <span>View</span>}
+            </button>
+            {touch && lesson === "camera" && (
+              <span
+                role="status"
+                className="pointer-events-none absolute left-1/2 top-full mt-3 -translate-x-1/2 animate-[fade-in_0.3s_ease-out_both] whitespace-nowrap border-[3px] border-lime bg-bg px-3 py-2 text-[10px] text-cream"
+              >
+                {/* Caret up at the button */}
+                <span className="absolute -top-[9px] left-1/2 -ml-[6px] border-x-[6px] border-b-[6px] border-x-transparent border-b-lime" aria-hidden />
+                Tap to change the view
+              </span>
+            )}
+          </span>
           <button
             type="button"
             onClick={onMute}
@@ -186,7 +203,7 @@ export default function DriveHud({
         </div>
       )}
 
-      {ready && <DrivePrompt telemetry={telemetry} firstRun={firstRun} camera={camera} touchRef={touchRef} onDrive={() => setEntered(true)} />}
+      {ready && <DrivePrompt telemetry={telemetry} firstRun={firstRun} camera={camera} touchRef={touchRef} onDrive={() => setEntered(true)} onLesson={setLesson} />}
 
       {ready && entered && <CrownPanel crown={crown?.crown ?? null} offset={crown?.offset ?? 0} you={crown?.you ?? null} drivers={drivers} onStart={onStartCrown} />}
 
