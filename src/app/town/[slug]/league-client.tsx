@@ -88,6 +88,8 @@ const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"),
 
 const MUTE_KEY = "gc:drive-muted";
 const LIME = "#c8e64a";
+/** The minimap, compass and zoom buttons: ready, off until towns grow past one screen. */
+const SHOW_MAP_NAV = false;
 
 /** The main city's minimap for the town: its buildings, the camera's view, click to fly there. */
 function TownRadar({ buildings, camera }: { buildings: CityBuilding[]; camera: MapCameraStore }) {
@@ -935,11 +937,17 @@ export default function LeagueClient({
       {/* HUD: the wrappers ignore the pointer so the city stays draggable. */}
       {!editing && !driving && !intro && outro === null && (
         <>
-          {/* The main city's minimap (desktop), compass, zoom buttons and controls hints. */}
-          <div className="hidden sm:block">
-            <TownRadar buildings={buildings} camera={navCamera} />
-          </div>
-          <MapNavControls camera={navCamera} accent={smashColor ?? LIME} showPlaces={false} />
+          {/* The main city's minimap (desktop), compass and zoom buttons: hidden
+              while towns are small enough to see at once (SHOW_MAP_NAV). */}
+          {SHOW_MAP_NAV && (
+            <>
+              <div className="hidden sm:block">
+                <TownRadar buildings={buildings} camera={navCamera} />
+              </div>
+              <MapNavControls camera={navCamera} accent={smashColor ?? LIME} showPlaces={false} />
+            </>
+          )}
+          {/* The main city's controls hints. */}
           <div className="pointer-events-none fixed bottom-20 left-4 z-30 hidden font-pixel text-[9px] uppercase leading-loose text-muted sm:block">
             <div><span className="text-cream">Drag</span> move</div>
             <div><span className="text-cream">Scroll</span> zoom</div>
