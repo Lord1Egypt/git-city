@@ -129,6 +129,8 @@ export class Scorer {
   private nextCheckpoint = 1;
   private readonly clipped = new Set<number>();
   private started = false;
+  /** The car's center went past a wall (impossible when driven): the run can't be real. */
+  outside = false;
   state: DriftState;
 
   constructor(course: Course) {
@@ -163,6 +165,7 @@ export class Scorer {
     const nx = p.tz;
     const nz = -p.tx; // left of travel
     const lateral = spot.lateral;
+    if (Math.abs(lateral) > this.wallFace + 0.5) this.outside = true;
 
     // Motion over the last two ticks.
     const a = this.recent[0];
@@ -303,6 +306,10 @@ export interface RunScore {
   events: DriftEvent[];
   /** Checkpoints passed, in order. */
   checkpoints: number;
+  /** Time of the last frame scored (ms): the finish, when finished. */
+  ms: number;
+  /** The car's center was past a wall at some point. */
+  outside: boolean;
 }
 
 /** Score a whole run. */
@@ -315,5 +322,5 @@ export function scoreRun(course: Course, frames: Frames): RunScore {
     events.push(...st.events);
     if (st.finished) break;
   }
-  return { score: sc.state.score, finished: sc.state.finished, splits: [...sc.state.splits], events, checkpoints: sc.checkpoint - 1 };
+  return { score: sc.state.score, finished: sc.state.finished, splits: [...sc.state.splits], events, checkpoints: sc.checkpoint - 1, ms: sc.state.t, outside: sc.outside };
 }
