@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronLeft, Clock, LogIn, LogOut, MoreHorizontal, Play, Settings, Share2, ShieldCheck, Trophy, UserPlus } from "lucide-react";
+import { Car, Check, ChevronLeft, Clock, LogIn, LogOut, MoreHorizontal, Play, Settings, Share2, ShieldCheck, Trophy, UserPlus } from "lucide-react";
 import { Pending } from "@/components/leagues/PixelSpinner";
 import type { LeaguePageData } from "@/lib/leagues/queries";
 import type { TownBadges } from "@/lib/towns/milestones";
@@ -81,6 +81,7 @@ export function MobileActionBar({
   join,
   requests = 0,
   onInvite,
+  onDrive,
   onReplay,
   onLeave,
 }: {
@@ -92,6 +93,8 @@ export function MobileActionBar({
   join?: { kind: "join" | "ask" | "pending"; onClick: () => void };
   requests?: number;
   onInvite: () => void;
+  /** Into the car (touch controls). */
+  onDrive?: () => void;
   onReplay?: () => void;
   onLeave?: () => Promise<string | null>;
 }) {
@@ -207,6 +210,12 @@ export function MobileActionBar({
           >
             {primary.icon}
             <span className="truncate">{primary.label}</span>
+          </button>
+        )}
+        {onDrive && (
+          <button type="button" onClick={onDrive} className="flex h-11 shrink-0 items-center gap-2 px-3 text-[11px] text-lime transition-colors active:bg-white/10">
+            <Car {...ICON} aria-hidden />
+            Drive
           </button>
         )}
         {onReplay && (

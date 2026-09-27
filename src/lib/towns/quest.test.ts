@@ -16,8 +16,9 @@ describe("town quest", () => {
     expect(nextStep({ drive: true, build: true, place: true, invite: true }, questSteps(true))).toBeNull();
   });
 
-  it("phones only invite", () => {
-    expect(nextStep(freshQuest(), questSteps(false))).toBe("invite");
-    expect(nextStep({ ...freshQuest(), invite: true }, questSteps(false))).toBeNull();
+  it("phones drive and invite", () => {
+    expect(nextStep(freshQuest(), questSteps(false))).toBe("drive");
+    expect(nextStep({ ...freshQuest(), drive: true }, questSteps(false))).toBe("invite");
+    expect(nextStep({ ...freshQuest(), drive: true, invite: true }, questSteps(false))).toBeNull();
   });
 });

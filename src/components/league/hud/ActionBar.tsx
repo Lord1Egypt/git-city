@@ -61,10 +61,9 @@ export default function ActionBar({
   const [cover, setCover] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [coarse, setCoarse] = useState(false);
   const [editHint, setEditHint] = useState(false);
-  const [driveHint, setDriveHint] = useState(false);
   const [leave, setLeave] = useState<"idle" | "confirm" | "leaving">("idle");
   const [leaveError, setLeaveError] = useState<string | null>(null);
-  // The editor and driving need a mouse (or pad) and room for their HUD.
+  // The editor and the race need a mouse (or pad) and room for their HUD; the town drive works anywhere.
   const [desktop, setDesktop] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(pointer: fine) and (min-width: 1024px)");
@@ -87,11 +86,6 @@ export default function ActionBar({
     const t = setTimeout(() => setEditHint(false), 2200);
     return () => clearTimeout(t);
   }, [editHint]);
-  useEffect(() => {
-    if (!driveHint) return;
-    const t = setTimeout(() => setDriveHint(false), 2200);
-    return () => clearTimeout(t);
-  }, [driveHint]);
 
   async function share() {
     const url = `${window.location.origin}/town/${slug}`;
@@ -131,7 +125,6 @@ export default function ActionBar({
 
   const editLabel = "Edit on a computer";
   const canEdit = desktop && !!onEdit;
-  const driveLabel = "Drive on a computer";
 
   return (
     <div className={`${HUD_BOX} flex items-stretch divide-x-2 divide-border`}>
@@ -145,7 +138,7 @@ export default function ActionBar({
           <span>{join.kind === "join" ? "Join" : join.kind === "ask" ? "Ask to join" : "Requested"}</span>
         </button>
       )}
-      {onDrive && desktop && (
+      {onDrive && (
         <button
           type="button"
           onClick={onDrive}
@@ -176,29 +169,6 @@ export default function ActionBar({
           <Flag {...ICON} aria-hidden />
           <span>Race</span>
         </Link>
-      )}
-      {onDrive && !desktop && (
-        <span className="relative flex">
-          <button
-            type="button"
-            aria-disabled="true"
-            aria-label={`Drive. ${driveLabel}`}
-            onClick={() => setDriveHint(true)}
-            onMouseEnter={() => !coarse && setDriveHint(true)}
-            onMouseLeave={() => !coarse && setDriveHint(false)}
-            className={`${ICON_BTN} cursor-not-allowed text-dim hover:bg-transparent`}
-          >
-            <Car {...ICON} aria-hidden />
-          </button>
-          {driveHint && (
-            <span
-              role="status"
-              className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 animate-[fade-in_0.15s_ease-out] whitespace-nowrap border-2 border-border bg-bg px-2 py-1 text-[9px] text-muted"
-            >
-              {driveLabel}
-            </span>
-          )}
-        </span>
       )}
       {canInvite && (
         <button type="button" onClick={onInvite} className={`${BTN} text-lime hover:text-cream`}>

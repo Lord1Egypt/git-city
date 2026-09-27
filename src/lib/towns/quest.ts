@@ -14,9 +14,9 @@ export const QUEST_TEXT: Record<QuestStep, string> = {
   invite: "Invite a dev",
 };
 
-/** Phones can't drive or build: their quest is the invite. */
+/** Phones drive (touch controls) but can't build: their quest is driving and the invite. */
 export function questSteps(desktop: boolean): readonly QuestStep[] {
-  return desktop ? QUEST_STEPS : ["invite"];
+  return desktop ? QUEST_STEPS : ["drive", "invite"];
 }
 
 export const questKey = (slug: string) => `gc:town-quest:${slug}`;

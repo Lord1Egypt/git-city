@@ -1,12 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useDesktop } from "@/components/towns/useDesktop";
-
-/** 🚗 Drive on the hero: desktop only, like the town page's car. */
+/** 🚗 Drive on the hero: straight into the town's car (touch controls on a phone). */
 export default function HeroDrive({ slug }: { slug: string }) {
-  const desktop = useDesktop();
-  if (!desktop) return null;
   return (
     <Link
       href={`/town/${slug}?drive=1`}

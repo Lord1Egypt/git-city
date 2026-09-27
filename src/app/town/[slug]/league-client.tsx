@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import PixelSpinner from "@/components/leagues/PixelSpinner";
 import { useTownVisit } from "@/components/towns/useTownVisit";
-import { isDesktop } from "@/components/towns/useDesktop";
+import { isDesktop, useTouch } from "@/components/towns/useDesktop";
 import type { TownBadges } from "@/lib/towns/milestones";
 import type { JoinAction } from "@/lib/towns/joining";
 import {
@@ -34,6 +34,7 @@ import type { EditCameraApi, Pickable } from "@/components/league/editor/EditCam
 import { useEditorController } from "@/components/league/editor/useEditorController";
 import { useCityAutosave } from "@/components/league/editor/useCityAutosave";
 import type { CoverApi, SceneMode } from "@/components/league/LeagueScene";
+import { createTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
 import { createTelemetry, type DriveCameraMode, type DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import type { DriverInfo } from "@/lib/league-city/drive/net";
 import type { CrownApi, CrownView } from "@/components/league/drive/CrownMode";
@@ -345,6 +346,9 @@ export default function LeagueClient({
   const toggleCamera = useCallback(() => setDriveCamera((c) => (c === "chase" ? "top" : "chase")), []);
   // The drive started from the intro: its HUD teaches the controls and comes in on your first move.
   const [firstDrive, setFirstDrive] = useState(false);
+  // Phone controls (lib drive/touch): on screen on touch devices, read by the car.
+  const touchRef = useRef<TouchDrive>(createTouch());
+  const touchUi = useTouch();
   const enterDrive = useCallback(() => {
     setFocused(null);
     setPanel(null);
@@ -365,7 +369,7 @@ export default function LeagueClient({
     autoDrove.current = true;
     window.history.replaceState(null, "", `/town/${league.slug}`);
     // After the first paint, from a callback: the scene mounts in view mode first.
-    if (isDesktop()) window.setTimeout(enterDrive, 0);
+    window.setTimeout(enterDrive, 0);
   }, [startDriving, league.slug, enterDrive]);
   const exitDrive = useCallback(() => {
     setMode((m) => (m === "drive" ? "view" : m));
@@ -426,6 +430,7 @@ export default function LeagueClient({
             scripted: introPose,
             cinematic,
             seamless: firstDrive,
+            touch: touchRef,
             telemetry,
             camera: driveCamera,
             onCameraToggle: toggleCamera,
@@ -516,13 +521,11 @@ export default function LeagueClient({
     setPanel(null);
     introClock.current = 0;
     setHudEnter(false);
-    const drive = isDesktop();
+    // Every screen drives now (touch controls on phones): the intro always hands over the car.
     introPose.current = null;
-    if (drive) {
-      enterDrive();
-      setCinematic(true);
-    }
-    setIntro((prev) => ({ n: (prev?.n ?? 0) + 1, color: carColor(driverName), drive, skip: 0 }));
+    enterDrive();
+    setCinematic(true);
+    setIntro((prev) => ({ n: (prev?.n ?? 0) + 1, color: carColor(driverName), drive: true, skip: 0 }));
   }, [driverName, enterDrive]);
   // After the scene: the title fades and the bars pull back (outro), then the
   // HUD comes in piece by piece (hudEnter).
@@ -844,6 +847,7 @@ export default function LeagueClient({
       {driving && !cinematic && (
         <DriveHud
           firstRun={firstDrive}
+          touchRef={touchUi ? touchRef : undefined}
           telemetry={telemetry}
           ready={driveReady}
           camera={driveCamera}
@@ -926,6 +930,7 @@ export default function LeagueClient({
                     : undefined
                 }
                 requests={pendingRequests}
+                onDrive={() => enterDrive()}
                 onReplay={playIntro}
               />
             </div>
