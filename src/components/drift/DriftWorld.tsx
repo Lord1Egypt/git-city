@@ -39,7 +39,7 @@ import type { DriftTelemetry } from "@/lib/drift/telemetry";
 // server will check. Stages come from the page, like the race's time trial:
 // the car waits on the grid through the title and the flyover, is held
 // through 3-2-1, runs from GO to the finish, and then drives itself.
-// R starts over from the grid with the full 3-2-1; Enter puts you back on the last checkpoint
+// R starts the whole run over (the page remounts this world) with the full 3-2-1; Enter puts you back on the last checkpoint
 // you passed (the drift at risk is lost).
 
 export interface DriftFinish {
@@ -68,8 +68,8 @@ export interface DriftWorldProps {
   rival: { login: string; run: GhostRun; color: string } | null;
   showGhosts: boolean;
   onFinish: (run: DriftFinish) => void;
-  /** The HUD's Restart button calls this (R does the same). */
-  restartRef: React.MutableRefObject<(() => void) | null>;
+  /** R: the page starts the whole run over (it remounts this world from scratch). */
+  onRestart: () => void;
   /** The HUD's Respawn button calls this (Enter does the same). */
   respawnRef: React.MutableRefObject<(() => void) | null>;
   onReady: () => void;
@@ -152,7 +152,7 @@ export default function DriftWorld({
   rival,
   showGhosts,
   onFinish,
-  restartRef,
+  onRestart,
   respawnRef,
   onReady,
   onFail,
@@ -191,9 +191,8 @@ export default function DriftWorld({
   useEffect(() => {
     pausedRef.current = paused || hidden;
   }, [paused, hidden]);
-  // A restart or respawn asked for (the pause menu, the results): done on the next
-  // physics step, so a car moved while the world is still paused isn't put back.
-  const pendingRestart = useRef(false);
+  // A respawn asked for from the pause menu: done on the next physics step, so a car
+  // moved while the world is still paused isn't put back.
   const pendingRespawn = useRef(false);
   const physicsStep = useRef<() => void>(() => {});
 
@@ -201,9 +200,9 @@ export default function DriftWorld({
   useEffect(() => {
     stageRef.current = { stage, at: stageAt, beat: beatMs };
   }, [stage, stageAt, beatMs]);
-  const cb = useRef({ onStage, onFinish });
+  const cb = useRef({ onStage, onFinish, onRestart });
   useEffect(() => {
-    cb.current = { onStage, onFinish };
+    cb.current = { onStage, onFinish, onRestart };
   });
   const tel = useRef(telemetry);
   useEffect(() => {
@@ -239,28 +238,9 @@ export default function DriftWorld({
     Object.assign(tel.current, { drift: null, feed: [], split: null });
   }, []);
 
-  const toGrid = useCallback(() => {
-    const c = car.current;
-    if (!c) return;
-    const g = track.grid[0];
-    placeCar(c.body, g.x, g.z, g.heading);
-    Object.assign(c.state, { drifting: false, spinLeft: 0, recovering: 0, driftAngle: 0 });
-  }, [track]);
-
-  // R (Car calls onReset after putting the car on the grid), or the HUD button: a fresh run.
-  const onReset = useCallback(() => {
-    clearRun();
-    const st = stageRef.current.stage;
-    if (st !== "menu" && st !== "intro") cb.current.onStage("countdown", TRIAL.beatMs);
-  }, [clearRun]);
-  useEffect(() => {
-    // Applied on the next frame the physics runs: from the pause menu the world is
-    // still paused, and a car moved then is put back where it was.
-    restartRef.current = () => {
-      pendingRestart.current = true;
-    };
-    return () => void (restartRef.current = null);
-  }, [restartRef]);
+  // R (the car's reset key): the page starts everything over by remounting this world,
+  // so no state from the run before can survive (the car, the physics, the camera, the score).
+  const onReset = useCallback(() => cb.current.onRestart(), []);
 
   /** One tick into the scorer: the HUD's numbers, the feed, the splits, the finish. */
   const stepRef = useRef<(f: Frame) => void>(() => {});
@@ -314,17 +294,12 @@ export default function DriftWorld({
   }, [track]);
   useEffect(() => {
     physicsStep.current = () => {
-      if (pendingRestart.current) {
-        pendingRestart.current = false;
-        pendingRespawn.current = false;
-        toGrid();
-        onReset();
-      } else if (pendingRespawn.current) {
+      if (pendingRespawn.current) {
         pendingRespawn.current = false;
         respawn();
       }
     };
-  }, [toGrid, onReset, respawn]);
+  }, [respawn]);
   useEffect(() => {
     // From the pause menu the world is paused: the respawn waits for the next frame it runs.
     respawnRef.current = () => {

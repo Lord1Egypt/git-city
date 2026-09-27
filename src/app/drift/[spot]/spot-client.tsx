@@ -99,7 +99,8 @@ export default function SpotClient({
   const goStage = useCallback((stage: TrialStage, beat?: number) => {
     setTrial((t) => (t.stage === stage && stage !== "countdown" ? t : { stage, at: performance.now(), beat: beat ?? t.beat }));
   }, []);
-  const restartRef = useRef<(() => void) | null>(null);
+  // Bumped on every restart: the world remounts from scratch (car, physics, camera, score).
+  const [runKey, setRunKey] = useState(0);
   const respawnRef = useRef<(() => void) | null>(null);
 
   // Your best: the board's, or this browser's when better (a run not posted yet).
@@ -258,11 +259,14 @@ export default function SpotClient({
       });
   }, [viewerLogin, local, serverBest, spot.id]);
 
+  // Start the whole run over: a new world, the HUD cleared, the full 3-2-1.
   const retry = useCallback(() => {
     setFinish(null);
     setPaused(false);
-    restartRef.current?.();
-  }, []);
+    Object.assign(telemetry, { drift: null, feed: [], split: null, countdown: null, carScreen: null });
+    setRunKey((k) => k + 1);
+    goStage("countdown", TRIAL.beatMs);
+  }, [telemetry, goStage]);
   const raceGhost = useCallback(
     (login: string) => {
       setRivalName(login);
@@ -303,6 +307,7 @@ export default function SpotClient({
         <ThemeLights theme={DAY} themeIndex={21} />
         {desktop && !failed && (
           <DriftWorld
+            key={runKey}
             spot={spot}
             course={course}
             title={spot.name}
@@ -320,7 +325,7 @@ export default function SpotClient({
             rival={rival}
             showGhosts={showGhosts}
             onFinish={onFinish}
-            restartRef={restartRef}
+            onRestart={retry}
             respawnRef={respawnRef}
             onReady={onReady}
             onFail={onFail}
