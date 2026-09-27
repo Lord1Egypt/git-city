@@ -4,17 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, Volume2, VolumeX, X } from "lucide-react";
 import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
-import { ITEM_NAMES, isItem } from "@/lib/league-city/drive/battle";
 import { HUD_BOX } from "../shared";
 import PauseMenu, { CONTROLS } from "./PauseMenu";
 import StartScreen from "./StartScreen";
 import DrivePrompt from "./DrivePrompt";
+import Dash from "./Dash";
 import CrownPanel from "./CrownPanel";
 import CopyLink from "./CopyLink";
 import type { CrownState } from "@/lib/league-city/drive/crown";
 
-// Drive mode HUD: speed and a boost light (bottom), camera, mute and exit (top
-// right), a controls hint that fades after 6 s, the start screen while Rapier
+// Drive mode HUD: the dash (bottom: item, speed, boost), camera, mute and exit
+// (top right), prompts that teach each move when it's useful (DrivePrompt), a
+// controls hint that fades after 6 s, the start screen while Rapier
 // loads, and the pause menu. Speed and boost update from the telemetry object
 // every animation frame without re-rendering.
 // On the first drive, handed over by the town intro, there's no start screen
@@ -60,10 +61,7 @@ export default function DriveHud({
   onMute: () => void;
   onExit: () => void;
 }) {
-  const speed = useRef<HTMLSpanElement>(null);
-  const boostTag = useRef<HTMLSpanElement>(null);
   const honk = useRef<HTMLDivElement>(null);
-  const itemSlot = useRef<HTMLSpanElement>(null);
   const honkName = useRef<HTMLSpanElement>(null);
   const [hints, setHints] = useState(true);
   // First drive: the HUD waits for your first move.
@@ -85,13 +83,6 @@ export default function DriveHud({
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      if (speed.current) speed.current.textContent = String(Math.round(Math.abs(telemetry.speed) * 3.6));
-      if (boostTag.current) boostTag.current.dataset.on = String(telemetry.boosting);
-      if (itemSlot.current) {
-        const held = isItem(telemetry.held) ? telemetry.held : null;
-        itemSlot.current.textContent = held ? `F  ${ITEM_NAMES[held]}` : "No attack";
-        itemSlot.current.dataset.state = !held ? "empty" : performance.now() - telemetry.gotAt < 900 ? "new" : "held";
-      }
       if (honk.current && honkName.current) {
         honk.current.dataset.on = String(!!telemetry.near);
         if (telemetry.near) honkName.current.textContent = `@${telemetry.near}`;
@@ -169,31 +160,7 @@ export default function DriveHud({
         </div>
       )}
 
-      {ready && entered && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center" style={enter(0.24)}>
-          <div className={`${HUD_BOX} flex items-center gap-4 px-4 py-2`}>
-            <div className="flex items-baseline gap-1.5 tabular-nums">
-              <span ref={speed} className="w-[3ch] text-right text-lg text-cream">
-                0
-              </span>
-              <span className="text-[9px] text-muted">km/h</span>
-            </div>
-            <span
-              ref={boostTag}
-              className="border-2 border-border px-2 py-0.5 text-[9px] text-dim transition-colors data-[on=true]:border-[#7ee8ff] data-[on=true]:text-[#7ee8ff]"
-            >
-              Shift boost
-            </span>
-            <span
-              ref={itemSlot}
-              data-state="empty"
-              className="min-w-[128px] whitespace-pre border-2 border-border px-2 py-0.5 text-center text-[9px] text-dim transition-colors data-[state=held]:border-[#ff5ad8] data-[state=held]:text-[#ff9be8] data-[state=new]:border-[#ff5ad8] data-[state=new]:bg-[#ff5ad8] data-[state=new]:text-bg"
-            >
-              No attack
-            </span>
-          </div>
-        </div>
-      )}
+      {ready && entered && <Dash telemetry={telemetry} style={enter(0.24)} />}
 
       {ready && entered && (
         <div
@@ -208,7 +175,7 @@ export default function DriveHud({
         </div>
       )}
 
-      {firstRun && ready && <DrivePrompt telemetry={telemetry} onDrive={() => setEntered(true)} />}
+      {ready && <DrivePrompt telemetry={telemetry} firstRun={firstRun} onDrive={() => setEntered(true)} />}
 
       {ready && entered && <CrownPanel crown={crown?.crown ?? null} offset={crown?.offset ?? 0} you={crown?.you ?? null} drivers={drivers} onStart={onStartCrown} />}
 
