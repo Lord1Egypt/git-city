@@ -650,6 +650,8 @@ export default function LeagueClient({
     } catch {
       // storage blocked: the intro plays every visit
     }
+    // ?capture=1 hides the replay button, so every load plays the intro again.
+    if (document.documentElement.dataset.capture === "1") seen = false;
     // After the first paint, from a callback: the scene mounts first.
     if (!seen) window.setTimeout(playIntro, 0);
   }, [league.slug, playIntro, startEditing, startDriving, showJoinCta]);

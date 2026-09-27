@@ -351,3 +351,13 @@ button:not(:disabled) {
 @media (prefers-reduced-motion: reduce) {
   .drift-band { animation: none; }
 }
+
+/* ─── ?capture=1 / ?capture=hud: clean footage for trailers ─── */
+html[data-capture],
+html[data-capture] * {
+  cursor: none !important;
+}
+/* Everything that isn't a canvas or one of its ancestors: HUD, overlays, labels, toasts. */
+html[data-capture="1"] body :not(:has(canvas)):not(canvas) {
+  visibility: hidden !important;
+}

@@ -77,8 +77,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* ?capture=1 hides everything but the 3D scene, ?capture=hud only the cursor: clean trailer footage. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var c=new URLSearchParams(location.search).get("capture");if(c)document.documentElement.dataset.capture=c})()`,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
