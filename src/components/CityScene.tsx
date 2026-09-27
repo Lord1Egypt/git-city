@@ -13,6 +13,7 @@ import DropBeacon from "./DropBeacon";
 import type { LiveSession } from "@/lib/useCodingPresence";
 import type { CityBuilding } from "@/lib/github";
 import type { BuildingColors } from "./CityCanvas";
+import type { SmashStore } from "@/lib/league-city/smash";
 
 const NO_FX = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("fx") === "0";
 
@@ -86,6 +87,9 @@ interface CitySceneProps {
   cityEnergy?: number;
   dimAll?: boolean;
   lowPerf?: boolean;
+  /** Drive-through destruction (rival towns, see lib/league-city/smash). */
+  smash?: SmashStore;
+  ghostColor?: string;
 }
 
 // Tells the loading screen the city is on screen: two rendered frames after
@@ -117,6 +121,8 @@ export default function CityScene({
   cityEnergy,
   dimAll,
   lowPerf,
+  smash,
+  ghostColor,
 }: CitySceneProps) {
   // Single atlas texture for all building windows (created once per theme)
   const atlasTexture = useMemo(() => createWindowAtlas(colors), [colors]);
@@ -193,6 +199,8 @@ export default function CityScene({
         liveByLogin={liveByLogin}
         cityEnergy={cityEnergy}
         dimAll={dimAll}
+        smash={smash}
+        ghostColor={ghostColor}
       />
 
       {/* Live presence dots above active buildings */}
