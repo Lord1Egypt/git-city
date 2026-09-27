@@ -24,7 +24,7 @@ export interface TownCard {
   tag: "trending" | "new" | null;
 }
 
-export type RowId = "trending" | "new" | "updated" | "companies" | "biggest";
+export type RowId = "trending" | "new" | "updated" | "week" | "biggest";
 
 export const ROW_LIMIT = 20;
 /** A town shows in at most this many rows, the featured spot included. */
@@ -91,11 +91,11 @@ export function pickFeatured(
 /**
  * Discover's shared rows, in priority order. Each town lands in at most two
  * rows (the featured spot counts as one); a lower row skips a town that
- * already used its two. `companies` is the ranked company order (ids).
+ * already used its two. `ranked` is this week's town ranking (ids, best first).
  */
 export function selectRows(
   towns: TownEntry[],
-  opts: { now: Date; featuredId: string | null; companies: string[] },
+  opts: { now: Date; featuredId: string | null; ranked: string[] },
 ): Record<RowId, TownCard[]> {
   const { now } = opts;
   const byId = new Map(towns.map((t) => [t.id, t]));
@@ -125,13 +125,11 @@ export function selectRows(
   const updated = take(
     towns.filter((t) => t.ops_7d >= UPDATED_MIN_OPS).sort((a, b) => b.ops_7d - a.ops_7d),
   );
-  const companies = take(
-    opts.companies.map((id) => byId.get(id)).filter((t): t is TownEntry => !!t && t.kind === "company"),
-  );
+  const week = take(opts.ranked.map((id) => byId.get(id)).filter((t): t is TownEntry => !!t));
   const biggest = take(
     towns.filter((t) => t.buildings > 0).sort((a, b) => b.buildings - a.buildings || a.slug.localeCompare(b.slug)),
   );
-  return { trending, new: fresh, updated, companies, biggest };
+  return { trending, new: fresh, updated, week, biggest };
 }
 
 /** Towns Surprise me can land in. */

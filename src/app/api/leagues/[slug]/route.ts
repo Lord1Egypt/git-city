@@ -7,12 +7,10 @@ import {
   renameLeague,
   rotateInviteToken,
   setJoinMode,
-  setScoringMode,
   transferAdmin,
 } from "@/lib/leagues/service";
 import { getLeaguePageData } from "@/lib/leagues/queries";
 import { assertSameOrigin, leagueErrorResponse, readJson } from "@/lib/leagues/http";
-import type { ScoringMode } from "@/lib/leagues/scoring";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +29,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   }
 }
 
-// PATCH: admin settings { name?, scoring_mode?, join_mode?, admin_login?, rotate_invite? }.
+// PATCH: admin settings { name?, join_mode?, admin_login?, rotate_invite? }.
 // rotate_invite returns the new open invite link.
 export async function PATCH(req: Request, { params }: Ctx) {
   const bad = assertSameOrigin(req);
@@ -45,7 +43,6 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const body = await readJson(req);
   try {
     if (typeof body.name === "string") await renameLeague(viewer, league, body.name);
-    if (typeof body.scoring_mode === "string") await setScoringMode(viewer, league, body.scoring_mode as ScoringMode);
     if (body.join_mode !== undefined) await setJoinMode(viewer, league, body.join_mode);
     let inviteLink: string | undefined;
     if (body.rotate_invite === true) {

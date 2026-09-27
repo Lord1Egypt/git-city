@@ -14,16 +14,17 @@ const DATE = new Date("2026-09-25T14:00:00Z");
 const WEEK: LeagueWeeklyEmailData = {
   ...TOWN,
   standings: [
-    { rank: 1, login: "pyromains", total: 385 },
-    { rank: 2, login: "srizzon", total: 340 },
-    { rank: 3, login: "kristoferborges", total: 210 },
-    { rank: 4, login: "mrousavy", total: 155 },
-    { rank: 5, login: "zappymanwho", total: 90 },
-    { rank: 6, login: "pedrohenrique", total: 20 },
+    { rank: 1, login: "pyromains", total: 312 },
+    { rank: 2, login: "srizzon", total: 268 },
+    { rank: 3, login: "kristoferborges", total: 141 },
+    { rank: 4, login: "mrousavy", total: 97 },
+    { rank: 5, login: "zappymanwho", total: 40 },
+    { rank: 6, login: "pedrohenrique", total: 6 },
   ],
-  me: { rank: 2, login: "srizzon", total: 340 },
+  me: { rank: 2, login: "srizzon", total: 268 },
   winnerLogin: "pyromains",
-  globalLine: null,
+  townOfWeekLine: "Acme Town coded the most last week and takes the monument in the center of Git City.",
+  townLine: "Ship City finished 4th of 12 towns, with 144 contributions per dev.",
 };
 
 // Sample renders for the admin preview (?template=<key>) and test sends.
@@ -31,10 +32,10 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
   "town-joined": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: true }, PREVIEW_LINKS),
   "town-joined-no-emblem": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: false }, PREVIEW_LINKS),
   "town-overtaken": () =>
-    renderLeagueOvertakenEmail({ ...TOWN, overtakerLogin: "pyromains", gap: 12, newRank: 2, scoringMode: "xp", hoursLeft: 57 }, PREVIEW_LINKS),
+    renderLeagueOvertakenEmail({ ...TOWN, overtakerLogin: "pyromains", gap: 12, newRank: 2, hoursLeft: 57 }, PREVIEW_LINKS),
   "town-overtaken-last-hours": () =>
     renderLeagueOvertakenEmail(
-      { ...TOWN, overtakerLogin: "kristoferborges", gap: 1, newRank: 4, scoringMode: "contributions", hoursLeft: 5 },
+      { ...TOWN, overtakerLogin: "kristoferborges", gap: 1, newRank: 4, hoursLeft: 5 },
       PREVIEW_LINKS,
     ),
   "race-passed": () =>
@@ -45,14 +46,25 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
     renderRaceChallengeEmail({ ...TOWN, challengerLogin: "kristoferborges", theirMs: 23_104, yourMs: null }, PREVIEW_LINKS),
   "town-weekly-won": () =>
     renderLeagueWeeklyEmail(
-      { ...WEEK, me: { rank: 1, login: "pyromains", total: 385 }, globalLine: "Ship City finished 4th of 12 companies (up from 6th)." },
+      {
+        ...WEEK,
+        me: { rank: 1, login: "pyromains", total: 312 },
+        townOfWeekLine: "Ship City coded the most of every town last week. The monument in the center of Git City is yours this week.",
+        townLine: "Ship City finished 1st of 12 towns, with 144 contributions per dev.",
+      },
       PREVIEW_LINKS,
     ),
   "town-weekly-lost": () => renderLeagueWeeklyEmail(WEEK, PREVIEW_LINKS),
   "town-weekly-off-podium": () => renderLeagueWeeklyEmail({ ...WEEK, me: { rank: 5, login: "zappymanwho", total: 90 } }, PREVIEW_LINKS),
   "town-weekly-no-winner": () =>
     renderLeagueWeeklyEmail(
-      { ...WEEK, standings: WEEK.standings.map((s) => ({ ...s, rank: 1, total: 0 })), me: { rank: 1, login: "srizzon", total: 0 }, winnerLogin: null },
+      {
+        ...WEEK,
+        standings: WEEK.standings.map((s) => ({ ...s, rank: 1, total: 0 })),
+        me: { rank: 1, login: "srizzon", total: 0 },
+        winnerLogin: null,
+        townLine: null,
+      },
       PREVIEW_LINKS,
     ),
   "town-invited": () =>

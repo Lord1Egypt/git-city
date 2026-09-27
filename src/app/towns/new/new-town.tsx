@@ -11,13 +11,12 @@ import { generateCityLayout, type CityBuilding, type DeveloperRecord, type Layou
 import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
 import { starterObjects, starterOps } from "@/lib/league-city/starter";
 import { LOT, bounds } from "@/lib/league-city/grid";
-import { COMPANY_TEMPLATE, DEFAULT_TEMPLATE, JOIN_LABEL, SCORING_LABEL, TEMPLATES, templateFor, type TemplateId } from "@/lib/league-city/templates";
+import { COMPANY_TEMPLATE, DEFAULT_TEMPLATE, JOIN_LABEL, TEMPLATES, templateFor, type TemplateId } from "@/lib/league-city/templates";
 import type { CityIdentity, CityObject } from "@/lib/league-city/types";
 import type { LeagueCity } from "@/lib/league-city/service";
 import type { OrgState } from "@/lib/towns/company-orgs";
 import { companyStep, normalizeOrgInput, type OrgCheck } from "@/lib/towns/company-step";
 import { CityStepNote, CompanySteps, OrgStep, type CompanyStage } from "./company-panel";
-import type { ScoringMode } from "@/lib/leagues/scoring";
 import { JOIN_MODES, type JoinMode } from "@/lib/towns/joining";
 
 const LeagueScene = dynamic(() => import("@/components/league/LeagueScene"), { ssr: false, loading: () => null });
@@ -82,7 +81,6 @@ export default function NewTown({
   const [name, setName] = useState(startName ?? (viewer ? `${viewer.login}'s Town` : "My Town"));
   const [showSettings, setShowSettings] = useState(true);
   // Settings follow the template until you change one.
-  const [scoring, setScoring] = useState<ScoringMode | null>(null);
   const [join, setJoin] = useState<JoinMode | null>(null);
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -132,14 +130,12 @@ export default function NewTown({
       k === "company" ? `/towns/new?kind=company${check ? `&org=${encodeURIComponent(check.org)}` : ""}` : "/towns/new",
     );
     setTemplate(k === "company" ? COMPANY_TEMPLATE : DEFAULT_TEMPLATE);
-    setScoring(null);
     setJoin(null);
     setError(null);
   }
 
   function pick(id: TemplateId) {
     setTemplate(id);
-    setScoring(null);
     setJoin(null);
     setError(null);
   }
@@ -260,7 +256,7 @@ export default function NewTown({
       return;
     }
     if (!company) {
-      return go("/api/leagues", { name, template, scoring: scoring ?? t.scoring, join: join ?? t.join }, (j) =>
+      return go("/api/leagues", { name, template, join: join ?? t.join }, (j) =>
         String((j.league as { slug: string }).slug),
       );
     }
@@ -284,7 +280,7 @@ export default function NewTown({
     const expect = step.kind === "build" ? "create" : "join";
     return go(
       "/api/leagues/verify/join",
-      { org: check.org, expect, template, scoring: scoring ?? t.scoring },
+      { org: check.org, expect, template },
       slugOfJoin,
       (json) => {
         // The town changed since the check (someone built it first, or the
@@ -477,18 +473,12 @@ export default function NewTown({
                 <span>Settings {showSettings ? "▾" : "▸"}</span>
                 {!showSettings && (
                   <span className="text-dim normal-case">
-                    {SCORING_LABEL[scoring ?? t.scoring]} · {company ? "Verified members" : JOIN_LABEL[join ?? t.join]}
+                    {company ? "Verified members" : JOIN_LABEL[join ?? t.join]}
                   </span>
                 )}
               </button>
               {showSettings && (
                 <div className="flex flex-col gap-3">
-                  <Choice
-                    label="Weekly race by"
-                    options={(["xp", "contributions"] as const).map((m) => ({ value: m, label: SCORING_LABEL[m] }))}
-                    value={scoring ?? t.scoring}
-                    onChange={setScoring}
-                  />
                   {company ? (
                     <div className="flex flex-col gap-1.5">
                       <span className="text-[11px] text-muted">Who can join</span>

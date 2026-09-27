@@ -64,12 +64,11 @@ export async function GET(request: NextRequest) {
   const queue = ids.sort((a, b) => (lastFetched.get(a) ?? 0) - (lastFetched.get(b) ?? 0));
 
   // Standings before the fetch, to detect overtakes afterwards.
-  const { data: leagueRows } = await sb.from("leagues").select("id, slug, name, scoring_mode");
+  const { data: leagueRows } = await sb.from("leagues").select("id, slug, name");
   const leagues = (leagueRows ?? []).map((l) => ({
     id: l.id as string,
     slug: l.slug as string,
     name: l.name as string,
-    scoring_mode: l.scoring_mode,
   }));
   const before = await loadStandings(leagues, start, sb);
 
@@ -119,7 +118,7 @@ export async function GET(request: NextRequest) {
       const next = after.get(league.id);
       if (!prev || !next || next.standings.length < 2) continue;
       for (const o of detectOvertakes(prev.standings, next.standings)) {
-        toNotify.push({ ...o, leagueSlug: league.slug, leagueName: league.name, scoringMode: next.mode });
+        toNotify.push({ ...o, leagueSlug: league.slug, leagueName: league.name });
       }
     }
     overtakes = toNotify.length;

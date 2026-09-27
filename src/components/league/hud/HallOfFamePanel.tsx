@@ -1,46 +1,125 @@
 "use client";
 
+import { useState } from "react";
+import { Crown } from "lucide-react";
 import type { LeaguePageData } from "@/lib/leagues/queries";
+import { champions, gridWeeks, monumentWeeks, type Champion } from "@/lib/towns/hall";
+import { townDisplayName } from "@/lib/towns/names";
+import TrophyIcon from "@/components/towns/TrophyIcon";
 import Panel from "./Panel";
+import { ListDialog } from "./race";
 import { Avatar, fmt } from "./shared";
 
-export default function HallOfFamePanel({ data, onClose }: { data: LeaguePageData; onClose: () => void }) {
-  const { members, hall_of_fame: hall } = data;
-  const bySize = [...members].sort((a, b) => b.contributions - a.contributions).slice(0, 20);
-  return (
-    <Panel title="Hall of fame" onClose={onClose}>
-      <h3 className="text-[10px] text-muted">Weekly winners</h3>
-      <ul className="mt-2 space-y-1.5">
-        {hall.map((w) => (
-          <li key={w.week_start} className="flex items-center gap-2 border-[3px] border-border bg-bg-card px-3 py-2">
-            <span className="w-12 shrink-0 text-[9px] text-muted">{w.week_start.slice(5)}</span>
-            {w.winner ? (
-              <>
-                <Avatar src={w.winner.avatar_url} size={20} />
-                <span className="min-w-0 flex-1 truncate text-[11px] text-cream normal-case">@{w.winner.login}</span>
-                {w.winner.ex_member && <span className="text-[8px] text-dim">ex-member</span>}
-                <span className="text-[10px] text-cream tabular-nums">{fmt(w.winner.score)}</span>
-              </>
-            ) : (
-              <span className="flex-1 text-[10px] text-dim">No winner</span>
-            )}
-          </li>
-        ))}
-        {hall.length === 0 && <li className="text-[11px] text-muted normal-case">The first week hasn&apos;t closed yet.</li>}
-      </ul>
+/** Weeks and champion rows in the panel before "See all". */
+const COLS = 12;
+const ROWS = 5;
+const ALL_COLS = 26;
+const SQ = 12;
+const EMPTY = "#26262c";
 
-      <h3 className="mt-6 text-[10px] text-muted">Biggest buildings, all time</h3>
-      <ol className="mt-2 space-y-1.5">
-        {bySize.map((m, i) => (
-          <li key={m.developer_id} className="flex items-center gap-2 border-[3px] border-border bg-bg-card px-3 py-2">
-            <span className="w-5 text-right text-[10px] text-muted">{i + 1}</span>
-            <Avatar src={m.avatar_url} size={20} faded={m.status === "invited"} />
-            <span className="min-w-0 flex-1 truncate text-[11px] text-cream normal-case">@{m.login}</span>
-            {m.status === "former" && <span className="text-[8px] text-dim">ex-member</span>}
-            <span className="text-[10px] text-cream tabular-nums">{fmt(m.contributions)}</span>
+const shortDate = (week: string) =>
+  new Date(`${week}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+function Squares({ weeks, on, tone }: { weeks: string[]; on: (w: string) => boolean; tone: string }) {
+  return (
+    <span className="flex shrink-0 gap-0.5">
+      {weeks.map((w) => (
+        <span key={w} title={shortDate(w)} className="block shrink-0" style={{ width: SQ, height: SQ, background: on(w) ? tone : EMPTY }} />
+      ))}
+    </span>
+  );
+}
+
+function Grid({ data, cols, rows }: { data: LeaguePageData; cols: number; rows: number }) {
+  const hall = data.hall_of_fame;
+  const weeks = gridWeeks(hall, cols);
+  const crowned: Champion[] = champions(hall).slice(0, rows);
+  const monuments = monumentWeeks(hall);
+  const width = weeks.length * (SQ + 2) - 2;
+  return (
+    <>
+      <div className="flex items-center gap-2 px-1.5 text-[8px] text-muted">
+        <span className="min-w-0 flex-1">
+          Last {weeks.length} week{weeks.length === 1 ? "" : "s"}
+        </span>
+        <span className="flex shrink-0 justify-between" style={{ width }}>
+          <span>{weeks.length > 1 ? shortDate(weeks[0]) : ""}</span>
+          <span className="text-cream">Now</span>
+        </span>
+        <span className="w-8" />
+      </div>
+      <ol className="mt-1 space-y-0.5">
+        <li className="flex min-h-8 items-center gap-2 border-2 border-lime/50 bg-lime/5 px-1.5 py-1">
+          <TrophyIcon size={12} className="text-lime" label="Weeks the town took the monument" />
+          <span className="min-w-0 flex-1 truncate text-[10px] text-cream normal-case">{townDisplayName(data.league.name)}</span>
+          <Squares weeks={weeks} on={(w) => monuments.has(w)} tone="#c8e64a" />
+          <span className="w-8 text-right text-[10px] text-lime tabular-nums">{fmt(monuments.size)}</span>
+        </li>
+        {crowned.map((c) => (
+          <li key={c.login} className="flex min-h-8 items-center gap-2 border-2 border-transparent px-1.5 py-1">
+            <Avatar src={c.avatar_url} size={16} />
+            <span className="min-w-0 flex-1 truncate text-[10px] text-cream normal-case">@{c.login}</span>
+            <Squares weeks={weeks} on={(w) => c.weeks.has(w)} tone="#8aaa1a" />
+            <span className="flex w-8 items-center justify-end gap-1 text-[10px] text-cream tabular-nums" aria-label={`${c.crowns} crowns`}>
+              {c.crowns}
+              <Crown size={10} strokeWidth={2.5} className="text-lime" aria-hidden />
+            </span>
           </li>
         ))}
       </ol>
-    </Panel>
+    </>
+  );
+}
+
+/**
+ * The town's weeks as squares: its row shows the weeks it took the monument,
+ * one row per crowned member shows the weeks they won.
+ */
+export default function HallOfFamePanel({ data, onClose }: { data: LeaguePageData; onClose: () => void }) {
+  const [all, setAll] = useState(false);
+  const hall = data.hall_of_fame;
+  const crowned = champions(hall);
+  const leader = data.week.standings[0];
+
+  return (
+    <>
+      <Panel title="Hall of fame" onClose={onClose}>
+        {hall.length === 0 ? (
+          <div className="border-2 border-dashed border-border px-3 py-4 text-center">
+            <Crown size={20} strokeWidth={2.5} className="mx-auto text-dim" aria-hidden />
+            <p className="mt-2 text-[10px] text-cream normal-case">No champion yet</p>
+            <p className="mx-auto mt-1 max-w-[32ch] text-[9px] leading-relaxed text-muted normal-case">
+              The first week closes Monday. Its top member gets the crown and a spot here.
+            </p>
+            {leader && leader.total > 0 && (
+              <p className="mt-3 flex items-center justify-center gap-1.5 text-[9px] text-lime normal-case">
+                <Avatar src={leader.avatar_url} size={14} />
+                @{leader.login} leads now · {fmt(leader.total)}
+              </p>
+            )}
+          </div>
+        ) : (
+          <>
+            <Grid data={data} cols={COLS} rows={ROWS} />
+            {(crowned.length > ROWS || hall.length > COLS) && (
+              <button
+                type="button"
+                onClick={() => setAll(true)}
+                className="btn-press mt-3 flex h-10 w-full items-center justify-center border-2 border-border text-[10px] text-cream transition-colors hover:border-muted"
+              >
+                See all {hall.length} weeks · {crowned.length} champion{crowned.length === 1 ? "" : "s"}
+              </button>
+            )}
+          </>
+        )}
+      </Panel>
+      {all && (
+        <ListDialog label="Every week, every champion" title="Hall of fame" sub={`${hall.length} weeks`} onClose={() => setAll(false)}>
+          <li className="list-none">
+            <Grid data={data} cols={ALL_COLS} rows={crowned.length} />
+          </li>
+        </ListDialog>
+      )}
+    </>
   );
 }

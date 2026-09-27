@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore, Suspense, type ComponentProps } from "react";
 import { Menu, X } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BenchOverlay, benchCount, padBuildings } from "@/components/CityBench";
 import { FlyTunePanel } from "@/components/FlyTune";
 import MapNavControls from "@/components/MapNavControls";
@@ -26,11 +26,6 @@ import {
   type SFRenderMap,
   type LayoutNorms,
 } from "@/lib/github";
-import { gridToWorldPos } from "@/lib/sponsors/registry";
-import { SF_PLAZA_SCALE, sfSponsorLocalPos } from "@/lib/sponsors/sfPlaza";
-import { resolveAssignmentsToSponsors, type ResolvedSponsor } from "@/lib/landmarks/resolve";
-import type { Assignment } from "@/lib/landmarks/types";
-import { getLandmarkAdId } from "@/lib/sponsors/landmarkAdIds";
 import Image from "next/image";
 import Link from "next/link";
 import CityPulse from "@/components/activity/CityPulse";
@@ -81,10 +76,11 @@ import {
   trackSignInPromptClicked,
   trackDisabledButtonClicked,
   trackEArcadeClicked,
-  trackLandmarkClicked,
 } from "@/lib/himetrica";
 import posthog from "posthog-js";
 import { SHOW_TOWNS } from "@/lib/towns/visibility";
+import TownMonument, { MONUMENT_VARIANT } from "@/components/towns/TownMonument";
+import type { TownOfWeek } from "@/lib/towns/weekly";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
   ssr: false,
@@ -153,9 +149,6 @@ const PillModal = dynamic(() => import("@/components/PillModal"), { ssr: false }
 const FounderMessage = dynamic(() => import("@/components/FounderMessage"), { ssr: false });
 const EArcadeCard = dynamic(() => import("@/components/EArcadeCard"), { ssr: false });
 const GiftPreview = dynamic(() => import("@/components/ShopPreview"), { ssr: false });
-const BankPanel = dynamic(() => import("@/components/BankPanel"), { ssr: false });
-const SponsoredCard = dynamic(() => import("@/lib/sponsors/SponsoredCard"), { ssr: false });
-const SponsorCityCard = dynamic(() => import("@/lib/sponsors/SponsorCityCard"), { ssr: false });
 const RabbitCompletion = dynamic(() => import("@/components/RabbitCompletion"), { ssr: false });
 const DistrictChooser = dynamic(() => import("@/components/DistrictChooser"), { ssr: false });
 const LevelUpToast = dynamic(() => import("@/components/LevelUpToast"), { ssr: false });
@@ -544,13 +537,15 @@ function getStreakTierColor(streak: number) {
 
 
 interface HomeContentProps {
-  resolvedSponsors: ResolvedSponsor[];
   /** Site admin, decided on the server from the GitHub identity. */
   serverIsAdmin: boolean;
+  /** The plaza monument's town (null: the empty "your town here" monument). */
+  townOfWeek: TownOfWeek | null;
 }
 
-function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
+function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const userParam = searchParams.get("user");
   const giftedParam = searchParams.get("gifted");
   // The lo-fi radio portals into #gc-radio-slot. Rendered only after this page
@@ -864,10 +859,8 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
   const [pillModalOpen, setPillModalOpen] = useState(false);
   const [founderMessageOpen, setFounderMessageOpen] = useState(false);
   const [eArcadeOpen, setEArcadeOpen] = useState(false);
-  const [bankOpen, setBankOpen] = useState(false);
   const [pixelBalance, setPixelBalance] = useState<number | null>(null);
   const [arcadeOnline, setArcadeOnline] = useState<number>(0);
-  const [activeSponsor, setActiveSponsor] = useState<string | null>(null);
   const [districtChooserOpen, setDistrictChooserOpen] = useState(false);
   const [rabbitCinematic, setRabbitCinematic] = useState(false);
   const [rabbitCinematicPhase, setRabbitCinematicPhase] = useState(-1);
@@ -1517,17 +1510,14 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
   // During fly mode: only close overlays (profile card) — VehicleFlight handles pause/exit
   // Outside fly mode: compare → share modal → profile card → focus → explore mode
   useEffect(() => {
-    if (flyMode && !selectedBuilding && !pillModalOpen && !founderMessageOpen && !eArcadeOpen && !activeSponsor) return;
-    if (!flyMode && !exploreMode && !focusedBuilding && !shareData && !selectedBuilding && !giftClaimed && !giftModalOpen && !comparePair && !compareBuilding && !founderMessageOpen && !pillModalOpen && !eArcadeOpen && !bankOpen && !activeSponsor && !rabbitCinematic && !invitePreview && raidState.phase === "idle") return;
+    if (flyMode && !selectedBuilding && !pillModalOpen && !founderMessageOpen && !eArcadeOpen) return;
+    if (!flyMode && !exploreMode && !focusedBuilding && !shareData && !selectedBuilding && !giftClaimed && !giftModalOpen && !comparePair && !compareBuilding && !founderMessageOpen && !pillModalOpen && !eArcadeOpen && !rabbitCinematic && !invitePreview && raidState.phase === "idle") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Escape") {
-        // Bank panel
-        if (bankOpen) { setBankOpen(false); return; }
         // Founder modals take highest priority
         if (founderMessageOpen) { setFounderMessageOpen(false); return; }
         if (pillModalOpen) { setPillModalOpen(false); return; }
         if (eArcadeOpen) { setEArcadeOpen(false); return; }
-        if (activeSponsor) { setActiveSponsor(null); return; }
         // Rabbit cinematic
         if (rabbitCinematic) { endRabbitCinematic(); return; }
         // Raid takes priority
@@ -1571,7 +1561,7 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [flyMode, exploreMode, focusedBuilding, shareData, selectedBuilding, giftClaimed, giftModalOpen, comparePair, compareBuilding, founderMessageOpen, pillModalOpen, eArcadeOpen, bankOpen, activeSponsor, rabbitCinematic, endRabbitCinematic, raidState.phase, raidActions, invitePreview]);
+  }, [flyMode, exploreMode, focusedBuilding, shareData, selectedBuilding, giftClaimed, giftModalOpen, comparePair, compareBuilding, founderMessageOpen, pillModalOpen, eArcadeOpen, rabbitCinematic, endRabbitCinematic, raidState.phase, raidActions, invitePreview]);
 
   // Rabbit cinematic text phase timing (8s total flyover)
   useEffect(() => {
@@ -2940,7 +2930,7 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
         onJoystickState={flyMode ? setFlyJoystickState : undefined}
         flyBoostActive={flyBoostActive}
         flyBrakeActive={flyBrakeActive}
-        flyHasOverlay={!!selectedBuilding || pillModalOpen || founderMessageOpen || eArcadeOpen || !!activeSponsor || rabbitCinematic}
+        flyHasOverlay={!!selectedBuilding || pillModalOpen || founderMessageOpen || eArcadeOpen || rabbitCinematic}
         flyStartPaused={false}
         holdRise={loadStage !== "done"}
         celebrationActive={celebrationActive}
@@ -3001,35 +2991,16 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
         raidAttacker={raidState.attackerBuilding}
         raidDefender={raidState.defenderBuilding}
         onRaidPhaseComplete={raidActions.onPhaseComplete}
-        onLandmarkClick={() => { setPillModalOpen(true); setSelectedBuilding(null); }}
-        onEArcadeClick={() => { trackEArcadeClicked(); setEArcadeOpen(true); setSelectedBuilding(null); }}
-        onBankClick={() => { setBankOpen(true); setSelectedBuilding(null); }}
-        onSponsorClick={(slug) => {
-          trackLandmarkClicked(slug);
-          const adId = getLandmarkAdId(slug);
-          if (adId) fetch("/api/sky-ads/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: adId, event_type: "click" }) }).catch(() => { });
-          if (!exploreMode) setExploreMode(true);
-          setActiveSponsor(slug);
-          setSelectedBuilding(null);
-          setFocusedBuilding(null);
-        }}
-        sponsorFocusPos={(() => {
-          if (!activeSponsor) return null;
-          const sp = resolvedSponsors.find(s => s.slug === activeSponsor);
-          if (!sp) return null;
-          if (sfMapRef.current) {
-            // SF: sponsors sit in the civic-plaza row (south), inside a scaled
-            // group at downtown (origin). Mirror that placement here for focus.
-            const i = resolvedSponsors.findIndex(s => s.slug === activeSponsor);
-            const [tx, tz] = sfSponsorLocalPos(i, resolvedSponsors.length);
-            const S = SF_PLAZA_SCALE;
-            return [tx * S, sp.hitboxHeight * 0.6 * S, tz * S] as [number, number, number];
-          }
-          const pos = gridToWorldPos(sp.gridX, sp.gridZ);
-          return [pos[0], sp.hitboxHeight * 0.6, pos[2]] as [number, number, number];
-        })()}
-        activeSponsorSlug={activeSponsor}
-        resolvedSponsors={resolvedSponsors}
+        plazaCenter={
+          // Towns are URL-only until launch, so the plaza stays empty until then.
+          SHOW_TOWNS ? (
+            <TownMonument
+              town={townOfWeek}
+              variant={MONUMENT_VARIANT}
+              onClick={() => router.push(townOfWeek ? `/town/${townOfWeek.slug}` : "/towns/new")}
+            />
+          ) : undefined
+        }
         rabbitSighting={rabbitSighting}
         onRabbitCaught={onRabbitCaught}
         rabbitCinematic={rabbitCinematic}
@@ -3638,19 +3609,19 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
       {/* ─── Live + Coding + Jobs (top-right) ─── */}
       {!flyMode && !introMode && !rabbitCinematic && (
         <div className={`pointer-events-auto fixed top-3 right-3 z-30 items-center gap-1.5 sm:gap-2 sm:top-4 sm:right-4 ${exploreMode ? "hidden" : "hidden sm:flex"}`}>
-          {/* Wallet chip — Pixel balance, opens the Bank */}
+          {/* Wallet chip — Pixel balance, links to the shop (where the Bank lives) */}
           {authLogin && (
-            <button
-              onClick={() => { setBankOpen(true); setSelectedBuilding(null); }}
+            <Link
+              href="/shop"
               className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light cursor-pointer"
-              title="Open the Git City Bank"
+              title="Open the shop"
             >
               <CurrencyIcon currency="pixels" size={12} />
               <span className="text-cream">
                 {pixelBalance === null ? "—" : pixelBalance.toLocaleString()}
               </span>
               <span className="ml-0.5" style={{ color: "#c8e64a" }}>+</span>
-            </button>
+            </Link>
           )}
           {/* Live users */}
           <div className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm">
@@ -6794,30 +6765,6 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
         </a>
       )}
 
-      {/* Git City Bank — wallet/buy/swap. Opens instantly; the heavy web3
-          bundle loads only when the Swap tab is opened (inside BankSwapTab). */}
-      {bankOpen && (
-        <BankPanel
-          open
-          onClose={() => setBankOpen(false)}
-          isAuthenticated={!!authLogin}
-          githubLogin={authLogin}
-          initialBalance={pixelBalance}
-          onBalanceChange={setPixelBalance}
-        />
-      )}
-
-      {/* Sponsored landmark card — Git City's own sponsor landmark gets a
-          dedicated, persuasive card; third-party sponsors use the generic one. */}
-      {activeSponsor && (() => {
-        const cfg = resolvedSponsors.find((s) => s.slug === activeSponsor);
-        if (!cfg) return null;
-        const isOwnSponsor = cfg.url.includes("github.com/sponsors");
-        return isOwnSponsor
-          ? <SponsorCityCard config={cfg} onClose={() => setActiveSponsor(null)} />
-          : <SponsoredCard config={cfg} onClose={() => setActiveSponsor(null)} />;
-      })()}
-
       {/* Rabbit Quest Cinematic Overlay */}
       {rabbitCinematic && (
         <div className="fixed inset-0 z-50 pointer-events-none">
@@ -6911,18 +6858,14 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
 }
 
 interface HomeClientProps {
-  assignments: Assignment[];
   isAdmin: boolean;
+  townOfWeek: TownOfWeek | null;
 }
 
-export default function HomeClient({ assignments, isAdmin }: HomeClientProps) {
-  const resolvedSponsors: ResolvedSponsor[] = useMemo(
-    () => resolveAssignmentsToSponsors(assignments),
-    [assignments],
-  );
+export default function HomeClient({ isAdmin, townOfWeek }: HomeClientProps) {
   return (
     <Suspense>
-      <HomeContent resolvedSponsors={resolvedSponsors} serverIsAdmin={isAdmin} />
+      <HomeContent serverIsAdmin={isAdmin} townOfWeek={townOfWeek} />
     </Suspense>
   );
 }

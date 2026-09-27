@@ -3,7 +3,7 @@ import { EMAIL_BASE_URL, button, detailRows, heading, label, paragraph, trackedU
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { CROWN_DAYS, PIXEL_MIN_ACTIVE, WINNER_PIXELS, WINNER_XP, type ClosedLeague } from "../leagues/close";
 import { townDisplayName } from "../towns/names";
-import { ordinal, points, townHero } from "./town-email";
+import { contributions, ordinal, townHero } from "./town-email";
 
 interface Placing {
   rank: number;
@@ -19,8 +19,10 @@ export interface LeagueWeeklyEmailData {
   me: Placing;
   /** Null when nobody scored, so nobody won. */
   winnerLogin: string | null;
-  /** Company towns: "Acme Town finished 4th of 12 companies (up from 6th)." */
-  globalLine: string | null;
+  /** "Acme Town won the week and takes the monument…", or null with no Town of the week. */
+  townOfWeekLine: string | null;
+  /** "Acme Town finished 4th of 12 towns, 84 per dev." Null when unranked. */
+  townLine: string | null;
 }
 
 function leagueWeeklyHeader(d: LeagueWeeklyEmailData) {
@@ -28,7 +30,7 @@ function leagueWeeklyHeader(d: LeagueWeeklyEmailData) {
   const isWinner = d.winnerLogin !== null && d.winnerLogin === d.me.login;
   const podium = d.standings[Math.min(2, d.standings.length - 1)]?.total ?? 0;
   const offPodium = d.me.rank > 3 ? podium - d.me.total : 0;
-  const finish = `You finished ${ordinal(d.me.rank)} of ${d.standings.length} with ${points(d.me.total)}${offPodium > 0 ? `, ${points(offPodium)} off the podium` : ""}.`;
+  const finish = `You finished ${ordinal(d.me.rank)} of ${d.standings.length} with ${contributions(d.me.total)}${offPodium > 0 ? `, ${contributions(offPodium)} off the podium` : ""}.`;
   const pixels = d.standings.length >= PIXEL_MIN_ACTIVE ? WINNER_PIXELS : 0;
   const prize = `${WINNER_XP} XP${pixels ? `, ${pixels} pixels` : ""} and a win on your Weekly Champion emblem`;
 
@@ -38,7 +40,7 @@ function leagueWeeklyHeader(d: LeagueWeeklyEmailData) {
       variant: "won" as const,
       subject: `You won the week in ${town}`,
       preheader: `Your building wears the crown for ${CROWN_DAYS} days. +${WINNER_XP} XP.`,
-      intro: `You topped ${town} with ${points(d.me.total)}. Your building wears the crown for the next ${CROWN_DAYS} days, and you earned ${prize}.`,
+      intro: `You topped ${town} with ${contributions(d.me.total)}. Your building wears the crown for the next ${CROWN_DAYS} days, and you earned ${prize}.`,
     };
   }
   if (d.winnerLogin) {
@@ -54,8 +56,8 @@ function leagueWeeklyHeader(d: LeagueWeeklyEmailData) {
     town,
     variant: "empty" as const,
     subject: `No winner in ${town} last week`,
-    preheader: "Nobody scored, so nobody takes the crown. The new race is on.",
-    intro: `Nobody in ${town} scored last week, so nobody takes the crown.`,
+    preheader: "Nobody coded, so nobody takes the crown. The new week is on.",
+    intro: `Nobody in ${town} coded last week, so nobody takes the crown.`,
   };
 }
 
@@ -71,7 +73,7 @@ export function renderLeagueWeeklyEmail(d: LeagueWeeklyEmailData, links: EmailLi
       ? []
       : shown.map((s) => ({
           label: `${ordinal(s.rank)} @${s.login}${s.login === d.me.login ? " (you)" : ""}`,
-          value: points(s.total),
+          value: contributions(s.total),
         }));
 
   const title: [string, string, string] =
@@ -84,8 +86,9 @@ export function renderLeagueWeeklyEmail(d: LeagueWeeklyEmailData, links: EmailLi
     hero: townHero(d.leagueSlug, town, townUrl),
     body: [
       heading(title[0], title[1], title[2]),
+      d.townOfWeekLine ? paragraph(d.townOfWeekLine) : "",
       paragraph(intro),
-      d.globalLine ? paragraph(d.globalLine) : "",
+      d.townLine ? paragraph(d.townLine) : "",
       rows.length ? label("Final standings") + detailRows(rows) : "",
       paragraph(next),
       button("See this week's race", townUrl),
@@ -98,8 +101,9 @@ export function renderLeagueWeeklyEmail(d: LeagueWeeklyEmailData, links: EmailLi
     lines: [
       title.join(" ").replace(/\s+/g, " ").trim(),
       "",
+      ...(d.townOfWeekLine ? [d.townOfWeekLine, ""] : []),
       intro,
-      ...(d.globalLine ? ["", d.globalLine] : []),
+      ...(d.townLine ? ["", d.townLine] : []),
       ...(rows.length ? ["", "Final standings:", ...rows.map((r) => `${r.label}: ${r.value}`)] : []),
       "",
       next,
@@ -117,22 +121,24 @@ export function renderLeagueWeeklyEmail(d: LeagueWeeklyEmailData, links: EmailLi
  * Monday results email to every active member of a closed town. Awaited
  * (not fire-and-forget) so the close cron finishes its sends.
  */
-export async function sendLeagueWeeklyResults(closed: ClosedLeague, previousGlobalRank: number | null): Promise<number> {
+export async function sendLeagueWeeklyResults(
+  closed: ClosedLeague,
+  townOfWeek: { id: string; name: string } | null,
+): Promise<number> {
   const { league, week } = closed;
   const standings: Placing[] = week.standings.map((s) => ({ rank: s.rank, login: s.login, total: s.total }));
   const winner = week.standings.find((s) => s.developer_id === closed.winnerId) ?? null;
   const town = townDisplayName(league.name);
 
-  let globalLine: string | null = null;
-  if (league.kind === "company" && closed.globalRank) {
-    const moved =
-      previousGlobalRank && previousGlobalRank !== closed.globalRank
-        ? closed.globalRank > previousGlobalRank
-          ? ` (down from ${ordinal(previousGlobalRank)})`
-          : ` (up from ${ordinal(previousGlobalRank)})`
-        : "";
-    globalLine = `${town} finished ${ordinal(closed.globalRank)} of ${closed.globalTotal} companies${moved}.`;
-  }
+  const townOfWeekLine = !townOfWeek
+    ? null
+    : townOfWeek.id === league.id
+      ? `${town} coded the most of every town last week. The monument in the center of Git City is yours this week.`
+      : `${townDisplayName(townOfWeek.name)} coded the most last week and takes the monument in the center of Git City.`;
+  const townLine =
+    closed.townRank && week.town
+      ? `${town} finished ${ordinal(closed.townRank)} of ${closed.townTotal} towns, with ${contributions(week.town.perDev)} per dev.`
+      : null;
 
   let sent = 0;
   for (const me of week.standings) {
@@ -142,7 +148,8 @@ export async function sendLeagueWeeklyResults(closed: ClosedLeague, previousGlob
       standings,
       me: { rank: me.rank, login: me.login, total: me.total },
       winnerLogin: winner?.login ?? null,
-      globalLine,
+      townOfWeekLine,
+      townLine,
     };
     const { subject, preheader } = leagueWeeklyHeader(data);
 

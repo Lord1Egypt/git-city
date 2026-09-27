@@ -2,39 +2,40 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import {
-  globalScore,
   isoDay,
-  memberScore,
   rankStandings,
-  SOURCE_DAILY_CAPS,
-  weekEnd,
+  dayContributions,
+  townDays,
+  townScore,
+  weekContributions,
+  weekDays,
   type ContributionDay,
-  type ScoringMode,
   type Standing,
   type StandingInput,
-  type XpRow,
+  type TownScore,
 } from "./scoring";
 
 export interface LeagueStandingEntry extends StandingInput {
   login: string;
   avatar_url: string | null;
+  /** Contributions per day, Mon..Sun (capped). */
+  days: number[];
 }
 
 export interface LeagueWeekStandings {
   leagueId: string;
   weekStart: string; // YYYY-MM-DD
-  mode: ScoringMode;
   standings: Standing<LeagueStandingEntry>[];
-  /** Global score (XP mode, averaged). Null under 3 active members. */
-  globalScore: number | null;
+  /** The town's score against other towns. Null under 3 members coding. */
+  town: TownScore | null;
+  /** Per dev by day, Mon..Sun: the town's contribution graph. */
+  days: number[];
 }
 
 interface LeagueRef {
   id: string;
-  scoring_mode: ScoringMode;
 }
 
-const COUNTED_SOURCES = SOURCE_DAILY_CAPS.flatMap((g) => g.sources);
 const PAGE = 1000;
 
 async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
@@ -56,8 +57,8 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 /**
- * Compute the week's standings for several leagues at once. Members, XP rows
- * and contribution days are loaded once for the union of active members.
+ * Compute the week's standings for several leagues at once. Members and
+ * contribution days are loaded once for the union of active members.
  */
 export async function loadStandings(
   leagues: LeagueRef[],
@@ -68,7 +69,7 @@ export async function loadStandings(
   if (leagues.length === 0) return result;
 
   const startDay = isoDay(start);
-  const end = weekEnd(start);
+  const week = weekDays(start);
 
   type MemberRow = {
     league_id: string;
@@ -92,27 +93,9 @@ export async function loadStandings(
   }
 
   const devIds = [...new Set(members.map((m) => m.developer_id))];
-  const xpByDev = new Map<number, XpRow[]>();
   const daysByDev = new Map<number, ContributionDay[]>();
 
   for (const ids of chunk(devIds, 200)) {
-    const xpRows = await fetchAll<XpRow & { developer_id: number }>((from, to) =>
-      sb
-        .from("xp_log")
-        .select("developer_id, source, amount, created_at")
-        .in("developer_id", ids)
-        .in("source", COUNTED_SOURCES)
-        .gte("created_at", start.toISOString())
-        .lt("created_at", end.toISOString())
-        .order("created_at")
-        .range(from, to),
-    );
-    for (const r of xpRows) {
-      const list = xpByDev.get(r.developer_id) ?? [];
-      list.push(r);
-      xpByDev.set(r.developer_id, list);
-    }
-
     const dayRows = await fetchAll<{ developer_id: number; day: string; contributions: number }>((from, to) =>
       sb
         .from("league_weekly_stats")
@@ -136,17 +119,15 @@ export async function loadStandings(
       joined_at: m.joined_at,
       login: m.developers?.github_login ?? String(m.developer_id),
       avatar_url: m.developers?.avatar_url ?? null,
-      ...memberScore(league.scoring_mode, daysByDev.get(m.developer_id) ?? [], xpByDev.get(m.developer_id) ?? []),
+      total: weekContributions(daysByDev.get(m.developer_id) ?? []),
+      days: dayContributions(daysByDev.get(m.developer_id) ?? [], week),
     }));
-    const xpTotals = own.map(
-      (m) => memberScore("xp", daysByDev.get(m.developer_id) ?? [], xpByDev.get(m.developer_id) ?? []).total,
-    );
     result.set(league.id, {
       leagueId: league.id,
       weekStart: startDay,
-      mode: league.scoring_mode,
       standings: rankStandings(entries),
-      globalScore: globalScore(xpTotals),
+      town: townScore(entries.map((e) => e.total)),
+      days: townDays(entries.map((e) => e.days)),
     });
   }
 

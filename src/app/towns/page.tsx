@@ -8,6 +8,8 @@ import { getDiscover, type FeaturedTown } from "@/lib/towns/discover";
 import DiscoverHeader from "@/components/towns/DiscoverHeader";
 import TownHero from "@/components/towns/TownHero";
 import TownGrid from "@/components/towns/TownGrid";
+import WeekRanking from "@/components/towns/WeekRanking";
+import TrophyIcon from "@/components/towns/TrophyIcon";
 import HeroDrive from "./hero-drive";
 
 export const dynamic = "force-dynamic";
@@ -35,14 +37,17 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
 
       {discover.featured && hero ? <Hero featured={discover.featured} hero={hero} /> : <NoTowns />}
 
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">{discover.all.length > 0 && <TownGrid towns={discover.all} />}</div>
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <WeekRanking towns={discover.week} />
+        {discover.all.length > 0 && <TownGrid towns={discover.all} />}
+      </div>
     </main>
   );
 }
 
 const REASON_LABEL: Record<FeaturedTown["reason"], string> = {
-  week: "★ Town of the week",
-  staff: "★ Staff pick",
+  week: "Town of the week",
+  staff: "Staff pick",
   biggest: "🏆 Biggest town",
 };
 
@@ -54,7 +59,10 @@ function Hero({ featured, hero }: { featured: FeaturedTown; hero: NonNullable<Aw
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-bg/80 via-transparent to-transparent" />
       <div className="absolute inset-x-0 bottom-0 mx-auto max-w-6xl px-4 pb-6 sm:px-6">
-        <p className="text-xs tracking-widest text-lime">{REASON_LABEL[featured.reason]}</p>
+        <p className="flex items-center gap-2 text-xs tracking-widest text-lime">
+          {featured.reason === "week" && <TrophyIcon size={12} />}
+          {REASON_LABEL[featured.reason]}
+        </p>
         <h2 className="mt-2 max-w-3xl text-3xl leading-tight text-cream normal-case sm:text-4xl">{featured.name}</h2>
         <p className="mt-3 flex gap-4 text-sm text-muted">
           {featured.verified && <span className="text-lime">&#10003; Verified</span>}
@@ -80,7 +88,7 @@ function NoTowns() {
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <h2 className="text-2xl text-cream sm:text-3xl">No towns yet</h2>
         <p className="mt-3 max-w-md text-sm leading-relaxed text-muted normal-case">
-          Start one for your team or friends. The town with the most visitors each week gets this spot.
+          Start one for your team or friends. The town that codes the most each week gets the monument in the center of Git City.
         </p>
         <Link href="/towns/new" className="btn-press mt-6 inline-block bg-lime px-6 py-3 text-sm tracking-widest text-bg">
           + Create a town

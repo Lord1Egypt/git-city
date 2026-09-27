@@ -1,52 +1,156 @@
 "use client";
 
-import Link from "next/link";
-import type { LeaguePageData } from "@/lib/leagues/queries";
+import { useState } from "react";
+import type { LeaguePageData, TownRankingRow } from "@/lib/leagues/queries";
+import { crewSummary, townsAround } from "@/lib/towns/race-view";
+import { townDisplayName } from "@/lib/towns/names";
 import Panel from "./Panel";
-import { Avatar, fmt, useCountdown } from "./shared";
+import { CrewRow, DayLetters, HowItWorks, Lane, ListDialog, Stakes, UnrankedLane, useToday } from "./race";
+import { withLiveTown } from "./RaceWidget";
 
-export default function StandingsPanel({ data, onClose }: { data: LeaguePageData; onClose: () => void }) {
-  const { week, viewer, members } = data;
-  const countdown = useCountdown();
-  const invited = members.filter((m) => m.status === "invited");
+/**
+ * This week, short: the stakes, the towns around yours as lanes and the
+ * crew's top as a contribution grid. "See all" opens the full list here.
+ */
+export default function StandingsPanel({
+  data,
+  ranking,
+  onHallOfFame,
+  onClose,
+}: {
+  data: LeaguePageData;
+  ranking: TownRankingRow[];
+  onHallOfFame: () => void;
+  onClose: () => void;
+}) {
+  const [view, setView] = useState<"towns" | "crew" | null>(null);
+  const today = useToday();
+  const { league, week, viewer } = data;
+  const live = withLiveTown(ranking, data);
+  const max = Math.max(live[0]?.per_dev ?? 0, week.town?.perDev ?? 0);
+  const { rows, gapBefore } = townsAround(live, league.id);
+  const ranked = live.some((r) => r.league_id === league.id);
+  const viewerLogin = viewer?.status === "active" ? viewer.login : null;
+  const crew = crewSummary(week.standings, viewerLogin);
+  const coding = week.standings.length - crew.idle;
+  const isMe = (login: string) => viewerLogin !== null && login.toLowerCase() === viewerLogin.toLowerCase();
+
   return (
-    <Panel title="This week" onClose={onClose}>
-      <div className="flex items-baseline justify-between text-[10px] text-muted">
-        <span>{week.mode === "xp" ? "Code + game XP" : "Code only"}</span>
-        <span>Closes in {countdown || "…"}</span>
-      </div>
-      <ol className="mt-3 space-y-1.5">
-        {week.standings.map((s) => {
-          const me = viewer?.login === s.login;
-          return (
-            <li
-              key={s.developer_id}
-              className={`flex items-center gap-3 border-[3px] bg-bg-card px-3 py-2 ${me ? "border-lime" : "border-border"}`}
-            >
-              <span className={`w-6 text-right text-xs ${s.rank === 1 ? "text-lime" : "text-muted"}`}>{s.rank}</span>
-              <Avatar src={s.avatar_url} />
-              <Link href={`/dev/${s.login}`} className="min-w-0 flex-1 truncate text-xs text-cream normal-case hover:text-lime">
-                @{s.login}
-              </Link>
-              <span className="w-14 text-right text-xs text-cream tabular-nums">{fmt(s.total)}</span>
-            </li>
-          );
-        })}
-        {week.standings.length === 0 && <li className="text-[11px] text-muted normal-case">Nobody has joined yet.</li>}
-      </ol>
-      {invited.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-[10px] text-muted">Invited · not joined yet</h3>
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {invited.map((m) => (
-              <li key={m.developer_id} className="flex items-center gap-1.5 border-2 border-border px-2 py-1">
-                <Avatar src={m.avatar_url} size={16} faded />
-                <span className="text-[10px] text-dim normal-case">@{m.login}</span>
-              </li>
-            ))}
-          </ul>
+    <>
+      <Panel title="This week" onClose={onClose}>
+        <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
+          <Stakes />
+          <HowItWorks />
         </div>
+
+        <h3 className="mt-5 text-[10px] text-muted">Towns · per dev</h3>
+        <ol className="mt-2 space-y-1.5">
+          {rows.flatMap((t) => [
+            ...(gapBefore.has(t.league_id)
+              ? [
+                  <li key={`gap-${t.league_id}`} className="py-0.5 text-center text-[8px] text-dim" aria-hidden>
+                    ···
+                  </li>,
+                ]
+              : []),
+            <Lane key={t.league_id} town={t} max={max} mine={t.league_id === league.id} />,
+          ])}
+          {!ranked && <UnrankedLane name={league.name} coding={coding} />}
+        </ol>
+        {live.length > rows.length && (
+          <button
+            type="button"
+            onClick={() => setView("towns")}
+            className="btn-press mt-2 flex h-10 w-full items-center justify-center border-2 border-border text-[10px] text-cream transition-colors hover:border-muted"
+          >
+            See all {live.length} towns
+          </button>
+        )}
+
+        <div className="mt-5 flex items-center gap-2 px-2 text-[9px] text-muted">
+          <span className="w-4" />
+          <span className="min-w-0 flex-1">Crew</span>
+          <DayLetters today={today} size={12} />
+          <span className="w-9" />
+        </div>
+        <ol className="mt-1 space-y-0.5">
+          {crew.top.map((s, i) => (
+            <CrewRow key={s.developer_id} row={s} rank={i + 1} today={today} me={isMe(s.login)} />
+          ))}
+          {crew.you && (
+            <>
+              <li className="text-center text-[8px] leading-none text-dim" aria-hidden>
+                ···
+              </li>
+              <CrewRow row={crew.you.row} rank={crew.you.rank} today={today} me />
+            </>
+          )}
+          {week.standings.length === 0 && <li className="px-2 text-[10px] text-muted normal-case">Nobody has joined yet.</li>}
+        </ol>
+        {crew.rest > 0 && (
+          <button
+            type="button"
+            onClick={() => setView("crew")}
+            className="btn-press mt-2 flex h-10 w-full items-center justify-center gap-2 border-2 border-border text-[10px] text-cream transition-colors hover:border-muted"
+          >
+            See all {week.standings.length}
+            {crew.idle > 0 && <span className="text-dim">· {crew.idle} not coding</span>}
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onHallOfFame}
+          className="mt-4 flex h-10 w-full items-center justify-center text-[10px] text-lime transition-colors hover:text-cream"
+        >
+          Hall of fame ›
+        </button>
+      </Panel>
+
+      {view === "towns" && (
+        <ListDialog label="Towns this week" title="Towns" sub={`${live.length} racing · per dev`} onClose={() => setView(null)} pinned={
+          <ol>
+            {ranked ? (
+              <Lane town={live.find((r) => r.league_id === league.id)!} max={max} mine />
+            ) : (
+              <UnrankedLane name={league.name} coding={coding} />
+            )}
+          </ol>
+        }>
+          {live.map((t) => (
+            <Lane key={t.league_id} town={t} max={max} mine={t.league_id === league.id} />
+          ))}
+        </ListDialog>
       )}
-    </Panel>
+
+      {view === "crew" && (
+        <ListDialog
+          label={`${townDisplayName(league.name)} crew this week`}
+          title={townDisplayName(league.name)}
+          sub={`${week.standings.length} members`}
+          onClose={() => setView(null)}
+          header={
+            <div className="flex items-center gap-2 border-b-2 border-border px-5 py-2 text-[9px] text-muted">
+              <span className="w-4" />
+              <span className="min-w-0 flex-1">This week</span>
+              <DayLetters today={today} size={16} />
+              <span className="w-9" />
+            </div>
+          }
+          pinned={(() => {
+            const i = viewerLogin ? week.standings.findIndex((s) => isMe(s.login)) : -1;
+            return i >= 0 ? (
+              <ol>
+                <CrewRow row={week.standings[i]} rank={i + 1} today={today} me size={16} />
+              </ol>
+            ) : undefined;
+          })()}
+        >
+          {week.standings.map((s, i) => (
+            <CrewRow key={s.developer_id} row={s} rank={i + 1} today={today} me={isMe(s.login)} size={16} />
+          ))}
+        </ListDialog>
+      )}
+    </>
   );
 }

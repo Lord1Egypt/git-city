@@ -1,7 +1,7 @@
 "use client";
 
 import "@/lib/silenceThreeClockWarning";
-import { useRef, useEffect, useEffectEvent, useState, useMemo } from "react";
+import { useRef, useEffect, useEffectEvent, useState, useMemo, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Stats, PerformanceMonitor } from "@react-three/drei";
 import { EffectComposer, Bloom, SMAA } from "@react-three/postprocessing";
@@ -20,13 +20,7 @@ import type { SkyAd } from "@/lib/skyAds";
 import RaidSequence3D, { VehicleMesh } from "./RaidSequence3D";
 import type { RaidPhase } from "@/lib/useRaidSequence";
 import type { RaidExecuteResponse } from "@/lib/raid";
-import FounderSpire from "./FounderSpire";
-import EArcadeLandmark from "./EArcadeLandmark";
-import BankBuilding from "./BankBuilding";
-import type { ResolvedSponsor } from "@/lib/landmarks/resolve";
-import SponsoredLandmark from "@/lib/sponsors/SponsoredLandmark";
-import { gridToWorldPos } from "@/lib/sponsors/registry";
-import { SF_PLAZA_RADIUS, SF_PLAZA_SCALE, sfSponsorLocalPos } from "@/lib/sponsors/sfPlaza";
+import { SF_PLAZA_SCALE, plazaCenterWorld } from "@/lib/sponsors/sfPlaza";
 import { sunPosition, samplePalette, skyState } from "@/lib/sky";
 import WhiteRabbit from "./WhiteRabbit";
 import CelebrationEffect from "./CelebrationEffect";
@@ -65,18 +59,16 @@ useGLTF.preload("/models/paper-plane.glb");
 
 const INTRO_DURATION = 14; // seconds
 
-// E.Arcade landmark sits at (173, 0, -149), height ~540.
-// Camera target: E.Arcade mid-height.
-const EARCADE_X = 173;
-const EARCADE_Z = -149;
-const TARGET_X = EARCADE_X;
-const TARGET_Z = EARCADE_Z;
+// Without the SF map the plaza (Founder Spire + town monument) is centred on
+// the world origin. Default camera target: plaza centre, mid-height.
+const TARGET_X = 0;
+const TARGET_Z = 0;
 const TARGET_Y = 270;
 
 // Mirror of original arc but from -Z side (front of city).
 // X is negated so screen-left→right matches the original.
 // Starts far-left (X+), sweeps right (X-), ends at orbit.
-const EARCADE_TOP_Y = 540;
+const INTRO_TOP_Y = 540;
 const INTRO_WAYPOINTS: [number, number, number][] = [
   [1600, 650, -1800],   // WP0: Far, screen-left - in fog
   [1000, 640, -1300],   // WP1: Silhouette appears
@@ -88,17 +80,27 @@ const INTRO_WAYPOINTS: [number, number, number][] = [
   [-800, 850, -1000],   // WP7: Final orbit position (wide panorama)
 ];
 
-// Look targets: gradual convergence toward E.Arcade rooftop (no sudden jumps)
+// Look targets: gradual convergence from the city toward the plaza centre
+// (the town monument), no sudden jumps. Each entry is [fx, y, fz]: the X/Z
+// fraction of the way from the WP0 look point to the target, and a height.
+const INTRO_LOOK_START: [number, number] = [50, -50];
 const INTRO_LOOK_TARGETS: [number, number, number][] = [
-  [50, 350, -50],           // WP0: Toward city center
-  [EARCADE_X * 0.4, 380, EARCADE_Z * 0.2], // WP1: Easing toward E.Arcade
-  [EARCADE_X * 0.6, 410, EARCADE_Z * 0.4], // WP2: Converging
-  [EARCADE_X * 0.8, 450, EARCADE_Z * 0.7], // WP3: Getting closer
-  [EARCADE_X, 500, EARCADE_Z],       // WP4: Almost there
-  [EARCADE_X, EARCADE_TOP_Y, EARCADE_Z],  // WP5: Locking on rooftop
-  [EARCADE_X, EARCADE_TOP_Y, EARCADE_Z],  // WP6: Holding
-  [EARCADE_X, 450, EARCADE_Z],       // WP7: Gently easing down to orbit height
+  [0, 350, 0],               // WP0: Toward city center
+  [0.4, 380, 0.2],           // WP1: Easing toward the plaza
+  [0.6, 410, 0.4],           // WP2: Converging
+  [0.8, 450, 0.7],           // WP3: Getting closer
+  [1, 500, 1],               // WP4: Almost there
+  [1, INTRO_TOP_Y, 1],       // WP5: Locking on
+  [1, INTRO_TOP_Y, 1],       // WP6: Holding
+  [1, 450, 1],               // WP7: Gently easing down to orbit height
 ];
+
+function introLookPoint(i: number, target: [number, number], lookScale: number): THREE.Vector3 {
+  const [fx, y, fz] = INTRO_LOOK_TARGETS[i];
+  const sx = INTRO_LOOK_START[0] * lookScale;
+  const sz = INTRO_LOOK_START[1] * lookScale;
+  return new THREE.Vector3(sx + (target[0] - sx) * fx, y * lookScale, sz + (target[1] - sz) * fz);
+}
 
 // Smootherstep (Perlin): zero velocity AND zero acceleration at both ends
 function introEase(t: number): number {
@@ -110,7 +112,7 @@ function introEase(t: number): number {
 const _introPos = new THREE.Vector3();
 const _introLook = new THREE.Vector3();
 
-function IntroFlyover({ onEnd, lookScale = 1 }: { onEnd: () => void; lookScale?: number }) {
+function IntroFlyover({ onEnd, lookScale = 1, target }: { onEnd: () => void; lookScale?: number; target: [number, number] }) {
   const { camera } = useThree();
   const elapsed = useRef(0);
   const ended = useRef(false);
@@ -118,21 +120,20 @@ function IntroFlyover({ onEnd, lookScale = 1 }: { onEnd: () => void; lookScale?:
   // Build CatmullRom curves once; centripetal = no cusps on uneven spacing
   const { posCurve, lookCurve } = useMemo(() => {
     const posPoints = INTRO_WAYPOINTS.map(([x, y, z]) => new THREE.Vector3(x, y, z));
-    // lookScale lets SF (where the landmark cluster is scaled down) aim lower.
-    const lookPoints = INTRO_LOOK_TARGETS.map(([x, y, z]) => new THREE.Vector3(x * lookScale, y * lookScale, z * lookScale));
+    // lookScale lets SF (where the plaza is scaled down) aim lower.
+    const lookPoints = INTRO_LOOK_TARGETS.map((_, i) => introLookPoint(i, target, lookScale));
     const posCurve = new THREE.CatmullRomCurve3(posPoints, false, 'centripetal');
     const lookCurve = new THREE.CatmullRomCurve3(lookPoints, false, 'centripetal');
     // Pre-compute arc-length tables so getPointAt() doesn't stutter on first call
     posCurve.getLength();
     lookCurve.getLength();
     return { posCurve, lookCurve };
-  }, [lookScale]);
+  }, [lookScale, target]);
 
   useEffect(() => {
     camera.position.set(...INTRO_WAYPOINTS[0]);
-    const [lx, ly, lz] = INTRO_LOOK_TARGETS[0];
-    camera.lookAt(lx * lookScale, ly * lookScale, lz * lookScale);
-  }, [camera, lookScale]);
+    camera.lookAt(introLookPoint(0, target, lookScale));
+  }, [camera, lookScale, target]);
 
   useFrame((_, delta) => {
     if (ended.current) return;
@@ -1929,13 +1930,10 @@ interface Props {
   raidAttacker?: CityBuilding | null;
   raidDefender?: CityBuilding | null;
   onRaidPhaseComplete?: (phase: RaidPhase) => void;
-  onLandmarkClick?: () => void;
-  onEArcadeClick?: () => void;
-  onBankClick?: () => void;
-  onSponsorClick?: (slug: string) => void;
-  sponsorFocusPos?: [number, number, number] | null;
-  activeSponsorSlug?: string | null;
-  resolvedSponsors?: ResolvedSponsor[];
+  /** Camera focus on a fixed world position (e.g. the plaza monument); dims the buildings. */
+  focusPos?: [number, number, number] | null;
+  /** Rendered at the plaza centre, in plaza-local coordinates (inside the scaled plaza group with the SF map). */
+  plazaCenter?: ReactNode;
   rabbitSighting?: number | null;
   onRabbitCaught?: () => void;
   rabbitCinematic?: boolean;
@@ -2136,14 +2134,13 @@ function NoPointLights() {
   return null;
 }
 
-export default function CityCanvas({ buildings, plazas, decorations, river, bridges, sfMap, flyMode, flyVehicle, onExitFly, onCollect, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, flyStartPaused, isMobile, onJoystickState, flyBoostActive, flyBrakeActive, skyAds, onAdClick, onAdViewed, introMode, onIntroEnd, perfMode = "high", onPerfDecline, raidPhase, raidData, raidAttacker, raidDefender, onRaidPhaseComplete, onLandmarkClick, onEArcadeClick, onBankClick, onSponsorClick, sponsorFocusPos, activeSponsorSlug, resolvedSponsors, rabbitSighting, onRabbitCaught, rabbitCinematic, onRabbitCinematicEnd, rabbitCinematicTarget, ghostPreviewLogin, holdRise, celebrationActive, wallpaperMode, wallpaperSpeed, liveByLogin, cityEnergy, onCompareCinematicEnd, onFlyMove, flyPilotsRef, flyProjectilesRef, flySelfStateRef, flySelfId, flyOnShoot, flyOnReportHit, flyPvpEnabled, flyPendingRespawnRef, onCameraMove, bossPreview, flyBossStateRef, flyEngageBoss, flySendBossHit, flySendBossSelfHit }: Props) {
-  const sponsors = resolvedSponsors ?? [];
+export default function CityCanvas({ buildings, plazas, decorations, river, bridges, sfMap, flyMode, flyVehicle, onExitFly, onCollect, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, flyStartPaused, isMobile, onJoystickState, flyBoostActive, flyBrakeActive, skyAds, onAdClick, onAdViewed, introMode, onIntroEnd, perfMode = "high", onPerfDecline, raidPhase, raidData, raidAttacker, raidDefender, onRaidPhaseComplete, focusPos, plazaCenter, rabbitSighting, onRabbitCaught, rabbitCinematic, onRabbitCinematicEnd, rabbitCinematicTarget, ghostPreviewLogin, holdRise, celebrationActive, wallpaperMode, wallpaperSpeed, liveByLogin, cityEnergy, onCompareCinematicEnd, onFlyMove, flyPilotsRef, flyProjectilesRef, flySelfStateRef, flySelfId, flyOnShoot, flyOnReportHit, flyPvpEnabled, flyPendingRespawnRef, onCameraMove, bossPreview, flyBossStateRef, flyEngageBoss, flySendBossHit, flySendBossSelfHit }: Props) {
   const [isCompareCinematicPlaying, setIsCompareCinematicPlaying] = useState(false);
   const prevComparePairRef = useRef<string>("");
 
   // During PvP, every city interaction is suppressed — clicks must only
-  // shoot. Landmarks, sponsor buildings, ads, the arcade entrance and
-  // the founder spire would otherwise pause flight or open overlays.
+  // shoot. Ads and the founder spire would otherwise pause flight or
+  // open overlays.
   const blockCityClicks = flyMode && flyPvpEnabled === true;
 
   useEffect(() => {
@@ -2219,6 +2216,12 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
   const skyRadius = sfMap ? Math.min(cityRadius, 13500) : cityRadius;
 
   // San Francisco mode: camera + controls frame the downtown (Financial District)
+  // The intro flyover ends on the plaza centre (the town monument).
+  const introTarget = useMemo<[number, number]>(() => {
+    const [x, , z] = plazaCenterWorld(sfMap?.downtown);
+    return [x, z];
+  }, [sfMap]);
+
   const sfHome = useMemo(() => {
     if (!sfMap) return null;
     const [dx, dz] = sfMap.downtown;
@@ -2267,7 +2270,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       )}
       {!sfHome && <ThemeSkyFX key={`sky-fx-${themeIndex}`} themeIndex={themeIndex as 0 | 1 | 2 | 3} theme={t} />}
 
-      {introMode && <IntroFlyover onEnd={onIntroEnd ?? (() => { })} lookScale={sfMap ? 0.55 : 1} />}
+      {introMode && <IntroFlyover onEnd={onIntroEnd ?? (() => { })} lookScale={sfMap ? SF_PLAZA_SCALE : 1} target={introTarget} />}
 
       {rabbitCinematic && rabbitCinematicTarget != null && (
         <RabbitFlyover
@@ -2282,7 +2285,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       ) : (
         <>
           {!introMode && !rabbitCinematic && !flyMode && (!raidPhase || raidPhase === "idle" || raidPhase === "preview") && (
-            <OrbitScene buildings={buildings} focusedBuilding={focusedBuilding ?? null} focusedBuildingB={focusedBuildingB} focusPosition={sponsorFocusPos} isCompareCinematicPlaying={isCompareCinematicPlaying} onCameraMove={onCameraMove} homeTarget={sfHome?.target ?? null} maxDistance={sfHome?.maxDistance} />
+            <OrbitScene buildings={buildings} focusedBuilding={focusedBuilding ?? null} focusedBuildingB={focusedBuildingB} focusPosition={focusPos} isCompareCinematicPlaying={isCompareCinematicPlaying} onCameraMove={onCameraMove} homeTarget={sfHome?.target ?? null} maxDistance={sfHome?.maxDistance} />
           )}
 
           {isCompareCinematicPlaying && focusedBuilding && focusedBuildingB && (() => {
@@ -2359,59 +2362,12 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       {sfMap && <SFMapLayers sfMap={sfMap} />}
 
       {(() => {
-        const arcade = (
-          <EArcadeLandmark
-            onClick={blockCityClicks ? () => { } : (onEArcadeClick ?? (() => { }))}
-            themeAccent={t.building.accent}
-            themeWindowLit={t.building.windowLit}
-            themeFace={t.building.face}
-          />
-        );
-        const spire = <FounderSpire onClick={blockCityClicks ? () => { } : (onLandmarkClick ?? (() => { }))} />;
-        const bank = (
-          <BankBuilding
-            onClick={blockCityClicks ? () => { } : (onBankClick ?? (() => { }))}
-            themeAccent={t.building.accent}
-            themeWindowLit={t.building.windowLit}
-            themeFace={t.building.face}
-          />
-        );
-        const sponsorEl = (s: ResolvedSponsor) => (
-          <SponsoredLandmark
-            config={s}
-            onClick={blockCityClicks ? () => { } : () => onSponsorClick?.(s.slug)}
-            themeAccent={t.building.accent}
-            themeWindowLit={t.building.windowLit}
-            themeFace={t.building.face}
-            dimmed={!!activeSponsorSlug && activeSponsorSlug !== s.slug}
-          />
-        );
-        if (!sfMap) {
-          return <>{arcade}{sponsors.map((s) => <group key={s.slug}>{sponsorEl(s)}</group>)}{spire}{bank}</>;
-        }
-        // SF civic plaza (cross): Bank (W) + Spire (E) keep their native axis;
-        // E.Arcade is moved north, sponsors form a tidy row to the south, fountain
-        // at center. Each is wrapped in a group that cancels its authored offset.
-        const N = sponsors.length;
-        // Native (authored) X offset of the Bank / Spire from their own origin.
-        const LANDMARK_NATIVE_X = 519;
+        // The civic plaza holds one thing: the Town of the week monument.
+        // Built-in layout: the origin. SF map: downtown, at plaza scale.
+        if (!sfMap) return <group position={[0, 0, 0]}>{plazaCenter}</group>;
         return (
           <group position={[sfMap.downtown[0], 0, sfMap.downtown[1]]} scale={SF_PLAZA_SCALE}>
-            {/* Bank (W, native -519) + Spire (E, native +519): counter-translate
-                so each ends up at ∓SF_PLAZA_RADIUS (pulled in toward the center). */}
-            <group position={[LANDMARK_NATIVE_X - SF_PLAZA_RADIUS, 0, 0]}>{bank}</group>
-            <group position={[SF_PLAZA_RADIUS - LANDMARK_NATIVE_X, 0, 0]}>{spire}</group>
-            {/* E.Arcade -> north (cancel its authored EARCADE position) */}
-            <group position={[-EARCADE_X, 0, -SF_PLAZA_RADIUS - EARCADE_Z]}>{arcade}</group>
-            {/* sponsors -> evenly spaced row to the south */}
-            {sponsors.map((s, i) => {
-              const g = gridToWorldPos(s.gridX, s.gridZ);
-              const [tx, tz] = sfSponsorLocalPos(i, N);
-              return <group key={s.slug} position={[tx - g[0], 0, tz - g[2]]}>{sponsorEl(s)}</group>;
-            })}
-            {/* central fountain */}
-            <mesh position={[0, 3, 0]}><cylinderGeometry args={[36, 42, 6, 28]} /><meshStandardMaterial color="#2b3038" roughness={0.9} /></mesh>
-            <mesh position={[0, 6.5, 0]}><cylinderGeometry args={[31, 31, 1.5, 28]} /><meshStandardMaterial color="#1d6075" emissive="#10394d" emissiveIntensity={0.5} /></mesh>
+            {plazaCenter}
           </group>
         );
       })()}
@@ -2485,7 +2441,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
           holdRise={holdRise}
           liveByLogin={liveByLogin}
           cityEnergy={cityEnergy}
-          dimAll={!!sponsorFocusPos}
+          dimAll={!!focusPos}
           lowPerf={lowPerf}
         />
 

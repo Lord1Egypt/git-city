@@ -7,6 +7,8 @@ import { Pending } from "@/components/leagues/PixelSpinner";
 import type { LeaguePageData } from "@/lib/leagues/queries";
 import type { TownBadges } from "@/lib/towns/milestones";
 import { townDisplayName } from "@/lib/towns/names";
+import { placeLine, type TownPlace } from "@/lib/towns/place";
+import TrophyIcon from "@/components/towns/TrophyIcon";
 import { HUD_BOX, fmt } from "./shared";
 
 // The town HUD on phones (under 640px): one compact header row on top and one
@@ -22,12 +24,15 @@ export function MobileTownHeader({
   badges,
   logoUrl,
   pendingRequests = 0,
+  place = null,
   onRace,
 }: {
   data: LeaguePageData;
   badges: TownBadges;
   logoUrl: string | null;
   pendingRequests?: number;
+  /** This week's place among towns: the subtitle when known. */
+  place?: TownPlace | null;
   onRace: () => void;
 }) {
   const { league, counts } = data;
@@ -48,8 +53,13 @@ export function MobileTownHeader({
               {league.kind === "company" && <Check size={12} strokeWidth={3} className="shrink-0 text-lime" aria-label="Verified" />}
             </h1>
             <p className="mt-1 truncate text-[9px] text-muted">
-              {badges.townOfWeek && <span className="text-lime">&#9733; Town of the week · </span>}
-              {fmt(counts.total)} buildings · {fmt(counts.joined)} joined
+              {badges.townOfWeek && (
+                <span className="text-lime">
+                  <TrophyIcon size={10} className="mr-1 inline align-[-1px]" />
+                  Town of the week ·{" "}
+                </span>
+              )}
+              {place ? placeLine(place) : `${fmt(counts.total)} buildings · ${fmt(counts.joined)} joined`}
             </p>
           </div>
         </div>

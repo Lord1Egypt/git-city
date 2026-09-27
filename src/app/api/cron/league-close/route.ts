@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { weekStart } from "@/lib/leagues/scoring";
 import { closeWeek } from "@/lib/leagues/close";
-import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendLeagueWeeklyResults } from "@/lib/notification-senders/league-weekly";
 import { closeTownWeek, type TownWeekResult } from "@/lib/towns/weekly";
 
@@ -29,33 +28,27 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { closed, errors } = await closeWeek(start);
+    const { closed, errors, ranked } = await closeWeek(start);
 
-    // Results emails (awaited). Previous global rank shows the move.
-    const prevWeek = new Date(start);
-    prevWeek.setUTCDate(prevWeek.getUTCDate() - 7);
-    const { data: prevRows } = await getSupabaseAdmin()
-      .from("league_weeks")
-      .select("league_id, standings")
-      .eq("week_start", prevWeek.toISOString().slice(0, 10));
-    const prevRank = new Map(
-      (prevRows ?? []).map((r) => [r.league_id as string, ((r.standings as { global_rank?: number | null })?.global_rank ?? null)]),
-    );
-    let emailed = 0;
-    for (const c of closed) {
-      try {
-        emailed += await sendLeagueWeeklyResults(c, prevRank.get(c.league.id) ?? null);
-      } catch (err) {
-        console.error(`[league-close] emails for ${c.league.slug}:`, err);
-      }
-    }
-    // Visits rollup and Town of the week. A failure here doesn't undo the race.
+    // Visits rollup and Town of the week, before the emails so they can name
+    // the winner. A failure here doesn't undo the race.
     let towns: TownWeekResult | { error: string };
     try {
-      towns = await closeTownWeek(start);
+      towns = await closeTownWeek(start, ranked);
     } catch (err) {
       console.error("[league-close] town week:", err);
       towns = { error: String(err) };
+    }
+    const townOfWeek = "featured" in towns ? towns.featured : null;
+
+    // Results emails (awaited).
+    let emailed = 0;
+    for (const c of closed) {
+      try {
+        emailed += await sendLeagueWeeklyResults(c, townOfWeek);
+      } catch (err) {
+        console.error(`[league-close] emails for ${c.league.slug}:`, err);
+      }
     }
 
     return NextResponse.json({

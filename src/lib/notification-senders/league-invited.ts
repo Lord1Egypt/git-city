@@ -26,7 +26,7 @@ export function renderLeagueInvitedEmail(d: LeagueInvitedEmailData, links: Email
   const { town, subject, preheader } = leagueInvitedHeader(d);
   const joinUrl = trackedUrl(d.link, "league_invited");
   const intro = `Your building is already on ${town}'s skyline, marked as invited until you join.`;
-  const race = `Members race every week. Your GitHub contributions score points, and whoever tops the week wears the crown for ${CROWN_DAYS} days.`;
+  const race = `Every week, whoever pushes the most GitHub contributions wears the crown for ${CROWN_DAYS} days, and the town that codes the most takes the monument in the center of Git City.`;
   const reason = `You're getting this because @${d.inviterLogin} invited you to ${town} on Git City.`;
 
   const html = renderLayout({

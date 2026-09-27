@@ -1,6 +1,6 @@
 import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { isoDay } from "./scoring";
+import { isoDay, rankTowns, STANDINGS_VERSION } from "./scoring";
 import { loadStandings, type LeagueWeekStandings } from "./standings";
 
 export const WINNER_XP = 100;
@@ -13,8 +13,16 @@ export interface ClosedLeague {
   league: { id: string; slug: string; name: string; kind: string };
   week: LeagueWeekStandings;
   winnerId: number | null;
-  globalRank: number | null;
-  globalTotal: number;
+  /** Place among ranked towns (3+ members coding). Null when unranked. */
+  townRank: number | null;
+  townTotal: number;
+}
+
+export interface CloseWeekResult {
+  closed: ClosedLeague[];
+  errors: number;
+  /** Ranked town ids, best first: the first is the Town of the week. */
+  ranked: string[];
 }
 
 /**
@@ -23,26 +31,21 @@ export interface ClosedLeague {
  * run twice: league_weeks PK, the crown unique key and both claim keys make
  * every step idempotent.
  */
-export async function closeWeek(start: Date): Promise<{ closed: ClosedLeague[]; errors: number }> {
+export async function closeWeek(start: Date): Promise<CloseWeekResult> {
   const sb = getSupabaseAdmin();
   const week = isoDay(start);
-  const { data: leagues, error } = await sb.from("leagues").select("id, slug, name, kind, scoring_mode");
+  const { data: leagues, error } = await sb.from("leagues").select("id, slug, name, kind, hidden, created_at");
   if (error) throw error;
 
-  const standings = await loadStandings(
-    (leagues ?? []).map((l) => ({ id: l.id as string, scoring_mode: l.scoring_mode })),
-    start,
-    sb,
-  );
+  const standings = await loadStandings((leagues ?? []).map((l) => ({ id: l.id as string })), start, sb);
 
-  // Global company ranking (XP mode average, 3+ active).
-  const global = (leagues ?? [])
-    .filter((l) => l.kind === "company")
-    .map((l) => ({ id: l.id as string, score: standings.get(l.id)?.globalScore ?? null }))
-    .filter((g): g is { id: string; score: number } => g.score !== null)
-    .sort((a, b) => b.score - a.score);
-  const globalRank = new Map(global.map((g, i) => [g.id, i + 1]));
-  const top = global[0] ?? null;
+  // Town vs town: visible towns with 3+ members coding.
+  const ranked = rankTowns(
+    (leagues ?? [])
+      .filter((l) => !l.hidden)
+      .map((l) => ({ id: l.id as string, created_at: l.created_at as string | null, score: standings.get(l.id)?.town ?? null })),
+  );
+  const townRank = new Map(ranked.map((t) => [t.id, t.rank]));
 
   const closed: ClosedLeague[] = [];
   let errors = 0;
@@ -61,11 +64,10 @@ export async function closeWeek(start: Date): Promise<{ closed: ClosedLeague[]; 
           week_start: week,
           winner_id: winnerId,
           standings: {
-            mode: s.mode,
+            version: STANDINGS_VERSION,
             standings: s.standings,
-            global_score: s.globalScore,
-            global_rank: globalRank.get(league.id) ?? null,
-            ...(top && top.id === league.id ? { global_winner: { score: top.score, rank: 1 } } : {}),
+            town: s.town,
+            town_rank: townRank.get(league.id) ?? null,
           },
         },
         { onConflict: "league_id,week_start", ignoreDuplicates: true },
@@ -110,8 +112,8 @@ export async function closeWeek(start: Date): Promise<{ closed: ClosedLeague[]; 
         league: { id: league.id, slug: league.slug, name: league.name, kind: league.kind },
         week: s,
         winnerId: frozenWinner,
-        globalRank: globalRank.get(league.id) ?? null,
-        globalTotal: global.length,
+        townRank: townRank.get(league.id) ?? null,
+        townTotal: ranked.length,
       });
     } catch (err) {
       errors++;
@@ -119,5 +121,5 @@ export async function closeWeek(start: Date): Promise<{ closed: ClosedLeague[]; 
     }
   }
 
-  return { closed, errors };
+  return { closed, errors, ranked: ranked.map((t) => t.id) };
 }

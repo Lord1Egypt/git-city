@@ -14,7 +14,7 @@ import {
   type DeveloperRecord,
   type LayoutNorms,
 } from "@/lib/github";
-import type { LeaguePageData } from "@/lib/leagues/queries";
+import type { LeaguePageData, TownRankingRow } from "@/lib/leagues/queries";
 import type { LeagueCity } from "@/lib/league-city/service";
 import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
 import LeagueTitle from "@/components/league/hud/LeagueTitle";
@@ -51,6 +51,7 @@ import { MobileActionBar, MobileTownHeader } from "@/components/league/hud/Mobil
 import IntroOverlay, { OUTRO_MS } from "@/components/league/hud/IntroOverlay";
 import { carIntro, type IntroPose } from "@/lib/league-city/intro";
 import { townDisplayName } from "@/lib/towns/names";
+import { ordinal, type TownPlace } from "@/lib/towns/place";
 import { formatLap } from "@/lib/league-city/race/laps";
 import TransitScreen from "@/components/league/hud/TransitScreen";
 import TownQuest from "@/components/league/hud/TownQuest";
@@ -90,7 +91,6 @@ export default function LeagueClient({
   city,
   cityDevs,
   cityNorms,
-  topCompanyLastWeek,
   invite,
   inviteToken,
   refLogin,
@@ -102,7 +102,8 @@ export default function LeagueClient({
   pendingRequests,
   groupLink,
   badges,
-  weeklyRank = null,
+  place = null,
+  ranking = [],
   raceRecord = null,
   coverDue = false,
 }: {
@@ -114,7 +115,6 @@ export default function LeagueClient({
   city: LeagueCity;
   cityDevs: Record<string, unknown>[];
   cityNorms: LayoutNorms;
-  topCompanyLastWeek: boolean;
   /** An invited member's login from ?invite=, checked on the server. */
   invite: string | null;
   /** ?t= when it matches the league's invite token. */
@@ -133,8 +133,10 @@ export default function LeagueClient({
   /** Members: the link for a group chat. */
   groupLink: string | null;
   badges: TownBadges;
-  /** Company towns: this week's place in the global company ranking (null when unranked). */
-  weeklyRank?: number | null;
+  /** This week's place among towns (null for hidden towns or a failed read). */
+  place?: TownPlace | null;
+  /** This week's ranked towns, best first (empty for hidden towns or a failed read). */
+  ranking?: TownRankingRow[];
 }) {
   const { league, members, viewer } = data;
   const isMember = viewer?.status === "active";
@@ -867,7 +869,7 @@ export default function LeagueClient({
       {!editing && !driving && !intro && outro === null && (
         <>
           <div className="pointer-events-none fixed left-4 top-4 z-30 flex flex-col gap-3 max-sm:hidden" style={hudEnter ? { animation: "fade-in 0.45s ease-out both" } : undefined}>
-            <LeagueTitle data={data} topCompanyLastWeek={topCompanyLastWeek} badges={badges} pendingRequests={pendingRequests} />
+            <LeagueTitle data={data} badges={badges} pendingRequests={pendingRequests} />
             {questCard}
           </div>
           {/* Phones: one compact header row. */}
@@ -880,6 +882,7 @@ export default function LeagueClient({
               badges={badges}
               logoUrl={identity.logoUrl}
               pendingRequests={pendingRequests}
+              place={place}
               onRace={() => setPanel("standings")}
             />
             {questCard && !panel && <div className="mt-2">{questCard}</div>}
@@ -895,11 +898,7 @@ export default function LeagueClient({
             className={`pointer-events-none fixed right-4 top-4 z-30 hidden transition-opacity duration-200 sm:block ${focused || panel ? "opacity-0" : ""}`}
             style={hudEnter ? { animation: "fade-in 0.45s ease-out 0.12s both" } : undefined}
           >
-            <RaceWidget
-              data={data}
-              onHallOfFame={() => setPanel("hall")}
-              onStandings={() => setPanel("standings")}
-            />
+            <RaceWidget data={data} ranking={ranking} onOpen={() => setPanel("standings")} />
           </div>
 
           <div
@@ -978,8 +977,8 @@ export default function LeagueClient({
           outro={!intro}
           name={townDisplayName(league.name)}
           race={
-            weeklyRank !== null
-              ? `#${weeklyRank} among companies this week`
+            place?.rank
+              ? `${ordinal(place.rank)} of ${place.total} towns this week`
               : data.week.standings[0]
                 ? `@${data.week.standings[0].login} leads this week`
                 : null
@@ -994,7 +993,7 @@ export default function LeagueClient({
         <ReportPanel slug={league.slug} name={league.name} logoUrl={identity.logoUrl} signedIn={!!viewer} onClose={close} />
       )}
       {panel === "hall" && <HallOfFamePanel data={data} onClose={close} />}
-      {panel === "standings" && <StandingsPanel data={data} onClose={close} />}
+      {panel === "standings" && <StandingsPanel data={data} ranking={ranking} onHallOfFame={() => setPanel("hall")} onClose={close} />}
       {panel === "invite" && isMember && viewer && (
         <InvitePanel
           slug={league.slug}

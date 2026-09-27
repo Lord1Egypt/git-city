@@ -11,7 +11,7 @@ import { normalizeOrgInput } from "@/lib/towns/company-step";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST { org, expect, template?, scoring? }: the Company tab's one button.
+// POST { org, expect, template? }: the Company tab's one button.
 // Builds the org's town (expect "create") or moves the dev in (expect "join").
 // Membership is proven by the read:org sign-in (developer_orgs) or, for orgs
 // that block apps, by the dev's public membership, checked again here.

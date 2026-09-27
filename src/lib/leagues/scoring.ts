@@ -1,43 +1,19 @@
 // ─── League scoring (pure) ──────────────────────────────────
 // The week runs Monday 00:00 UTC → Sunday 23:59:59 UTC. Only active members
-// score. Everything here is pure so it can be unit-tested; standings.ts loads
-// the rows and calls into this module.
+// score. A dev's score is their GitHub contributions, each day capped. A
+// town's score is the average of the members who coded that week. Everything
+// here is pure so it can be unit-tested; standings.ts loads the rows.
 
-export type ScoringMode = "xp" | "contributions";
-
-export const CODE_POINTS_PER_CONTRIBUTION = 5;
-export const CODE_DAILY_CONTRIBUTION_CAP = 20;
-export const GLOBAL_MIN_ACTIVE_MEMBERS = 3;
-
-/**
- * Repeatable XP sources that count toward the weekly race, with a daily cap.
- * Sources listed together share one cap. Anything not listed (github,
- * league_win, achievement, emblem, job_*, referral*, survey, event_*, …) is
- * excluded: one-off grants are too large and would decide a week alone.
- */
-export const SOURCE_DAILY_CAPS: { sources: readonly string[]; cap: number }[] = [
-  { sources: ["checkin"], cap: 10 },
-  { sources: ["dailies"], cap: 25 },
-  { sources: ["kudos_given", "kudos_received"], cap: 15 },
-  { sources: ["visit"], cap: 20 },
-  { sources: ["fly"], cap: 30 },
-  { sources: ["raid_win", "raid_loss", "raid_defend"], cap: 150 },
-  { sources: ["force_push"], cap: 50 },
-  { sources: ["drop_pull"], cap: 25 },
-];
-
-const SOURCE_GROUP = new Map<string, number>();
-SOURCE_DAILY_CAPS.forEach((g, i) => g.sources.forEach((s) => SOURCE_GROUP.set(s, i)));
+/** Stops a commit bot from winning a week alone. */
+export const DAILY_CONTRIBUTION_CAP = 100;
+/** A town needs this many members who coded that week to be ranked. */
+export const TOWN_MIN_CODERS = 3;
+/** league_weeks.standings shape since contributions scoring. Older rows (points) have no version. */
+export const STANDINGS_VERSION = 2;
 
 export interface ContributionDay {
   day: string; // YYYY-MM-DD (UTC)
   contributions: number;
-}
-
-export interface XpRow {
-  source: string;
-  amount: number;
-  created_at: string; // ISO timestamp
 }
 
 // ─── Week boundaries ────────────────────────────────────────
@@ -74,66 +50,85 @@ export function weekDays(start: Date): string[] {
 
 // ─── Scores ─────────────────────────────────────────────────
 
-/** GitHub contributions per day, capped at 20/day, 5 points each. */
-export function codePoints(days: ContributionDay[]): number {
+/** The week's GitHub contributions, each day capped at DAILY_CONTRIBUTION_CAP. */
+export function weekContributions(days: ContributionDay[]): number {
   let total = 0;
+  for (const d of days) total += Math.min(Math.max(0, Math.floor(d.contributions)), DAILY_CONTRIBUTION_CAP);
+  return total;
+}
+
+/** Contributions per day of the week (Mon..Sun), each capped; days without data are 0. */
+export function dayContributions(days: ContributionDay[], week: string[]): number[] {
+  const out = week.map(() => 0);
   for (const d of days) {
-    const c = Math.max(0, Math.floor(d.contributions));
-    total += Math.min(c, CODE_DAILY_CONTRIBUTION_CAP) * CODE_POINTS_PER_CONTRIBUTION;
+    const i = week.indexOf(d.day);
+    if (i >= 0) out[i] = Math.min(Math.max(0, Math.floor(d.contributions)), DAILY_CONTRIBUTION_CAP);
   }
-  return total;
+  return out;
 }
 
-/** Game XP from repeatable sources, each source group capped per UTC day. */
-export function gameXp(rows: XpRow[]): number {
-  const buckets = new Map<string, number>();
-  for (const r of rows) {
-    const group = SOURCE_GROUP.get(r.source);
-    if (group === undefined || r.amount <= 0) continue;
-    const key = `${r.created_at.slice(0, 10)}:${group}`;
-    buckets.set(key, (buckets.get(key) ?? 0) + r.amount);
-  }
-  let total = 0;
-  for (const [key, sum] of buckets) {
-    const group = Number(key.slice(key.indexOf(":") + 1));
-    total += Math.min(sum, SOURCE_DAILY_CAPS[group].cap);
-  }
-  return total;
+/** A town's day graph: each day's total over the members who coded that week. */
+export function townDays(memberDays: number[][]): number[] {
+  const coders = memberDays.filter((d) => d.some((n) => n > 0));
+  const n = Math.max(coders.length, 1);
+  return Array.from({ length: 7 }, (_, i) => Math.round(coders.reduce((a, d) => a + (d[i] ?? 0), 0) / n));
 }
 
-export interface MemberScore {
-  codePoints: number;
-  gameXp: number;
-  total: number;
-}
-
-export function memberScore(mode: ScoringMode, days: ContributionDay[], xpRows: XpRow[]): MemberScore {
-  const cp = codePoints(days);
-  const xp = mode === "xp" ? gameXp(xpRows) : 0;
-  return { codePoints: cp, gameXp: xp, total: cp + xp };
+export interface TownScore {
+  /** Average contributions of the members who coded, rounded. */
+  perDev: number;
+  /** Members with 1+ contribution this week. */
+  coding: number;
 }
 
 /**
- * Global company score: average XP-mode total per active member, so size
- * doesn't win by itself. Null when the league has fewer than 3 active members.
+ * A town's week: the average of its members who coded, so inviting someone
+ * never lowers it and size doesn't win by itself. Null under TOWN_MIN_CODERS.
  */
-export function globalScore(memberTotals: number[]): number | null {
-  if (memberTotals.length < GLOBAL_MIN_ACTIVE_MEMBERS) return null;
-  const sum = memberTotals.reduce((a, b) => a + b, 0);
-  return Math.round(sum / memberTotals.length);
+export function townScore(memberTotals: number[]): TownScore | null {
+  const coders = memberTotals.filter((t) => t > 0);
+  if (coders.length < TOWN_MIN_CODERS) return null;
+  const sum = coders.reduce((a, b) => a + b, 0);
+  return { perDev: Math.round(sum / coders.length), coding: coders.length };
+}
+
+export interface RankableTown {
+  id: string;
+  created_at: string | null;
+  score: TownScore | null;
+}
+
+/**
+ * Ranked towns only (null scores dropped), best first. Ties: more members
+ * coding, then the older town, then id.
+ */
+export function rankTowns<T extends RankableTown>(towns: T[]): (T & { score: TownScore; rank: number })[] {
+  const created = (t: T) => (t.created_at ? Date.parse(t.created_at) : Number.MAX_SAFE_INTEGER);
+  return towns
+    .filter((t): t is T & { score: TownScore } => t.score !== null)
+    .sort(
+      (a, b) =>
+        b.score.perDev - a.score.perDev ||
+        b.score.coding - a.score.coding ||
+        created(a) - created(b) ||
+        a.id.localeCompare(b.id),
+    )
+    .map((t, i) => ({ ...t, rank: i + 1 }));
 }
 
 // ─── Standings ──────────────────────────────────────────────
 
-export interface StandingInput extends MemberScore {
+export interface StandingInput {
   developer_id: number;
+  /** Contributions this week (daily cap applied). */
+  total: number;
   joined_at: string | null;
 }
 
 export type Standing<T extends StandingInput = StandingInput> = T & { rank: number };
 
 /**
- * Sort by total desc. Ties: more code points first, then earlier joined_at.
+ * Sort by total desc. Ties: earlier joined_at, then developer id.
  * Ranks are 1-based and unique (the tie-break always resolves).
  */
 export function rankStandings<T extends StandingInput>(entries: T[]): Standing<T>[] {
@@ -142,7 +137,6 @@ export function rankStandings<T extends StandingInput>(entries: T[]): Standing<T
     .sort(
       (a, b) =>
         b.total - a.total ||
-        b.codePoints - a.codePoints ||
         joined(a) - joined(b) ||
         a.developer_id - b.developer_id,
     )

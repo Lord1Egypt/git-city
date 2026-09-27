@@ -85,7 +85,6 @@ export default function SettingsClient({
           {league.kind === "custom" && <JoinModeSection api={api} mode={league.join_mode} onSaved={refresh} />}
           <IdentitySection api={api} identity={identity} onSaved={refresh} />
           {inviteLink && <InviteLinkSection api={api} link={inviteLink} onRotated={refresh} />}
-          <ScoringSection api={api} mode={league.scoring_mode} onSaved={refresh} />
           <MembersSection league={league} members={members} viewerLogin={viewerLogin} onChanged={refresh} />
           <TransferSection api={api} league={league} members={members} viewerLogin={viewerLogin} />
           {league.kind === "custom" && <DeleteSection api={api} name={league.name} />}
@@ -489,47 +488,6 @@ function RequestsSection({
         <ErrorLine error={error} />
       </Section>
     </div>
-  );
-}
-
-// ─── Scoring ─────────────────────────────────────────────────
-
-function ScoringSection({ api, mode, onSaved }: { api: string; mode: "xp" | "contributions"; onSaved: () => void }) {
-  const [saving, setSaving] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function pick(id: "xp" | "contributions") {
-    setSaving(id);
-    setError(null);
-    const r = await send(api, "PATCH", { scoring_mode: id });
-    setSaving(null);
-    if (!r.ok) return setError(r.error);
-    onSaved();
-  }
-
-  return (
-    <Section title="Scoring" hint="How the weekly race is scored. Takes effect right away.">
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["xp", "Code + game XP"],
-            ["contributions", "Code only"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            aria-pressed={mode === id}
-            disabled={saving !== null || mode === id}
-            onClick={() => pick(id)}
-            className={`btn-press min-w-[120px] border-2 px-3 py-2 text-[10px] ${mode === id ? "border-lime text-lime" : "border-border text-muted hover:text-cream"}`}
-          >
-            {saving === id ? <Pending label="Saving" /> : label}
-          </button>
-        ))}
-      </div>
-      <ErrorLine error={error} />
-    </Section>
   );
 }
 

@@ -3,89 +3,88 @@ import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { CITY_DEV_COLUMNS, loadCityExtras, mergeCityExtras } from "@/lib/city-extras";
 import type { LayoutNorms } from "@/lib/github";
-import { isoDay, weekStart, type ScoringMode } from "./scoring";
+import { isoDay, rankTowns, STANDINGS_VERSION, weekStart } from "./scoring";
 import { leagueTag } from "./cache";
 import { loadStandings, loadLeagueStandings, type LeagueWeekStandings } from "./standings";
 import type { League, MemberStatus, Viewer } from "./service";
+import type { TownPlace } from "@/lib/towns/place";
 
-// ─── Global company ranking ─────────────────────────────────
+// ─── Town ranking ───────────────────────────────────────────
 
-export interface GlobalRankingRow {
-  rank: number | null; // null = unranked (under 3 active members)
+export interface TownRankingRow {
+  rank: number;
   league_id: string;
   slug: string;
   name: string;
+  kind: string;
   github_org: string | null;
-  active_members: number;
-  score: number | null;
+  per_dev: number;
+  coding: number;
+  /** Per dev by day, Mon..Sun. */
+  days: number[];
 }
 
-export interface GlobalRanking {
+export interface TownRanking {
   week_start: string;
-  rows: GlobalRankingRow[];
-  last_week_winner: { slug: string; name: string; score: number } | null;
+  /** Ranked towns only (3+ members coding), best first. */
+  rows: TownRankingRow[];
 }
 
-let rankingCache: { at: number; value: GlobalRanking } | null = null;
+let rankingCache: { at: number; value: TownRanking } | null = null;
 const RANKING_TTL_MS = 5 * 60_000;
 
-export async function getGlobalRanking(): Promise<GlobalRanking> {
+/** This week's town-vs-town ranking: every visible town, average per member who coded. */
+export async function getTownRanking(): Promise<TownRanking> {
   if (rankingCache && Date.now() - rankingCache.at < RANKING_TTL_MS) return rankingCache.value;
 
   const sb = getSupabaseAdmin();
   const start = weekStart(new Date());
   const { data: leagues } = await sb
     .from("leagues")
-    .select("id, slug, name, github_org, scoring_mode")
-    .eq("kind", "company")
+    .select("id, slug, name, kind, github_org, created_at")
     .eq("hidden", false);
 
-  const standings = await loadStandings(
-    // Global always scores in XP mode.
-    (leagues ?? []).map((l) => ({ id: l.id as string, scoring_mode: "xp" as const })),
-    start,
-    sb,
-  );
+  const standings = await loadStandings((leagues ?? []).map((l) => ({ id: l.id as string })), start, sb);
+  const rows: TownRankingRow[] = rankTowns(
+    (leagues ?? []).map((l) => ({
+      id: l.id as string,
+      created_at: l.created_at as string | null,
+      score: standings.get(l.id)?.town ?? null,
+      slug: l.slug as string,
+      name: l.name as string,
+      kind: l.kind as string,
+      github_org: l.github_org as string | null,
+      days: standings.get(l.id)?.days ?? [0, 0, 0, 0, 0, 0, 0],
+    })),
+  ).map((t) => ({
+    rank: t.rank,
+    league_id: t.id,
+    slug: t.slug,
+    name: t.name,
+    kind: t.kind,
+    github_org: t.github_org,
+    per_dev: t.score.perDev,
+    coding: t.score.coding,
+    days: t.days,
+  }));
 
-  const rows: GlobalRankingRow[] = (leagues ?? [])
-    .map((l) => {
-      const s = standings.get(l.id);
-      return {
-        rank: null,
-        league_id: l.id,
-        slug: l.slug,
-        name: l.name,
-        github_org: l.github_org,
-        active_members: s?.standings.length ?? 0,
-        score: s?.globalScore ?? null,
-      };
-    })
-    .filter((r) => r.active_members > 0)
-    .sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || b.active_members - a.active_members);
-  let n = 0;
-  for (const r of rows) if (r.score !== null) r.rank = ++n;
-
-  const lastWeek = new Date(start);
-  lastWeek.setUTCDate(lastWeek.getUTCDate() - 7);
-  const lastWeekWinner = await getGlobalWinner(isoDay(lastWeek));
-
-  const value = { week_start: isoDay(start), rows, last_week_winner: lastWeekWinner };
+  const value = { week_start: isoDay(start), rows };
   rankingCache = { at: Date.now(), value };
   return value;
 }
 
-/** Top company of a closed week, stored on its league_weeks row by the close cron. */
-export async function getGlobalWinner(week: string): Promise<GlobalRanking["last_week_winner"]> {
-  const { data } = await getSupabaseAdmin()
-    .from("league_weeks")
-    .select("standings, leagues!inner(slug, name)")
-    .eq("week_start", week)
-    .not("standings->global_winner", "is", null)
-    .limit(1)
-    .returns<{ standings: { global_winner?: { score: number } }; leagues: { slug: string; name: string } }[]>();
-  const row = data?.[0];
-  if (!row?.standings.global_winner) return null;
-  return { slug: row.leagues.slug, name: row.leagues.name, score: row.standings.global_winner.score };
+/** Where a town stands this week, for its page. `coding` counts its members coding when unranked. */
+export function townPlace(ranking: TownRanking, leagueId: string, coding: number): TownPlace {
+  const i = ranking.rows.findIndex((r) => r.league_id === leagueId);
+  const total = ranking.rows.length;
+  if (i < 0) return { rank: null, total, coding, gap: null, above: null };
+  const me = ranking.rows[i];
+  if (i === 0) {
+    const next = ranking.rows[1];
+    return { rank: 1, total, coding: me.coding, gap: next ? me.per_dev - next.per_dev : null, above: null };
+  }
+  const up = ranking.rows[i - 1];
+  return { rank: me.rank, total, coding: me.coding, gap: up.per_dev - me.per_dev, above: up.name };
 }
 
 // ─── League page ────────────────────────────────────────────
@@ -104,8 +103,10 @@ export interface LeagueMemberRow {
 
 export interface HallOfFameWeek {
   week_start: string;
-  winner: { login: string; avatar_url: string | null; score: number; ex_member: boolean } | null;
-  global_winner: boolean;
+  /** score is null for weeks scored under the old points rules. */
+  winner: { login: string; avatar_url: string | null; score: number | null; ex_member: boolean } | null;
+  /** The town finished 1st among towns that week, so it took the monument. */
+  monument: boolean;
 }
 
 export interface LeaguePageData {
@@ -167,7 +168,8 @@ interface FrozenWeek {
   winner_id: number | null;
   /** standings[0] of the frozen week: the leader, who is the winner when there is one. */
   top: { developer_id: number; login: string; avatar_url: string | null; total: number } | null;
-  global_winner: unknown;
+  version: number | null;
+  town_rank: number | null;
 }
 
 /**
@@ -175,15 +177,15 @@ interface FrozenWeek {
  * 52 closed weeks (only each week's leader, not the whole frozen table).
  * Cached 60s per league; joins, leaves and city writes expire it.
  */
-function getLeagueBoard(leagueId: string, scoringMode: ScoringMode) {
+function getLeagueBoard(leagueId: string) {
   return unstable_cache(
     async () => {
       const sb = getSupabaseAdmin();
       const [week, weeksRes] = await Promise.all([
-        loadLeagueStandings({ id: leagueId, scoring_mode: scoringMode }, weekStart(new Date()), sb),
+        loadLeagueStandings({ id: leagueId }, weekStart(new Date()), sb),
         sb
           .from("league_weeks")
-          .select("week_start, winner_id, top:standings->standings->0, global_winner:standings->global_winner")
+          .select("week_start, winner_id, top:standings->standings->0, version:standings->version, town_rank:standings->town_rank")
           .eq("league_id", leagueId)
           .order("week_start", { ascending: false })
           .limit(52)
@@ -191,7 +193,7 @@ function getLeagueBoard(leagueId: string, scoringMode: ScoringMode) {
       ]);
       return { week, weeks: weeksRes.data ?? [] };
     },
-    ["league-board", leagueId, scoringMode],
+    ["league-board-v4", leagueId],
     { revalidate: 60, tags: [leagueTag(leagueId)] },
   )();
 }
@@ -199,7 +201,7 @@ function getLeagueBoard(leagueId: string, scoringMode: ScoringMode) {
 export async function getLeaguePageData(league: League, viewer: Viewer | null): Promise<LeaguePageData> {
   const [members, { week, weeks }] = await Promise.all([
     getLeagueMembers(league.id),
-    getLeagueBoard(league.id, league.scoring_mode),
+    getLeagueBoard(league.id),
   ]);
 
   const byId = new Map(members.map((m) => [m.developer_id, m]));
@@ -212,11 +214,11 @@ export async function getLeaguePageData(league: League, viewer: Viewer | null): 
         ? {
             login: member?.login ?? top.login,
             avatar_url: member?.avatar_url ?? top.avatar_url,
-            score: top.total,
+            score: w.version === STANDINGS_VERSION ? top.total : null,
             ex_member: member?.status !== "active",
           }
         : null,
-      global_winner: !!w.global_winner,
+      monument: w.town_rank === 1,
     };
   });
 

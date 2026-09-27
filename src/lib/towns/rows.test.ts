@@ -45,7 +45,7 @@ describe("trending", () => {
         town("up3", { visitors_7d: 6, visitors_prev: 3 }),
         town("up10", { visitors_7d: 12, visitors_prev: 2 }),
       ],
-      { now, featuredId: null, companies: [] },
+      { now, featuredId: null, ranked: [] },
     );
     expect(rows.trending.map((c) => c.slug)).toEqual(["up10", "up3"]);
   });
@@ -60,41 +60,41 @@ describe("new towns", () => {
         town("empty", { created_at: "2026-09-20T00:00:00Z", buildings: 2 }),
         town("fresh", { created_at: "2026-09-24T00:00:00Z", buildings: 3 }),
       ],
-      { now, featuredId: null, companies: [] },
+      { now, featuredId: null, ranked: [] },
     );
     expect(rows.new.map((c) => c.slug)).toEqual(["fresh", "edge"]);
   });
 });
 
-describe("updated and companies", () => {
-  it("updated needs 10+ ops; companies keep ranking order, companies only", () => {
+describe("updated and this week", () => {
+  it("updated needs 10+ ops; this week keeps the ranking order, every kind", () => {
     const rows = selectRows(
       [town("busy", { ops_7d: 30 }), town("quiet", { ops_7d: 9 }), town("acme", { kind: "company" }), town("beta", { kind: "company" })],
-      { now, featuredId: null, companies: ["beta", "acme", "busy"] },
+      { now, featuredId: null, ranked: ["beta", "acme", "busy"] },
     );
     expect(rows.updated.map((c) => c.slug)).toEqual(["busy"]);
-    expect(rows.companies.map((c) => c.slug)).toEqual(["beta", "acme"]);
+    expect(rows.week.map((c) => c.slug)).toEqual(["beta", "acme", "busy"]);
   });
 });
 
 describe("dedupe", () => {
   it("puts a town in at most 2 rows, featured included", () => {
     const hot = town("hot", { visitors_7d: 20, ops_7d: 50, created_at: "2026-09-24T00:00:00Z", buildings: 99 });
-    const rows = selectRows([hot], { now, featuredId: null, companies: [] });
+    const rows = selectRows([hot], { now, featuredId: null, ranked: [] });
     const seen = Object.values(rows).filter((r) => r.some((c) => c.slug === "hot")).length;
     expect(seen).toBe(2);
     expect(rows.trending).toHaveLength(1);
     expect(rows.new).toHaveLength(1);
     expect(rows.biggest).toHaveLength(0);
 
-    const featured = selectRows([hot], { now, featuredId: "hot", companies: [] });
+    const featured = selectRows([hot], { now, featuredId: "hot", ranked: [] });
     expect(Object.values(featured).filter((r) => r.length > 0)).toHaveLength(1);
     expect(featured.trending).toHaveLength(1);
   });
 
   it("caps rows at 20", () => {
     const many = Array.from({ length: 30 }, (_, i) => town(`t${i}`, { buildings: 100 - i }));
-    expect(selectRows(many, { now, featuredId: null, companies: [] }).biggest).toHaveLength(20);
+    expect(selectRows(many, { now, featuredId: null, ranked: [] }).biggest).toHaveLength(20);
   });
 });
 
