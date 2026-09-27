@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import PixelSpinner from "@/components/leagues/PixelSpinner";
@@ -58,6 +58,12 @@ import TownQuest from "@/components/league/hud/TownQuest";
 import { freshQuest, nextStep, parseQuest, questKey, questSteps, type QuestState, type QuestStep } from "@/lib/towns/quest";
 import { chime } from "@/lib/sfx/chime";
 import { useDriveWatch } from "@/components/league/drive/useDriveWatch";
+import { RIVALRY } from "@/lib/towns/rivalry";
+import MapNavControls from "@/components/MapNavControls";
+import RadarMap from "@/components/RadarMap";
+import { createCameraStore, mapNav, type MapCameraStore } from "@/lib/map-nav";
+import { smashStoreFor, type DamageEntry } from "@/lib/league-city/smash";
+import { applyRoomDamage } from "@/lib/league-city/smash-net";
 import { useTownBots } from "@/components/league/drive/useTownBots";
 import {
   HOTBAR,
@@ -81,6 +87,29 @@ const LeagueScene = dynamic(() => import("@/components/league/LeagueScene"), {
 const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"), { ssr: false });
 
 const MUTE_KEY = "gc:drive-muted";
+const LIME = "#c8e64a";
+/** The minimap, compass and zoom buttons: ready, off until towns grow past one screen. */
+const SHOW_MAP_NAV = false;
+
+/** The main city's minimap for the town: its buildings, the camera's view, click to fly there. */
+function TownRadar({ buildings, camera }: { buildings: CityBuilding[]; camera: MapCameraStore }) {
+  const cam = useSyncExternalStore(camera.subscribe, camera.get, camera.get);
+  return (
+    <RadarMap
+      buildings={buildings}
+      visible
+      flyMode={false}
+      playerX={0}
+      playerZ={0}
+      cameraX={cam.x}
+      cameraZ={cam.z}
+      cameraTargetX={cam.tx}
+      cameraTargetZ={cam.tz}
+      onWorldClick={(x, z) => mapNav.send({ type: "flyTo", x, z })}
+    />
+  );
+}
+
 /** While driving, check for city changes (an admin's Done) this often. */
 const DRIVE_POLL_MS = 5000;
 
@@ -140,6 +169,25 @@ export default function LeagueClient({
 }) {
   const { league, members, viewer } = data;
   const isMember = viewer?.status === "active";
+  // Where the explore camera looks, for the compass (set by LeagueScene's camera).
+  const [navCamera] = useState(() => createCameraStore());
+  // Rivalry towns: the other side drives through the buildings and knocks
+  // their floors out (lib/league-city/smash). Everyone sees the damage.
+  const smashColor = RIVALRY.find((r) => r.slug === league.slug)?.color ?? null;
+  const rivalSlug = smashColor ? (RIVALRY.find((r) => r.slug !== league.slug)?.slug ?? null) : null;
+  // The other side's logo, for its flag planted in our rubble.
+  const [rivalLogoUrl, setRivalLogoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!rivalSlug) return;
+    let live = true;
+    fetch(`/api/leagues/${rivalSlug}/city`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c: { identity?: { logoUrl?: string | null } } | null) => live && setRivalLogoUrl(c?.identity?.logoUrl ?? null))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [rivalSlug]);
   const showJoinCta = !isMember && (!!invite || !!inviteToken || viewer?.status === "invited");
   const joinKind = joinAction === "join" || joinAction === "ask" || joinAction === "pending" ? joinAction : null;
   const [panel, setPanel] = useState<PanelId>(showJoinCta || (startJoin && joinKind) ? "join" : null);
@@ -305,6 +353,25 @@ export default function LeagueClient({
       store.dispatch({ type: "resync", city });
   }, [city, store]);
   const buildings = useMemo(() => leagueBuildings(sceneObjects, byDevId), [sceneObjects, byDevId]);
+  const smashStore = useMemo(() => (smashColor ? smashStoreFor(buildings) : null), [smashColor, buildings]);
+  const smashTown = useMemo(
+    () => (smashStore && smashColor ? { store: smashStore, color: smashColor, rivalLogoUrl } : null),
+    [smashStore, smashColor, rivalLogoUrl],
+  );
+  // The saved damage, once per store (the drive room sends changes from then on).
+  useEffect(() => {
+    if (!smashStore) return;
+    let live = true;
+    fetch(`/api/towns/${league.slug}/smash`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { damage?: DamageEntry[] } | null) => {
+        if (live && body?.damage) smashStore.load(body.damage, Date.now());
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [smashStore, league.slug]);
   // Where each prop's body is, for picking it on screen in the editor.
   useEffect(() => {
     const mid: Partial<Record<string, number>> = {
@@ -452,7 +519,7 @@ export default function LeagueClient({
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
-  const watch = useDriveWatch(league.slug, mode === "view");
+  const watch = useDriveWatch(league.slug, mode === "view", smashStore ? (msg) => applyRoomDamage(smashStore, msg, Date.now()) : undefined);
   // Bots fill the streets when few people are driving (lib/league-city/drive/bots).
   const bots = useTownBots(league.slug, sceneObjects, watch.drivers.length, mode === "view");
   const watchedCars = useMemo(
@@ -753,8 +820,10 @@ export default function LeagueClient({
         editApiRef={cameraApi}
         editPickables={pickables}
         drive={driveProps}
+        smash={smashTown}
         watching={watchedCars}
         coverRef={coverApi}
+        navCamera={navCamera}
       >
         {mode === "edit" && (
           <EditorOverlay
@@ -868,6 +937,28 @@ export default function LeagueClient({
       {/* HUD: the wrappers ignore the pointer so the city stays draggable. */}
       {!editing && !driving && !intro && outro === null && (
         <>
+          {/* The main city's minimap (desktop), compass and zoom buttons: hidden
+              while towns are small enough to see at once (SHOW_MAP_NAV). */}
+          {SHOW_MAP_NAV && (
+            <>
+              <div className="hidden sm:block">
+                <TownRadar buildings={buildings} camera={navCamera} />
+              </div>
+              <MapNavControls camera={navCamera} accent={smashColor ?? LIME} showPlaces={false} />
+            </>
+          )}
+          {/* The main city's controls hints. */}
+          <div className="pointer-events-none fixed bottom-20 left-4 z-30 hidden font-pixel text-[9px] uppercase leading-loose text-muted sm:block">
+            <div><span className="text-cream">Drag</span> move</div>
+            <div><span className="text-cream">Scroll</span> zoom</div>
+            <div><span className="text-cream">Right-drag</span> rotate</div>
+            <div><span className="text-cream">Double-click</span> zoom in</div>
+            {focused ? (
+              <div><span className="text-lime">ESC</span> close</div>
+            ) : (
+              <div><span className="text-cream">Click</span> building</div>
+            )}
+          </div>
           <div className="pointer-events-none fixed left-4 top-4 z-30 flex flex-col gap-3 max-sm:hidden" style={hudEnter ? { animation: "fade-in 0.45s ease-out both" } : undefined}>
             <LeagueTitle data={data} badges={badges} logoUrl={identity.logoUrl} place={place} pendingRequests={pendingRequests} />
             {questCard}
@@ -1020,7 +1111,6 @@ export default function LeagueClient({
           key={focused.loginLower}
           building={focused}
           data={data}
-          driving={driving}
           onClose={() => setFocused(null)}
         />
       )}

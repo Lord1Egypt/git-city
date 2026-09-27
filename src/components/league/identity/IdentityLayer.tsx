@@ -28,7 +28,7 @@ export function hillSignSpot(h: number, side: SignSide): { at: [number, number];
   return { at: [0, w.minZ - 20], facing: 0 };
 }
 
-function useLogo(url: string | null): LogoImage | null {
+export function useLogo(url: string | null): LogoImage | null {
   const [logo, setLogo] = useState<{ url: string; img: LogoImage } | null>(null);
   useEffect(() => {
     if (!url) return;
@@ -44,7 +44,7 @@ function useLogo(url: string | null): LogoImage | null {
   return url && logo?.url === url ? logo.img : null;
 }
 
-function useFontReady(): boolean {
+export function useFontReady(): boolean {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let live = true;

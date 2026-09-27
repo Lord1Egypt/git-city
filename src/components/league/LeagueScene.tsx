@@ -18,7 +18,10 @@ import type { CityIdentity, CityObject } from "@/lib/league-city/types";
 import { carIntro } from "@/lib/league-city/intro";
 import { approachRoads } from "@/lib/league-city/starter";
 import { APPROACH_LOTS } from "@/lib/league-city/identity-geometry";
+import type { SmashStore } from "@/lib/league-city/smash";
+import { mapNav, type MapCameraStore } from "@/lib/map-nav";
 import IdentityLayer from "./identity/IdentityLayer";
+import RubbleFlags from "./RubbleFlags";
 import TownIntro, { type IntroHandoff } from "./identity/TownIntro";
 import LeagueToys from "./LeagueToys";
 import LeagueRoads from "./LeagueRoads";
@@ -151,6 +154,9 @@ function cameraFrame(h: number, aspect = 1.6, zoom = 1, tallest = 0) {
 
 const _fromPos = new THREE.Vector3();
 const _fromLook = new THREE.Vector3();
+const _navSph = new THREE.Spherical();
+/** The main city's explore camera tilt (CityCanvas MAX_TILT): close to the horizon when close up. */
+const MAX_TILT = Math.PI / 2.1;
 
 // Frames the terrain, and flies to a selected building like the home city
 // (camera outside the building, looking at its top), then back on close.
@@ -161,8 +167,11 @@ function LeagueCamera({
   driving = false,
   zoom = 1,
   tallest = 0,
+  nav = null,
 }: {
   h: number;
+  /** The explore controls (the main city's, lib/map-nav): double-click and +/- zoom, the compass. Off in Discover's hero. */
+  nav?: MapCameraStore | null;
   focus: CityBuilding | null;
   spin?: boolean;
   /** The drive camera owns the view; on exit this eases back to the orbit. */
@@ -178,6 +187,8 @@ function LeagueCamera({
   const [rotate, setRotate] = useState(true);
   const fly = useRef({ t: 1, toPos: new THREE.Vector3(), toLook: new THREE.Vector3() });
   const framed = useRef(false);
+  // Once the viewer takes the camera, the town never turns on its own again (as the main city).
+  const userMoved = useRef(false);
 
   // First frame: jump. Later (terrain grew, screen turned): fly.
   const flyTo = (pos: THREE.Vector3, look: THREE.Vector3) => {
@@ -199,8 +210,10 @@ function LeagueCamera({
 
   useEffect(() => {
     if (!focus) {
-      flyTo(frame.position, frame.target);
-      setRotate(true);
+      if (!userMoved.current) {
+        flyTo(frame.position, frame.target);
+        setRotate(true);
+      }
       return;
     }
     setRotate(false);
@@ -243,6 +256,101 @@ function LeagueCamera({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driving]);
 
+  // Google Maps style zoom, as the main city (CityCanvas): double-click zooms
+  // toward the ground under the cursor, + and - and the zoom buttons toward
+  // the middle, the compass turns north back up. Eased on a sphere.
+  const nav3 = useRef<{ t: number; dur: number; fromTarget: THREE.Vector3; toTarget: THREE.Vector3; fromR: number; toR: number; fromTheta: number; toTheta: number; phi: number } | null>(null);
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    if (!nav) return;
+    const el = gl.domElement;
+    const ray = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const sph = new THREE.Spherical();
+    const start = (toTarget: THREE.Vector3, toR: number | null, toTheta: number | null) => {
+      const c = controls.current;
+      if (!c || !c.enabled) return;
+      userMoved.current = true;
+      setRotate(false);
+      fly.current.t = 1;
+      const from = c.target.clone();
+      sph.setFromVector3(camera.position.clone().sub(from));
+      let dTheta = (toTheta ?? sph.theta) - sph.theta;
+      dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta));
+      nav3.current = {
+        t: 0,
+        dur: 0.45,
+        fromTarget: from,
+        toTarget,
+        fromR: sph.radius,
+        toR: Math.min(c.maxDistance, Math.max(c.minDistance, toR ?? sph.radius)),
+        fromTheta: sph.theta,
+        toTheta: sph.theta + dTheta,
+        phi: sph.phi,
+      };
+    };
+    const zoomToward = (point: THREE.Vector3 | null, factor: number) => {
+      const c = controls.current;
+      if (!c) return;
+      const toTarget = point ? c.target.clone().lerp(point, 1 - factor) : c.target.clone();
+      start(toTarget, camera.position.distanceTo(c.target) * factor, null);
+    };
+    const onDbl = (e: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      zoomToward(ray.ray.intersectPlane(ground, hit) ? hit : null, 0.5);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "+" || e.key === "=") zoomToward(null, 0.6);
+      else if (e.key === "-" || e.key === "_") zoomToward(null, 1 / 0.6);
+    };
+    const unsub = mapNav.subscribe((cmd) => {
+      const c = controls.current;
+      if (!c) return;
+      if (cmd.type === "zoom") zoomToward(null, cmd.factor);
+      else if (cmd.type === "north") start(c.target.clone(), null, 0);
+      else if (cmd.type === "flyTo") start(new THREE.Vector3(cmd.x, 0, cmd.z), cmd.distance ?? null, null);
+    });
+    el.addEventListener("dblclick", onDbl);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      unsub();
+      el.removeEventListener("dblclick", onDbl);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [nav, gl, camera]);
+
+  // The compass reads where the camera looks, a few times a second, only when it moved.
+  const frameCount = useRef(0);
+  const lastReported = useRef([NaN, NaN, NaN, NaN]);
+  useFrame(() => {
+    const c = controls.current;
+    if (!nav || !c || ++frameCount.current % 6 !== 0) return;
+    const x = camera.position.x, z = camera.position.z, tx = c.target.x, tz = c.target.z;
+    const l = lastReported.current;
+    if (Math.abs(x - l[0]) + Math.abs(z - l[1]) + Math.abs(tx - l[2]) + Math.abs(tz - l[3]) < 0.5) return;
+    lastReported.current = [x, z, tx, tz];
+    nav.set(x, z, tx, tz);
+  });
+
+  useFrame((_, delta) => {
+    const a = nav3.current;
+    const c = controls.current;
+    if (!a || !c || driving) return;
+    a.t = Math.min(1, a.t + delta / a.dur);
+    const e = a.t < 0.5 ? 4 * a.t ** 3 : 1 - (-2 * a.t + 2) ** 3 / 2; // ease in-out
+    c.target.lerpVectors(a.fromTarget, a.toTarget, e);
+    _navSph.set(a.fromR + (a.toR - a.fromR) * e, a.phi, a.fromTheta + (a.toTheta - a.fromTheta) * e);
+    camera.position.setFromSpherical(_navSph).add(c.target);
+    c.update();
+    if (a.t >= 1) nav3.current = null;
+  });
+
   useFrame((_, delta) => {
     const f = fly.current;
     const c = controls.current;
@@ -264,6 +372,10 @@ function LeagueCamera({
   }, []);
 
   return (
+    // The main city's explore controls (CityCanvas), Google Maps / Earth
+    // style: left-drag pans the ground, right-drag (or Shift/Ctrl + left)
+    // rotates and tilts, the wheel zooms toward the cursor, arrows pan; one
+    // finger pans, two pinch and rotate. Discover's hero keeps the plain orbit.
     <OrbitControls
       ref={controls}
       makeDefault
@@ -272,11 +384,23 @@ function LeagueCamera({
       dampingFactor={0.08}
       minDistance={80}
       maxDistance={frame.max}
-      maxPolarAngle={Math.PI * 0.44}
+      maxPolarAngle={nav ? MAX_TILT : Math.PI * 0.44}
       autoRotate={spin && rotate && !hidden && !focus && !driving}
       autoRotateSpeed={0.35}
+      {...(nav
+        ? {
+            mouseButtons: { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE },
+            touches: { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE },
+            screenSpacePanning: false,
+            zoomToCursor: true,
+            keyEvents: true,
+            keyPanSpeed: 40,
+          }
+        : {})}
       onStart={() => {
         fly.current.t = 1;
+        nav3.current = null;
+        userMoved.current = true;
         setRotate(false);
       }}
     />
@@ -418,7 +542,11 @@ export interface LeagueSceneProps {
   /** Editor overlays (grid, ghost, selection), rendered inside the Canvas. */
   children?: React.ReactNode;
   /** Drive mode: the car and its world. */
-  drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h">;
+  drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
+  /** A rivalry town's floors (lib/league-city/smash): broken buildings draw as columns; color: the town's side, for the ghosts. */
+  smash?: { store: SmashStore; color: string; rivalLogoUrl: string | null } | null;
+  /** The explore camera's position for the compass (MapNavControls); its presence turns the main city's controls on. */
+  navCamera?: MapCameraStore;
   /** Fill the parent box instead of the viewport, and ignore the pointer (Discover's hero). */
   embedded?: boolean;
   /** A new value raises the city from the ground, streets first (the template picker). */
@@ -457,6 +585,8 @@ export default function LeagueScene({
   framing,
   watching,
   coverRef,
+  smash: smashTown = null,
+  navCamera,
 }: LeagueSceneProps) {
   const editing = mode === "edit";
   const driving = mode === "drive" && !!drive;
@@ -473,6 +603,7 @@ export default function LeagueScene({
   // The main street runs on outside the grid to the portal (drawn and driven, never edited).
   const approach = useMemo(() => approachRoads(objects), [objects]);
   const withApproach = useMemo(() => (approach.length ? [...objects, ...approach] : objects), [objects, approach]);
+  const smash = smashTown?.store;
   const driveRef = useRef(drive);
   useEffect(() => {
     driveRef.current = drive;
@@ -529,6 +660,7 @@ export default function LeagueScene({
           driving={driving || playing}
           zoom={(embedded ? (framing?.zoom ?? 0.85) : 1) * (push ? 0.45 : 1)}
           tallest={embedded ? tallest : 0}
+          nav={embedded ? null : (navCamera ?? null)}
         />
       )}
 
@@ -574,10 +706,13 @@ export default function LeagueScene({
           accentColor={theme.building.accent}
           focusedBuilding={editing || driving ? null : (focused ?? null)}
           onBuildingClick={editing || driving ? undefined : onBuildingClick}
+          smash={smash}
+          ghostColor={smashTown?.color}
         />
       </Rise>
+      {smashTown && !editing && <RubbleFlags store={smashTown.store} logoUrl={smashTown.rivalLogoUrl} />}
       {watching && mode === "view" && !playing && watching.length > 0 && <WatchedCars cars={watching} />}
-      {driving && drive && <DriveWorld objects={withApproach} buildings={buildings} h={h} {...drive} />}
+      {driving && drive && <DriveWorld objects={withApproach} buildings={buildings} h={h} smash={smash} {...drive} />}
       {coverRef && <CoverShot apiRef={coverRef} h={h} tallest={tallest} />}
       {children}
     </Canvas>

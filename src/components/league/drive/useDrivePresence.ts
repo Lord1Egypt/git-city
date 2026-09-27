@@ -65,6 +65,7 @@ export function useDrivePresence({
   onBattle,
   party = "drive",
   onOther,
+  auth,
 }: {
   slug: string;
   name: string;
@@ -77,15 +78,19 @@ export function useDrivePresence({
   party?: "drive" | "race";
   /** Every message this hook doesn't handle itself, plus the welcome (the race track's). */
   onOther?: (msg: { t: string } & Record<string, unknown>) => void;
+  /** Rivalry smash: your access token, sent after hello so the room can ask the site who you are. */
+  auth?: () => Promise<string | null>;
 }) {
   const onBumpRef = useRef(onBump);
   const onBattleRef = useRef(onBattle);
   const onOtherRef = useRef(onOther);
+  const authRef = useRef(auth);
   const selfId = useRef<string | null>(null);
   useEffect(() => {
     onBumpRef.current = onBump;
     onBattleRef.current = onBattle;
     onOtherRef.current = onOther;
+    authRef.current = auth;
   });
   const remotes = useRef(new Map<string, RemoteDriver>());
   const [drivers, setDrivers] = useState<DriverInfo[]>([]);
@@ -106,6 +111,9 @@ export function useDrivePresence({
       map.clear();
       publish();
       ws.send(JSON.stringify({ t: "hello", name }));
+      void authRef.current?.().then((token) => {
+        if (token && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "auth", token }));
+      });
     });
     ws.addEventListener("message", (e: MessageEvent) => {
       let msg: ServerMsg;

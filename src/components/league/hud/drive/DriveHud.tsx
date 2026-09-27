@@ -13,6 +13,7 @@ import TouchControls from "./TouchControls";
 import type { TouchDrive } from "@/lib/league-city/drive/touch";
 import CrownPanel from "./CrownPanel";
 import CopyLink from "./CopyLink";
+import SmashNotice from "./SmashNotice";
 import type { CrownState } from "@/lib/league-city/drive/crown";
 
 // Drive mode HUD: the dash (bottom: item, speed, boost), camera, mute and exit
@@ -187,6 +188,8 @@ export default function DriveHud({
           Honk at <span ref={honkName} className="text-lime" />
         </div>
       )}
+
+      {ready && entered && <SmashNotice telemetry={telemetry} />}
 
       {ready && entered && !touch && <Dash telemetry={telemetry} style={enter(0.24)} />}
 

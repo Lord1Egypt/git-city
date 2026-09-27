@@ -14,13 +14,10 @@ import { useSheet } from "./useSheet";
 export default function BuildingCard({
   building: b,
   data,
-  driving = false,
   onClose,
 }: {
   building: CityBuilding;
   data: LeaguePageData;
-  /** Opened by honking in drive mode: no orbit hints. */
-  driving?: boolean;
   onClose: () => void;
 }) {
   const [kudos, setKudos] = useState<{ state: "idle" | "sending" | "sent" | "error"; message?: string }>({ state: "idle" });
@@ -71,19 +68,6 @@ export default function BuildingCard({
 
   return (
     <>
-      {/* Nav hints, desktop only */}
-      <div className={`pointer-events-none fixed bottom-6 right-6 z-30 hidden text-right text-[9px] leading-loose text-muted ${driving ? "" : "sm:block"}`}>
-        <div>
-          <span className="text-cream">Drag</span> orbit
-        </div>
-        <div>
-          <span className="text-cream">Scroll</span> zoom
-        </div>
-        <div>
-          <span className="text-lime">ESC</span> close
-        </div>
-      </div>
-
       <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-40 sm:inset-x-auto sm:bottom-auto sm:right-5 sm:top-1/2 sm:-translate-y-1/2">
         <div
           role="dialog"
