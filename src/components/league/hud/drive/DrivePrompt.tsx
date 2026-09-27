@@ -14,11 +14,13 @@ import { ITEM_NAMES, isItem } from "@/lib/league-city/drive/battle";
 //   boost   Shift, once you're moving fast in a straight line
 //   drift   Space + steer, once you turn at speed
 //   attack  F, when you pick up something from a ? box
-// Each one goes the moment you do it. Boost, drift and attack are remembered
+//   camera  C, after a while on the road
+// Each one goes the moment you do it. Boost, drift, attack and camera are remembered
 // once done (every drive teaches what you haven't done yet); an ignored one
 // comes back later. A gamepad counts as driving once the car speeds up.
 
-type Lesson = "drive" | "steer" | "boost" | "drift" | "attack";
+type Lesson = "drive" | "steer" | "boost" | "drift" | "attack" | "camera";
+const REMEMBERED = new Set<Lesson>(["boost", "drift", "attack", "camera"]);
 
 const THROTTLE = new Set(["KeyW", "ArrowUp"]);
 const STEER = new Set(["KeyA", "KeyD", "ArrowLeft", "ArrowRight"]);
@@ -28,7 +30,7 @@ const IDLE_MS = 4000;
 /** After you drive, the steer prompt waits this long for you to steer on your own. */
 const STEER_DELAY_MS = 1200;
 /** A prompt nobody acts on goes away after this long, and comes back after COOLDOWN_MS. */
-const SHOW_MS: Record<Lesson, number> = { drive: Infinity, steer: 5000, boost: 7000, drift: 7000, attack: 9000 };
+const SHOW_MS: Record<Lesson, number> = { drive: Infinity, steer: 5000, boost: 7000, drift: 7000, attack: 9000, camera: 6000 };
 const COOLDOWN_MS = 25000;
 /** Quiet time between two prompts. */
 const GAP_MS = 1500;
@@ -40,6 +42,8 @@ const BOOST_AFTER_MS = 1000;
 /** Drift: steering above this speed (m/s) for DRIFT_AFTER_MS. */
 const DRIFT_SPEED = DRIFT.minSpeed + 3;
 const DRIFT_AFTER_MS = 300;
+/** Camera: after this long on the road (ms), once the car moves. */
+const CAMERA_AFTER_MS = 15000;
 /** Boosting or drifting this long counts as done. */
 const DONE_MS = 400;
 
@@ -108,6 +112,13 @@ function Prompt({ lesson, item }: { lesson: Lesson; item: string | null }) {
           <span className={`${TEXT} text-lime`}>Drift</span>
         </>
       );
+    case "camera":
+      return (
+        <>
+          <Key>C</Key>
+          <span className={`${TEXT} text-cream`}>Change camera</span>
+        </>
+      );
     case "attack":
       return (
         <>
@@ -144,7 +155,7 @@ export default function DrivePrompt({
       shownAt: performance.now(),
       hiddenAt: 0,
       drove: !firstRun,
-      droveAt: 0,
+      droveAt: performance.now(),
       steered: false,
       steerAsked: !firstRun,
       cooldown: new Map<Lesson, number>(),
@@ -163,7 +174,7 @@ export default function DrivePrompt({
       setLesson(next);
     };
     const learn = (l: Lesson) => {
-      if (l === "boost" || l === "drift" || l === "attack") {
+      if (REMEMBERED.has(l)) {
         learned.add(l);
         saveLearned(learned);
       }
@@ -186,6 +197,14 @@ export default function DrivePrompt({
       if (e.code === "KeyF" && st.lesson === "attack") {
         st.fired = true;
         learn("attack");
+      }
+      // Found it on your own: no need to teach it.
+      if (e.code === "KeyC" && !e.repeat) {
+        if (st.lesson === "camera") learn("camera");
+        else if (!learned.has("camera")) {
+          learned.add("camera");
+          saveLearned(learned);
+        }
       }
     };
     const onUp = (e: KeyboardEvent) => held.delete(e.code);
@@ -229,6 +248,7 @@ export default function DrivePrompt({
       }
       if (st.turnSince && now - st.turnSince > DRIFT_AFTER_MS && ready("drift")) return show("drift");
       if (st.fastSince && now - st.fastSince > BOOST_AFTER_MS && ready("boost")) return show("boost");
+      if (now - st.droveAt > CAMERA_AFTER_MS && ready("camera")) return show("camera");
     };
     raf = requestAnimationFrame(tick);
     window.addEventListener("keydown", onKey);
