@@ -3,9 +3,10 @@
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { readInput, type DriveInput, type GamepadLike } from "@/lib/league-city/drive/input";
+import { mergeTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
 
 // Held keys from keyboard listeners plus the first connected gamepad, polled
-// every frame. `input` is the level; `pressed` holds this frame's presses
+// every frame, plus the phone's touch controls when given (lib drive/touch). `input` is the level; `pressed` holds this frame's presses
 // (camera, reset, horn). Off while a text field has focus.
 
 const NONE: DriveInput = { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, horn: false, camera: false, reset: false, fire: false };
@@ -24,7 +25,7 @@ export interface DriveInputRef {
   pressed: { camera: boolean; reset: boolean; horn: boolean; fire: boolean };
 }
 
-export function useDriveInput(paused = false): React.MutableRefObject<DriveInputRef> {
+export function useDriveInput(paused = false, touch?: React.MutableRefObject<TouchDrive>): React.MutableRefObject<DriveInputRef> {
   const keys = useRef(new Set<string>());
   // Keys pressed since the last frame: a tap shorter than a frame still counts once.
   const taps = useRef(new Set<string>());
@@ -65,7 +66,7 @@ export function useDriveInput(paused = false): React.MutableRefObject<DriveInput
     const prev = ref.current.input;
     const held = taps.current.size > 0 ? new Set([...keys.current, ...taps.current]) : keys.current;
     taps.current.clear();
-    const next = typing() || paused ? NONE : readInput(held, pad);
+    const next = typing() || paused ? NONE : touch ? mergeTouch(readInput(held, pad), touch.current) : readInput(held, pad);
     ref.current.pressed = {
       camera: next.camera && !prev.camera,
       reset: next.reset && !prev.reset,

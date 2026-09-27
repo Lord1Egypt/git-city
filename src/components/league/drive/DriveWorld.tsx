@@ -19,6 +19,7 @@ import type { CityObject } from "@/lib/league-city/types";
 import { buildColliders, colliderKey, type ColliderSpec } from "@/lib/league-city/drive/colliders";
 import { spawnPoint } from "@/lib/league-city/drive/spawn";
 import type { IntroPose } from "@/lib/league-city/intro";
+import type { TouchDrive } from "@/lib/league-city/drive/touch";
 import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { CHASSIS, GRAVITY, M_TO_UNIT, RESPAWN } from "@/lib/league-city/drive/tuning";
 import Car, { type CarApi } from "./Car";
@@ -53,6 +54,8 @@ export interface DriveWorldProps {
   cinematic?: boolean;
   /** The intro handed the car over: the drive camera starts where it left off. */
   seamless?: boolean;
+  /** Phone controls, written by the HUD (lib drive/touch). */
+  touch?: React.MutableRefObject<TouchDrive>;
   telemetry: DriveTelemetry;
   camera: DriveCameraMode;
   onCameraToggle: () => void;
@@ -209,6 +212,7 @@ export default function DriveWorld({
   scripted,
   cinematic = false,
   seamless = false,
+  touch,
   telemetry,
   camera,
   onCameraToggle,
@@ -235,7 +239,7 @@ export default function DriveWorld({
   const dynamic = useMemo(() => specs.filter((s) => s.body === "dynamic"), [specs]);
   const spawn = useMemo(() => spawnPoint(objects, viewerDevId, h), [objects, viewerDevId, h]);
 
-  const input = useDriveInput(paused || cinematic);
+  const input = useDriveInput(paused || cinematic, touch);
   const car = useRef<CarApi | null>(null);
   const impact = useRef({ strength: 0, at: 0 });
   const fx = useRef(new Map<string, FxSource>());
