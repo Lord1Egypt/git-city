@@ -73,7 +73,7 @@ export default function CrownPanel({
     const mine = crown.holder === you;
     return (
       <>
-        <div className={`${HUD_BOX} absolute left-1/2 top-4 flex -translate-x-1/2 flex-col gap-1.5 px-3 py-2 text-[9px]`}>
+        <div className={`${HUD_BOX} absolute left-1/2 top-4 max-sm:top-[4.25rem] flex -translate-x-1/2 flex-col gap-1.5 px-3 py-2 text-[9px]`}>
           <p className="flex items-center justify-between gap-6 text-cream">
             <span className="flex items-center gap-1.5">
               <Crown className="h-2.5 w-[22px]" /> Crown rush
@@ -93,7 +93,7 @@ export default function CrownPanel({
           </ul>
         </div>
         <p
-          className={`absolute left-1/2 top-[22%] -translate-x-1/2 whitespace-nowrap px-3 py-1 text-[11px] ${
+          className={`absolute left-1/2 top-[22%] -translate-x-1/2 whitespace-nowrap px-3 py-1 text-[11px] max-sm:w-[90vw] max-sm:whitespace-normal max-sm:text-center ${
             mine ? "animate-pulse bg-[#ffcf33] text-bg" : "text-cream [text-shadow:0_2px_0_#000]"
           }`}
         >
@@ -132,14 +132,15 @@ export default function CrownPanel({
   }
 
   return (
-    <div className="pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
+    <div className="pointer-events-auto absolute left-1/2 top-4 max-sm:top-[4.25rem] -translate-x-1/2">
       {canStart ? (
         <button type="button" onClick={onStart} className={`${HUD_BOX} btn-press flex items-center gap-2 px-3 py-2 text-[10px] text-[#ffcf33] hover:text-cream`}>
           <Crown className="h-2.5 w-[22px]" />
           Start crown rush
         </button>
       ) : (
-        <div className={`${HUD_BOX} flex items-center gap-3 px-3 py-2 text-[9px] text-dim normal-case`}>
+        // Phones: the room to say it isn't there, and the top-left box already counts drivers.
+        <div className={`${HUD_BOX} flex items-center gap-3 px-3 py-2 text-[9px] text-dim normal-case max-sm:hidden`}>
           <Crown className="h-2.5 w-[22px] opacity-50" />
           Crown rush needs 2 drivers.
           <CopyLink />

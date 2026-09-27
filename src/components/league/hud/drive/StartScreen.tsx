@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CONTROLS } from "./PauseMenu";
+import { CONTROLS, TOUCH_CONTROLS } from "./PauseMenu";
 
 // Shown from the Drive click until the car is ready: the city blurs behind a
 // big STARTING ENGINE, a block progress bar and the controls, so the wait
@@ -13,7 +13,7 @@ const STEPS = ["Loading physics", "Loading the car", "Warming up the engine"];
 /** Shown at least this long, so a fast load doesn't flash. */
 const MIN_MS = 1200;
 
-export default function StartScreen({ ready }: { ready: boolean }) {
+export default function StartScreen({ ready, touch = false }: { ready: boolean; touch?: boolean }) {
   const [progress, setProgress] = useState(0);
   const [gone, setGone] = useState(false);
   const [minPassed, setMinPassed] = useState(false);
@@ -54,7 +54,7 @@ export default function StartScreen({ ready }: { ready: boolean }) {
       className={`pointer-events-auto absolute inset-0 flex items-center justify-center bg-bg/60 backdrop-blur-md transition-opacity duration-300 ${done ? "opacity-0 delay-150" : "animate-[fade-in_0.2s_ease-out] opacity-100"}`}
     >
       <div className="flex flex-col gap-8 px-6">
-        <h2 className="text-3xl tracking-[0.25em] text-cream sm:text-4xl">Starting engine</h2>
+        <h2 className="text-2xl tracking-[0.2em] text-cream sm:text-4xl sm:tracking-[0.25em]">Starting engine</h2>
 
         <div className="flex flex-col gap-3">
           <div className="flex gap-1" aria-hidden>
@@ -66,7 +66,7 @@ export default function StartScreen({ ready }: { ready: boolean }) {
         </div>
 
         <dl className="grid grid-cols-[auto_auto] gap-x-8 gap-y-2 self-start text-[10px]">
-          {CONTROLS.map(([k, v]) => (
+          {(touch ? TOUCH_CONTROLS : CONTROLS).map(([k, v]) => (
             <div key={k} className="contents">
               <dt className="text-cream">{k}</dt>
               <dd className="text-muted">{v}</dd>

@@ -9,6 +9,8 @@ import PauseMenu, { CONTROLS } from "./PauseMenu";
 import StartScreen from "./StartScreen";
 import DrivePrompt from "./DrivePrompt";
 import Dash from "./Dash";
+import TouchControls from "./TouchControls";
+import type { TouchDrive } from "@/lib/league-city/drive/touch";
 import CrownPanel from "./CrownPanel";
 import CopyLink from "./CopyLink";
 import type { CrownState } from "@/lib/league-city/drive/crown";
@@ -21,6 +23,8 @@ import type { CrownState } from "@/lib/league-city/drive/crown";
 // On the first drive, handed over by the town intro, there's no start screen
 // (the intro loaded the car): one prompt teaches the controls and the rest of
 // the HUD comes in piece by piece on your first move.
+// On a phone (touchRef) the dash gives way to the touch controls
+// (TouchControls), the corners get compact and the prompts speak touch.
 
 const SEG = "flex items-center transition-colors hover:bg-white/5 [&>*]:transition-transform active:[&>*]:translate-y-px";
 const ICON_BTN = `${SEG} w-10 justify-center py-2 text-cream hover:text-lime`;
@@ -31,6 +35,7 @@ const ENTER_ANYWAY_MS = 8000;
 
 export default function DriveHud({
   firstRun = false,
+  touchRef,
   telemetry,
   ready,
   camera,
@@ -46,6 +51,8 @@ export default function DriveHud({
 }: {
   /** Handed over by the town intro (see above). */
   firstRun?: boolean;
+  /** Phone controls: the HUD writes them, the car reads them. */
+  touchRef?: React.MutableRefObject<TouchDrive>;
   telemetry: DriveTelemetry;
   ready: boolean;
   camera: DriveCameraMode;
@@ -93,8 +100,12 @@ export default function DriveHud({
     return () => cancelAnimationFrame(raf);
   }, [telemetry]);
 
+  const touch = !!touchRef;
+
   return (
     <div className="pointer-events-none fixed inset-0 z-30 font-pixel uppercase">
+      {/* First, so every other piece of the HUD sits above the steering layer. */}
+      {ready && touchRef && <TouchControls touchRef={touchRef} telemetry={telemetry} />}
 
       {ready && entered && (
         <div className={`${HUD_BOX} absolute left-4 top-4 flex flex-col gap-1.5 px-3 py-2 text-[9px]`} style={enter(0)}>
@@ -102,7 +113,7 @@ export default function DriveHud({
             <span className="h-1.5 w-1.5 animate-pulse bg-lime" aria-hidden />
             {drivers.length + 1} driving now
           </p>
-          {drivers.length === 0 ? (
+          {touch ? null : drivers.length === 0 ? (
             <div className="flex max-w-[180px] flex-col items-start gap-1.5">
               <p className="text-dim normal-case">Share the link to race your team here.</p>
               <CopyLink />
@@ -149,7 +160,7 @@ export default function DriveHud({
         </div>
       )}
 
-      {ready && (
+      {ready && !touch && (
         <div
           ref={honk}
           data-on="false"
@@ -160,9 +171,9 @@ export default function DriveHud({
         </div>
       )}
 
-      {ready && entered && <Dash telemetry={telemetry} style={enter(0.24)} />}
+      {ready && entered && !touch && <Dash telemetry={telemetry} style={enter(0.24)} />}
 
-      {ready && entered && (
+      {ready && entered && !touch && (
         <div
           className={`absolute bottom-6 right-6 text-right text-[9px] leading-loose text-muted transition-opacity duration-700 ${hints ? "opacity-100" : "opacity-0"}`}
         >
@@ -175,12 +186,12 @@ export default function DriveHud({
         </div>
       )}
 
-      {ready && <DrivePrompt telemetry={telemetry} firstRun={firstRun} onDrive={() => setEntered(true)} />}
+      {ready && <DrivePrompt telemetry={telemetry} firstRun={firstRun} camera={camera} touchRef={touchRef} onDrive={() => setEntered(true)} />}
 
       {ready && entered && <CrownPanel crown={crown?.crown ?? null} offset={crown?.offset ?? 0} you={crown?.you ?? null} drivers={drivers} onStart={onStartCrown} />}
 
       {/* Last, so they blur and cover the rest of the HUD. */}
-      {!firstRun && <StartScreen ready={ready} />}
+      {!firstRun && <StartScreen ready={ready} touch={touch} />}
       {paused && ready && (
         <PauseMenu camera={camera} muted={muted} onResume={onResume} onCamera={onCamera} onMute={onMute} onExit={onExit} />
       )}

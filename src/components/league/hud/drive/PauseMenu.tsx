@@ -18,6 +18,16 @@ export const CONTROLS: [string, string][] = [
   ["Esc", "pause"],
 ];
 
+/** The same, on a phone (TouchControls). */
+export const TOUCH_CONTROLS: [string, string][] = [
+  ["Touch", "go"],
+  ["Drag left / right", "steer"],
+  ["Steer hard", "drift"],
+  ["Hold Brake", "brake, reverse"],
+  ["Hold Boost", "boost"],
+  ["Tap the item", "attack (from ? boxes)"],
+];
+
 type Item = { id: "resume" | "camera" | "sound" | "menu" | "exit"; label: string };
 
 // Standard gamepad buttons.
