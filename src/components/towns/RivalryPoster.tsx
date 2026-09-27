@@ -8,7 +8,8 @@ import type { LeagueCity } from "@/lib/league-city/service";
 import type { LayoutNorms } from "@/lib/github";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
-import { Avatar, fmt, useCountdown } from "@/components/league/hud/shared";
+import { Avatar, fmt } from "@/components/league/hud/shared";
+import { BATTLE_START, BATTLE_START_LABEL, timeUntil } from "@/lib/towns/rivalry";
 import type { GridTown } from "@/lib/towns/discover";
 import { GridTownCard } from "./TownCard";
 import { useDesktop } from "./useDesktop";
@@ -47,7 +48,7 @@ export default function RivalryPoster({
   pickOnLoad: string | null;
 }) {
   const router = useRouter();
-  const startsIn = useCountdown();
+  const startsIn = useStartsIn();
   const [busy, setBusy] = useState<0 | 1 | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,10 +110,16 @@ export default function RivalryPoster({
             <span style={{ color: sides[1].color }}>{sides[1].name}</span>
           </h1>
           <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-cream normal-case sm:text-lg">
-            {mine === null ? "Which side codes more? Pick yours." : `You're on ${sides[mine].name}. Bring your friends before Monday.`}
+            {mine === null ? "Which side codes more? Pick yours." : `You're on ${sides[mine].name}. Bring your friends before ${BATTLE_START_LABEL}.`}
           </p>
           <p className="mt-5 inline-block border-[3px] border-border bg-bg-raised px-4 py-2 text-xs text-cream sm:text-sm">
-            Battle starts Monday · <span className="text-lime tabular-nums">{startsIn || "…"}</span>
+            {startsIn === "" ? (
+              "The battle is on"
+            ) : (
+              <>
+                Battle starts {BATTLE_START_LABEL} · <span className="text-lime tabular-nums">{startsIn ?? "…"}</span>
+              </>
+            )}
           </p>
         </div>
 
@@ -141,6 +148,18 @@ export default function RivalryPoster({
       <OtherTowns towns={others} />
     </main>
   );
+}
+
+/** Time to the first battle, ticking; null before the first client render (no hydration mismatch). */
+function useStartsIn(): string | null {
+  const [left, setLeft] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () => setLeft(timeUntil(BATTLE_START, Date.now()));
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return left;
 }
 
 function leadLine(sides: Pair): string {

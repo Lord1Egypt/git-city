@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRivalry, rivalOf, sideSwitch } from "./rivalry";
+import { BATTLE_START, isRivalry, rivalOf, sideSwitch, timeUntil } from "./rivalry";
 
 // Sunday 2026-09-27 12:00 UTC; its week started Monday 2026-09-21.
 const SUNDAY = new Date("2026-09-27T12:00:00Z");
@@ -57,5 +57,17 @@ describe("sideSwitch", () => {
 
   it("frees a dev the admin removed", () => {
     expect(sideSwitch({ status: "former", joined_at: THIS_WEEK, left_at: THIS_WEEK, removed_by: 1 }, SUNDAY)).toBe("none");
+  });
+});
+
+describe("timeUntil", () => {
+  it("counts days and hours to the battle", () => {
+    expect(timeUntil(BATTLE_START, Date.parse("2026-09-27T04:00:00Z"))).toBe("7d 20h");
+  });
+  it("counts hours and minutes on the last day", () => {
+    expect(timeUntil(BATTLE_START, Date.parse("2026-10-04T20:30:00Z"))).toBe("3h 30m");
+  });
+  it("is empty once it started", () => {
+    expect(timeUntil(BATTLE_START, BATTLE_START)).toBe("");
   });
 });

@@ -11,6 +11,20 @@ export const RIVALRY = [
 
 export type RivalSlug = (typeof RIVALRY)[number]["slug"];
 
+/** The first battle week opens the Monday after the Oct 1 launch. Until then, sides are picked. */
+export const BATTLE_START = Date.UTC(2026, 9, 5);
+export const BATTLE_START_LABEL = "Mon, Oct 5";
+
+/** "7d 20h" until `target`, "3h 12m" under a day, "" once it passed. */
+export function timeUntil(target: number, now: number): string {
+  const ms = target - now;
+  if (ms <= 0) return "";
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return d > 0 ? `${d}d ${h}h` : `${h}h ${m}m`;
+}
+
 /** Rivalry towns grow past the usual city size (supabase 157 matches this). */
 export const RIVALRY_MAX_H = 40;
 
