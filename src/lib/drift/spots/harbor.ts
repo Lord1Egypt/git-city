@@ -1,5 +1,5 @@
-// Harbor: the race track down at the docks. A loop along the quay, a long
-// sweeper at its end, an S between two stacks into the pier, a hairpin round
+// Harbor: the race track down at the docks. A loop of curves: a chicane off
+// the line, a long sweeper, an S between two stacks into the pier, a hairpin round
 // the crane at the pier's head, and back past a container wall the tail
 // grazes on the way to the line (the Meihan wall). Wet asphalt: easy to get
 // sideways, hard to hold there.
@@ -8,25 +8,26 @@ import { SPRINT } from "../../league-city/race/track";
 import { left, path, right, straight } from "./path";
 import type { LiveSpot } from "./types";
 
+// Curves all the way: a short run from the grid through a chicane into the sweeper,
+// the S, the crane hairpin, the wall. Straights stay under 25 m (no boost here).
 const P = path(
   [
-    // The line sits 45 m into the quay, so the grid behind it is on the straight, not in the last corner.
-    straight(131.7, "quay"),
-    left(120, 52, "sweeper"),
-    straight(47.5, "east"),
-    left(60, 32),
-    straight(20),
-    right(90, 26, "s"),
-    straight(50, "pier"),
+    straight(4.481, "quay"),
+    right(25, 50),
+    left(50, 40),
+    right(25, 50),
+    left(120, 48, "sweeper"),
+    straight(12),
+    left(60, 30),
+    right(90, 24, "s"),
+    straight(19.072),
     left(180, 19, "crane"),
-    straight(50),
-    right(90, 26),
-    straight(25),
-    left(70, 30),
-    straight(25),
-    right(40, 40),
-    left(150, 38, "wall"),
-    straight(45),
+    straight(12),
+    right(90, 24),
+    left(70, 28),
+    right(40, 36),
+    left(150, 36, "wall"),
+    straight(20, "grid"),
   ],
   [0, 0],
   [1, 0],
@@ -47,13 +48,13 @@ export const HARBOR: LiveSpot = {
     closed: true,
     width: 14,
     runoff: 3,
-    splits: [5, 10, 16],
+    splits: [4, 8, 11],
   },
   surface: "wet",
   clips: [
     { s: mid("crane") - 8, len: 16, side: 1, kind: "inner", depth: 2.5 },
     { s: mid("wall") - 15, len: 30, side: -1, kind: "outer", depth: 2.5 },
   ],
-  author: 60_000,
-  minMs: 25_000,
+  author: 50_000,
+  minMs: 20_000,
 };

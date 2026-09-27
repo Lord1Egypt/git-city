@@ -23,7 +23,7 @@
 // - The finish banks whatever is at risk.
 
 import { CHASSIS } from "../league-city/drive/tuning";
-import { arcDelta, locate, locateNear, pointAt, type Track } from "../league-city/race/track";
+import { arcDelta, finishOf, locate, locateNear, pointAt, type Track } from "../league-city/race/track";
 import { TICK_MS, frameAt, frameCount, type Frame, type Frames } from "./frames";
 
 export const DRIFT_SCORE = {
@@ -236,7 +236,7 @@ export class Scorer {
 
     // Split checkpoints and the finish.
     this.passCheckpoints();
-    const finish = t.closed ? st.progress >= t.length : st.progress >= t.length - 1;
+    const finish = t.closed ? st.progress >= t.length : st.progress >= finishOf(t) - 1;
 
     const onAsphalt = Math.abs(lateral) <= this.asphalt;
     // A slide that doesn't count, and why (the scoring below doesn't read this).

@@ -37,6 +37,8 @@ export interface TrackSpec {
   /** Grid slots behind the start line: first slot and the gap between rows (m). */
   gridFirst: number;
   gridGap: number;
+  /** A run only: meters of road past the finish line to brake on (the line sits this far before the end). */
+  runout?: number;
 }
 
 const SAMPLE = 2;
@@ -205,7 +207,8 @@ export function buildTrack(spec: TrackSpec = SPRINT): Track {
   });
 
   const checkpoints: number[] = [];
-  for (let s = 0; s < length - spec.checkpointEvery / 2; s += spec.checkpointEvery) checkpoints.push(s);
+  const last = closed ? length : finishOf({ closed, length, spec });
+  for (let s = 0; s < last - spec.checkpointEvery / 2; s += spec.checkpointEvery) checkpoints.push(s);
 
   const track: Track = { spec, closed, samples, length, checkpoints, grid: [], cells };
   track.grid = gridSlots(track, 12);
@@ -226,6 +229,11 @@ function gridSlots(t: Track, count: number): GridSlot[] {
     out.push({ x: p.x + p.tz * off, z: p.z - p.tx * off, heading: Math.atan2(p.tx, p.tz) });
   }
   return out;
+}
+
+/** Where the finish line is (m): the start line on a loop (it's crossed again), before the runout on a run. */
+export function finishOf(t: Pick<Track, "closed" | "length" | "spec">): number {
+  return t.closed ? t.length : Math.max(0, t.length - (t.spec.runout ?? 0));
 }
 
 /** Centerline point and tangent at distance s (wraps). */

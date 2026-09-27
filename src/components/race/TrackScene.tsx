@@ -4,8 +4,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
-import { pointAt, wallOffset, type Track } from "@/lib/league-city/race/track";
-import { along, clearOfTrack, curbRuns, hash, offsetAt, treeSpots } from "@/lib/league-city/race/layout";
+import { finishOf, pointAt, wallOffset, type Track } from "@/lib/league-city/race/track";
+import { along, clearOfTrack, curbRuns, hash, offsetAt, treeSpots, wallSegments } from "@/lib/league-city/race/layout";
 import { RACE } from "@/lib/league-city/race/race";
 
 // The race track as you see it, in city units (1 m = M_TO_UNIT), made to be
@@ -39,7 +39,8 @@ export function ribbon(t: Track, s0: number, s1: number, a: number, b: number, y
     const quad = [pa, pb, qb, pa, qb, qa];
     for (const p of quad) pos.push(p.x * U, y, p.z * U);
     if (stripe) {
-      const c = stripe.colors[Math.floor(sa / stripe.every) % 2];
+      // Runs can start before the line (negative s): keep the index 0 or 1.
+      const c = stripe.colors[((Math.floor(sa / stripe.every) % 2) + 2) % 2];
       for (let k = 0; k < 6; k++) col.push(c.r, c.g, c.b);
     }
   }
@@ -303,32 +304,32 @@ function Chevrons({ track }: { track: Track }) {
 
 // ─── Start line ──────────────────────────────────────────────
 
-function StartLine({ track }: { track: Track }) {
+function StartLine({ track, at = 0 }: { track: Track; at?: number }) {
   const items = useMemo(() => {
     const out: Parameters<typeof Boxes>[0]["items"] = [];
-    const p = pointAt(track, 0);
+    const p = pointAt(track, at);
     const rotY = Math.atan2(p.tx, p.tz);
     const cells = 14;
     const size = track.spec.width / cells;
     for (let row = 0; row < 2; row++) {
       for (let c = 0; c < cells; c++) {
         const off = -track.spec.width / 2 + size * (c + 0.5);
-        const q = offsetAt(track, (row - 0.5) * size, off);
+        const q = offsetAt(track, at + (row - 0.5) * size, off);
         out.push({ x: q.x, y: 0.07, z: q.z, rotY, w: size, h: 0.1, d: size, color: (row + c) % 2 ? "#111318" : "#f4f4f4" });
       }
     }
-    // Grid boxes: a white bar across the front of each slot.
-    for (const g of track.grid) {
+    // Grid boxes: a white bar across the front of each slot (at the start only).
+    for (const g of at === 0 ? track.grid : []) {
       out.push({ x: g.x + Math.sin(g.heading) * 2.2, y: 0.07, z: g.z + Math.cos(g.heading) * 2.2, rotY: g.heading, w: 3, h: 0.1, d: 0.35, color: LINE });
     }
     return out;
-  }, [track]);
+  }, [track, at]);
   return <Boxes items={items} emissive={0.1} />;
 }
 
 /** Gantry over the start line with five pairs of red lights. `lit` reads 0–5 every frame. */
-function Gantry({ track, lit, title }: { track: Track; lit: React.MutableRefObject<number>; title: string }) {
-  const p = pointAt(track, 0);
+function Gantry({ track, lit, title, at = 0 }: { track: Track; lit: React.MutableRefObject<number>; title: string; at?: number }) {
+  const p = pointAt(track, at);
   const rotY = Math.atan2(p.tx, p.tz);
   const span = track.spec.width / 2 + 1.5;
   const lamps = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
@@ -469,6 +470,26 @@ function Trees({ track }: { track: Track }) {
   return <Boxes items={items} emissive={0.05} />;
 }
 
+const unlit = { current: 0 };
+
+/** A run's two ends: the walls across the road, striped like the rest, so the track visibly stops. */
+function EndCaps({ track }: { track: Track }) {
+  const items = useMemo(
+    () =>
+      wallSegments(track)
+        .filter((w) => w.i === -1)
+        .flatMap((w) => {
+          const n = 6;
+          return Array.from({ length: n }, (_, k) => {
+            const off = (k - (n - 1) / 2) * (w.len / n);
+            return { x: w.x + Math.sin(w.rotY) * off, y: WALL_H / 2, z: w.z + Math.cos(w.rotY) * off, rotY: w.rotY, w: track.spec.wallThickness, h: WALL_H, d: w.len / n, color: k % 2 ? WALL_A : WALL_B };
+          });
+        }),
+    [track],
+  );
+  return <Boxes items={items} emissive={0.1} />;
+}
+
 /**
  * The track and what stands around it. A drift spot keeps the look and swaps
  * the surroundings: `grass` off when the spot lays its own ground, `stands`
@@ -498,6 +519,13 @@ export default function TrackScene({
       <Walls track={track} />
       <StartLine track={track} />
       <Gantry track={track} lit={lit} title={title} />
+      {!track.closed && (
+        <>
+          <StartLine track={track} at={finishOf(track)} />
+          <Gantry track={track} lit={unlit} title="Finish" at={finishOf(track)} />
+          <EndCaps track={track} />
+        </>
+      )}
       {stands && <Stands track={track} />}
       <Chevrons track={track} />
       {trees && <Trees track={track} />}

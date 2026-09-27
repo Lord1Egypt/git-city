@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { offsetAt } from "../../league-city/race/layout";
+import { finishOf } from "../../league-city/race/track";
 import { TICK_MS, type Frames } from "../frames";
 import { validateRun } from "../validate";
 import { SPOTS, courseOf, getLiveSpot } from "./index";
@@ -27,10 +28,25 @@ function lap(spot: LiveSpot, speed = 18): Frames {
 describe.each(live.map((s) => [s.id, s] as const))("%s", (_id, spot) => {
   const { track } = courseOf(spot);
 
-  it("is long enough for a run of 40 to 60 seconds at drift speed", () => {
-    const secs = track.length / 17;
-    expect(secs).toBeGreaterThan(35);
+  it("is a run of 30 to 60 seconds at drift speed, start to finish", () => {
+    const secs = finishOf(track) / 17;
+    expect(secs).toBeGreaterThan(30);
     expect(secs).toBeLessThan(60);
+  });
+
+  it("keeps its straights short: nowhere runs straight for more than 70 m", () => {
+    let run = 0;
+    let longest = 0;
+    for (const p of track.samples) {
+      if (p.s > finishOf(track)) break;
+      run = Math.abs(p.k) < 1 / 200 ? run + 2 : 0;
+      longest = Math.max(longest, run);
+    }
+    expect(longest).toBeLessThan(70);
+  });
+
+  it("has its split checkpoints on the course", () => {
+    for (const k of track.spec.splits) expect(k).toBeLessThan(track.checkpoints.length);
   });
 
   it("never runs over itself: stretches far apart along the track stay a wall's width apart", () => {

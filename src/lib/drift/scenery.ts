@@ -13,7 +13,7 @@
 // Meters, like the track. Pure, so it's the same on every load.
 
 import { clearOfTrack, curbRuns, hash, offsetAt, treeSpots } from "../league-city/race/layout";
-import { wallOffset, type Track } from "../league-city/race/track";
+import { finishOf, wallOffset, type Track } from "../league-city/race/track";
 import type { Clip } from "./score";
 import type { SpotId } from "./spots/types";
 import type { PropItem, PropKind } from "./props";
@@ -192,7 +192,7 @@ function touge(t: Track, out: PropItem[]) {
     out.push({ kind: "fence", x: p.x, z: p.z, rotY: p.h + Math.PI / 2 });
   }
   for (let i = 0; i < 3; i++) {
-    const p = place(t, t.length - 34 + i * 12.5, -(w + 9));
+    const p = place(t, finishOf(t) - 30 + i * 12.5, -(w + 9));
     if (!clearOfTrack(t, p.x, p.z, w + 5)) continue;
     out.push({ kind: "stand", x: p.x, z: p.z, rotY: facing(p.h, -1) });
   }

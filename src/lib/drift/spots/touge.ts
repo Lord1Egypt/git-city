@@ -7,22 +7,28 @@ import { SPRINT } from "../../league-city/race/track";
 import { left, path, right, straight } from "./path";
 import type { LiveSpot } from "./types";
 
+// Switchback after switchback with short straights between (no boost here), an S,
+// the double hairpin, then 70 m past the finish to brake on.
+const RUNOUT = 70;
 const P = path([
-  straight(50, "start"),
+  straight(60, "start"),
   right(180, 15),
-  straight(80),
+  straight(22),
   left(180, 15),
-  straight(80),
+  straight(22),
   right(180, 15),
-  straight(30),
-  left(45, 32),
-  right(90, 32),
-  left(45, 32),
-  straight(40),
+  straight(22),
+  left(180, 15),
+  straight(10),
+  left(45, 30),
+  right(90, 30),
+  left(45, 30),
+  straight(12),
   left(180, 13, "dh1"),
-  straight(28),
+  straight(18),
   right(180, 13, "dh2"),
-  straight(60, "finish"),
+  straight(20, "finish"),
+  straight(RUNOUT, "runout"),
 ]);
 
 const mid = (name: string) => (P.marks[name][0] + P.marks[name][1]) / 2;
@@ -39,13 +45,14 @@ export const TOUGE: LiveSpot = {
     closed: false,
     width: 12,
     runoff: 3,
-    splits: [4, 9, 13],
+    splits: [3, 7, 11],
+    runout: RUNOUT,
   },
   surface: "asphalt",
   clips: [
     { s: mid("dh1") - 7, len: 14, side: 1, kind: "inner", depth: 2.5 },
     { s: mid("dh2") - 7, len: 14, side: -1, kind: "inner", depth: 2.5 },
   ],
-  author: 50_000,
-  minMs: 20_000,
+  author: 45_000,
+  minMs: 18_000,
 };
