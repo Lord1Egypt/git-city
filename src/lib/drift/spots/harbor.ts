@@ -1,4 +1,4 @@
-// Harbor: the docks at night, in the rain. A loop along the quay, a long
+// Harbor: the race track down at the docks. A loop along the quay, a long
 // sweeper at its end, an S between two stacks into the pier, a hairpin round
 // the crane at the pier's head, and back past a container wall the tail
 // grazes on the way to the line (the Meihan wall). Wet asphalt: easy to get
@@ -37,7 +37,7 @@ export const HARBOR: LiveSpot = {
   id: "harbor",
   status: "live",
   name: "Harbor",
-  tagline: "Docks at night. Wet asphalt, a crane hairpin, the container wall.",
+  tagline: "The docks by the water. Wet asphalt, a crane hairpin, the container wall.",
   track: {
     ...SPRINT,
     id: "harbor",

@@ -12,10 +12,8 @@ import { CameraKey, DriveAudio, LocalFx } from "@/components/league/drive/carFx"
 import type { FxSource } from "@/components/league/drive/fx";
 import { useDriveInput } from "@/components/league/drive/useDriveInput";
 import TrackScene from "@/components/race/TrackScene";
-import type { CityTheme } from "@/components/city/theme";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import DriftCamera from "./DriftCamera";
-import HarborScene from "./scenes/HarborScene";
 import { Ghost } from "@/components/race/Ghost";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
 import { GRAVITY, M_TO_UNIT } from "@/lib/league-city/drive/tuning";
@@ -54,7 +52,6 @@ export interface DriftWorldProps {
   title: string;
   color: string;
   telemetry: DriftTelemetry;
-  theme: CityTheme;
   camera: DriveCameraMode;
   onCameraToggle: () => void;
   muted: boolean;
@@ -134,7 +131,6 @@ export default function DriftWorld({
   title,
   color,
   telemetry,
-  theme,
   camera,
   onCameraToggle,
   muted,
@@ -367,11 +363,7 @@ export default function DriftWorld({
 
   return (
     <Boundary onFail={onFail}>
-      {spot.id === "harbor" ? (
-        <HarborScene track={track} clips={course.clips} theme={theme} name={title} />
-      ) : (
-        <TrackScene track={track} lit={lit} title={title} />
-      )}
+      <TrackScene track={track} lit={lit} title={title} />
       <Suspense fallback={null}>
         <Physics timeStep={1 / 60} interpolate paused={hidden || paused} gravity={[0, GRAVITY, 0]} updatePriority={-50}>
           <Walls track={track} />

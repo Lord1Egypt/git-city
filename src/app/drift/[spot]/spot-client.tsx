@@ -6,9 +6,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { ThemeLights } from "@/components/city/theme";
-import ThemeSkyFX from "@/components/ThemeSkyFX";
-import { EXPOSURE, townTheme } from "@/components/league/townTheme";
+import { THEMES, ThemeLights, type CityTheme } from "@/components/city/theme";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import { HUD_BOX } from "@/components/league/hud/shared";
 import { isDesktop } from "@/components/towns/useDesktop";
@@ -36,8 +34,31 @@ const DriftWorld = dynamic(() => import("@/components/drift/DriftWorld"), { ssr:
 
 const MUTE_KEY = "gc:drive-muted";
 
-// Every spot sits under the town's Midnight sky, stars and moon: Git City's night.
-const SKY = townTheme(1);
+// The race track's clear afternoon: blue sky, warm sun, soft fill, no fog to speak of.
+const DAY: CityTheme = {
+  ...THEMES[0],
+  sky: [
+    [0, "#2f7fd6"],
+    [0.35, "#6fb2ec"],
+    [0.5, "#cfe7f8"],
+    [0.52, "#e8f3fb"],
+    [1, "#e8f3fb"],
+  ],
+  fogColor: "#cfe7f8",
+  fogNear: 900,
+  fogFar: 4500,
+  ambientColor: "#ffffff",
+  ambientIntensity: 0.55,
+  sunColor: "#fff1d6",
+  sunIntensity: 0.95,
+  sunPos: [300, 400, 200],
+  fillColor: "#bcd8ff",
+  fillIntensity: 0.3,
+  fillPos: [-200, 150, -200],
+  hemiSky: "#cfe7ff",
+  hemiGround: "#5d8a45",
+  hemiIntensity: 0.35,
+};
 
 const toGhost = (frames: Frames, splits: number[]): GhostRun => ({ ms: frames[frames.length - 4] ?? 0, splits, frames });
 
@@ -275,12 +296,11 @@ export default function SpotClient({
         dpr={[1, 1.5]}
         camera={{ position: [(start.x - start.tx * 10) * M_TO_UNIT, 40, (start.z - start.tz * 10) * M_TO_UNIT], fov: 60, near: 2, far: 8000 }}
         onCreated={({ camera: c }) => c.lookAt(look.x * M_TO_UNIT, 0, look.z * M_TO_UNIT)}
-        gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: EXPOSURE }}
+        gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1 }}
         style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh" }}
       >
-        <fog attach="fog" args={[SKY.theme.fogColor, SKY.theme.fogNear * 2, SKY.theme.fogFar * 1.2]} />
-        <ThemeLights theme={SKY.theme} themeIndex={SKY.key} />
-        <ThemeSkyFX themeIndex={SKY.fx} theme={SKY.theme} lowSky />
+        <fog attach="fog" args={[DAY.fogColor, DAY.fogNear, DAY.fogFar]} />
+        <ThemeLights theme={DAY} themeIndex={21} />
         {desktop && !failed && (
           <DriftWorld
             spot={spot}
@@ -288,7 +308,6 @@ export default function SpotClient({
             title={spot.name}
             color={carColor(viewerLogin ?? "guest")}
             telemetry={telemetry}
-            theme={SKY.theme}
             camera={camera}
             onCameraToggle={toggleCamera}
             muted={muted || leaving}

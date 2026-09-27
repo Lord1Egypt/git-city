@@ -16,7 +16,7 @@ import { RACE } from "@/lib/league-city/race/race";
 // crowd, the pit building and trees.
 
 const U = M_TO_UNIT;
-const GRASS = "#4f9e3c";
+export const GRASS = "#4f9e3c";
 const ASPHALT = "#454b57";
 const LINE = "#ffffff";
 const CURB_RED = "#e0323c";
@@ -25,7 +25,7 @@ const WALL_A = "#2f6fe4";
 const WALL_B = "#eef0f4";
 
 /** A flat ribbon from `a` to `b` m left of the centerline over [s0, s1], a quad every `step` m. */
-function ribbon(t: Track, s0: number, s1: number, a: number, b: number, y: number, step = 2, stripe?: { every: number; colors: [THREE.Color, THREE.Color] }) {
+export function ribbon(t: Track, s0: number, s1: number, a: number, b: number, y: number, step = 2, stripe?: { every: number; colors: [THREE.Color, THREE.Color] }) {
   const pos: number[] = [];
   const col: number[] = [];
   const n = Math.max(1, Math.round((s1 - s0) / step));
@@ -53,12 +53,12 @@ function ribbon(t: Track, s0: number, s1: number, a: number, b: number, y: numbe
   return g;
 }
 
-function useDispose<T extends { dispose: () => void }>(v: T): T {
+export function useDispose<T extends { dispose: () => void }>(v: T): T {
   useEffect(() => () => v.dispose(), [v]);
   return v;
 }
 
-function Surface({ track }: { track: Track }) {
+function Surface({ track, grass = true }: { track: Track; grass?: boolean }) {
   const asphalt = useDispose(useMemo(() => ribbon(track, 0, track.length, track.spec.width / 2, -track.spec.width / 2, 0.05), [track]));
   const edges = useDispose(
     useMemo(() => {
@@ -87,10 +87,12 @@ function Surface({ track }: { track: Track }) {
   return (
     <group>
       {/* Flat layers a few cm apart: polygon offset keeps them from flickering at a distance. */}
-      <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6000, 6000]} />
-        <meshStandardMaterial color={GRASS} roughness={1} />
-      </mesh>
+      {grass && (
+        <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[6000, 6000]} />
+          <meshStandardMaterial color={GRASS} roughness={1} />
+        </mesh>
+      )}
       <mesh geometry={asphalt}>
         <meshStandardMaterial color={ASPHALT} roughness={0.9} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
@@ -130,7 +132,7 @@ const _y = new THREE.Vector3(0, 1, 0);
 const _c = new THREE.Color();
 
 /** Instanced boxes: each item a position (m), rotation, size (m) and color. */
-function Boxes({
+export function Boxes({
   items,
   emissive = 0.3,
 }: {
@@ -467,16 +469,39 @@ function Trees({ track }: { track: Track }) {
   return <Boxes items={items} emissive={0.05} />;
 }
 
-export default function TrackScene({ track, lit, title }: { track: Track; lit: React.MutableRefObject<number>; title: string }) {
+/**
+ * The track and what stands around it. A drift spot keeps the look and swaps
+ * the surroundings: `grass` off when the spot lays its own ground, `stands`
+ * off for the grandstands and pits, `trees` off for the scattered trees, and
+ * its own scenery as children.
+ */
+export default function TrackScene({
+  track,
+  lit,
+  title,
+  grass = true,
+  stands = true,
+  trees = true,
+  children,
+}: {
+  track: Track;
+  lit: React.MutableRefObject<number>;
+  title: string;
+  grass?: boolean;
+  stands?: boolean;
+  trees?: boolean;
+  children?: React.ReactNode;
+}) {
   return (
     <group>
-      <Surface track={track} />
+      <Surface track={track} grass={grass} />
       <Walls track={track} />
       <StartLine track={track} />
       <Gantry track={track} lit={lit} title={title} />
-      <Stands track={track} />
+      {stands && <Stands track={track} />}
       <Chevrons track={track} />
-      <Trees track={track} />
+      {trees && <Trees track={track} />}
+      {children}
     </group>
   );
 }
