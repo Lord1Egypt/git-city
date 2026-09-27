@@ -32,7 +32,6 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
   const load = (r: (typeof RIVALRY)[number]) => loadSide(r, discover.all, norms, viewer?.id ?? null);
   const sides = await Promise.all([load(RIVALRY[0]), load(RIVALRY[1])]);
   const mineIndex = sides.findIndex((s) => s.mine);
-  const others = discover.all.filter((t) => !RIVALRY.some((r) => r.slug === t.slug));
 
   return (
     <RivalryPoster
@@ -40,7 +39,6 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
       mine={mineIndex === -1 ? null : (mineIndex as 0 | 1)}
       signedIn={!!viewer}
       pickOnLoad={RIVALRY.some((r) => r.slug === pick) ? (pick as string) : null}
-      others={others}
     />
   );
 }
