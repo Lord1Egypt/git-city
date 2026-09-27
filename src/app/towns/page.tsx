@@ -9,6 +9,7 @@ import DiscoverHeader from "@/components/towns/DiscoverHeader";
 import TownHero from "@/components/towns/TownHero";
 import TownGrid from "@/components/towns/TownGrid";
 import WeekRanking from "@/components/towns/WeekRanking";
+import TrophyIcon from "@/components/towns/TrophyIcon";
 import HeroDrive from "./hero-drive";
 
 export const dynamic = "force-dynamic";
@@ -45,8 +46,8 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
 }
 
 const REASON_LABEL: Record<FeaturedTown["reason"], string> = {
-  week: "★ Town of the week",
-  staff: "★ Staff pick",
+  week: "Town of the week",
+  staff: "Staff pick",
   biggest: "🏆 Biggest town",
 };
 
@@ -58,7 +59,10 @@ function Hero({ featured, hero }: { featured: FeaturedTown; hero: NonNullable<Aw
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-bg/80 via-transparent to-transparent" />
       <div className="absolute inset-x-0 bottom-0 mx-auto max-w-6xl px-4 pb-6 sm:px-6">
-        <p className="text-xs tracking-widest text-lime">{REASON_LABEL[featured.reason]}</p>
+        <p className="flex items-center gap-2 text-xs tracking-widest text-lime">
+          {featured.reason === "week" && <TrophyIcon size={12} />}
+          {REASON_LABEL[featured.reason]}
+        </p>
         <h2 className="mt-2 max-w-3xl text-3xl leading-tight text-cream normal-case sm:text-4xl">{featured.name}</h2>
         <p className="mt-3 flex gap-4 text-sm text-muted">
           {featured.verified && <span className="text-lime">&#10003; Verified</span>}

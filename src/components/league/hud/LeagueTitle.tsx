@@ -5,6 +5,7 @@ import type { LeaguePageData } from "@/lib/leagues/queries";
 import { townDisplayName } from "@/lib/towns/names";
 import { MILESTONE_LABELS } from "@/lib/towns/milestones";
 import type { TownBadges } from "@/lib/towns/milestones";
+import TrophyIcon from "@/components/towns/TrophyIcon";
 import { HUD_BOX, fmt } from "./shared";
 
 export default function LeagueTitle({
@@ -29,7 +30,12 @@ export default function LeagueTitle({
         <div className="flex flex-wrap items-center gap-2 text-[9px]">
           <span className="text-muted">{league.kind === "company" ? `@${league.github_org}` : "Custom town"}</span>
           {league.kind === "company" && <span className="text-lime">&#10003; Verified</span>}
-          {badges.townOfWeek && <span className="border-2 border-lime bg-lime px-1.5 py-0.5 text-bg">&#9733; Town of the week</span>}
+          {badges.townOfWeek && (
+            <span className="flex items-center gap-1 border-2 border-lime bg-lime px-1.5 py-0.5 text-bg">
+              <TrophyIcon size={10} />
+              Town of the week
+            </span>
+          )}
         </div>
         <h1 className="mt-1.5 text-xl leading-tight text-cream normal-case sm:text-2xl">{townDisplayName(league.name)}</h1>
         <p className="mt-1.5 text-[10px] text-muted">

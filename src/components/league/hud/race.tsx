@@ -3,7 +3,8 @@
 // Shared pieces of the town race HUD (widget, panel, "See all" dialogs):
 // GitHub-style day squares, town lanes, crew rows and the list window.
 import { useEffect, useState, type ReactNode } from "react";
-import { CircleHelp, Crown, Landmark, X } from "lucide-react";
+import { CircleHelp, Crown, X } from "lucide-react";
+import TrophyIcon from "@/components/towns/TrophyIcon";
 import type { LeagueStandingEntry } from "@/lib/leagues/standings";
 import type { TownRankingRow } from "@/lib/leagues/queries";
 import { DAILY_CONTRIBUTION_CAP, TOWN_MIN_CODERS } from "@/lib/leagues/scoring";
@@ -56,7 +57,7 @@ export function Stakes({ small = false }: { small?: boolean }) {
   const left = useCountdown();
   return (
     <span className={`flex items-center gap-1.5 text-cream ${small ? "text-[9px]" : "text-[10px]"}`}>
-      <Landmark size={small ? 12 : 14} strokeWidth={2.5} className="shrink-0 text-lime" aria-hidden />
+      <TrophyIcon size={12} className="text-lime" />
       #1 takes the monument · <span className="tabular-nums">{left || "…"}</span>
     </span>
   );
