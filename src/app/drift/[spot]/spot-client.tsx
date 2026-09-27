@@ -92,13 +92,28 @@ export default function SpotClient({
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [camera, setCamera] = useState<DriveCameraMode>("chase");
-  const [paused, setPaused] = useState(false);
+  const [paused, setPausedRaw] = useState(false);
   const [muted, setMuted] = useState(false);
   const [showGhosts, setShowGhosts] = useState(true);
   const [trial, setTrial] = useState<{ stage: TrialStage; at: number; beat: number }>({ stage: "menu", at: 0, beat: TRIAL.beatMs });
   const goStage = useCallback((stage: TrialStage, beat?: number) => {
     setTrial((t) => (t.stage === stage && stage !== "countdown" ? t : { stage, at: performance.now(), beat: beat ?? t.beat }));
   }, []);
+  // Pause and resume. Paused in the middle of 3-2-1, the countdown starts over on the way back, not under the menu.
+  const stageNow = useRef(trial.stage);
+  useEffect(() => {
+    stageNow.current = trial.stage;
+  }, [trial.stage]);
+  const setPaused = useCallback(
+    (on: boolean | ((v: boolean) => boolean)) => {
+      setPausedRaw((v) => {
+        const next = typeof on === "function" ? on(v) : on;
+        if (v && !next && stageNow.current === "countdown") setTimeout(() => goStage("countdown", TRIAL.beatMs), 0);
+        return next;
+      });
+    },
+    [goStage],
+  );
   // Bumped on every restart: the world remounts from scratch (car, physics, camera, score).
   const [runKey, setRunKey] = useState(0);
   const respawnRef = useRef<(() => void) | null>(null);
@@ -193,11 +208,11 @@ export default function SpotClient({
         e.preventDefault();
         if (trial.stage === "menu") exit();
         else if (trial.stage !== "finish") setPaused((v) => !v);
-      } else if (e.code === "KeyQ" && paused) exit();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, exit, leaving, trial.stage]);
+  }, [paused, exit, leaving, trial.stage, setPaused]);
 
   // Posting a run.
   const [finish, setFinish] = useState<{ run: DriftFinish; before: number | null } | null>(null);
@@ -266,7 +281,7 @@ export default function SpotClient({
     Object.assign(telemetry, { drift: null, feed: [], split: null, countdown: null, carScreen: null });
     setRunKey((k) => k + 1);
     goStage("countdown", TRIAL.beatMs);
-  }, [telemetry, goStage]);
+  }, [telemetry, goStage, setPaused]);
   const raceGhost = useCallback(
     (login: string) => {
       setRivalName(login);

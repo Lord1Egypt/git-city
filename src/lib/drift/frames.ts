@@ -41,6 +41,8 @@ export class FrameRecorder {
   private start: number | null = null;
   private prev: Frame | null = null;
   private nextTick = 0;
+  /** performance.now when the run was paused, or null while it runs. */
+  private heldAt: number | null = null;
 
   /** The run starts at `at` (performance.now), with the car at this pose. Returns the first frame. */
   begin(at: number, x: number, z: number, yaw: number): Frame {
@@ -50,7 +52,24 @@ export class FrameRecorder {
     this.frames.push(f.t, f.x, f.z, f.yaw);
     this.prev = { t: 0, x, z, yaw };
     this.nextTick = TICK_MS;
+    this.heldAt = null;
     return f;
+  }
+
+  /** The run is paused: its clock stops (no ticks for the time the world stands still). */
+  hold(now: number): void {
+    if (this.start !== null && this.heldAt === null) this.heldAt = now;
+  }
+
+  /** The run goes on: the time it was held doesn't count. */
+  release(now: number): void {
+    if (this.start !== null && this.heldAt !== null) this.start += now - this.heldAt;
+    this.heldAt = null;
+  }
+
+  /** Run time (ms), not counting pauses. */
+  elapsed(now: number): number {
+    return this.start === null ? 0 : (this.heldAt ?? now) - this.start;
   }
 
   /** Stop recording (a restart, the finish). */
@@ -64,7 +83,7 @@ export class FrameRecorder {
 
   /** The car's pose now; returns the frames of every tick passed since the last call. */
   push(now: number, x: number, z: number, yaw: number): Frame[] {
-    if (this.start === null || !this.prev) return [];
+    if (this.start === null || !this.prev || this.heldAt !== null) return [];
     const t = now - this.start;
     const out: Frame[] = [];
     const p = this.prev;

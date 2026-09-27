@@ -182,14 +182,16 @@ export default function DriftWorld({
   const pilot = useRef<AutopilotState>({ s: null });
   const recorder = useRef(new FrameRecorder());
   const scorer = useRef<Scorer | null>(null);
-  // Date.now() at GO, for the ghosts (they play on the wall clock).
-  const runStart = useRef<number | null>(null);
+
   const finished = useRef(false);
   const stats = useRef({ banks: 0, lost: 0, clips: 0, bestChain: 0 });
   const count = useRef({ at: 0, beat: -1 });
   const pausedRef = useRef(paused || hidden);
   useEffect(() => {
     pausedRef.current = paused || hidden;
+    // The run's clock stops with the world: no frames, no ghost time, while paused or in a hidden tab.
+    if (paused || hidden) recorder.current.hold(performance.now());
+    else recorder.current.release(performance.now());
   }, [paused, hidden]);
   // A respawn asked for from the pause menu: done on the next physics step, so a car
   // moved while the world is still paused isn't put back.
@@ -232,7 +234,6 @@ export default function DriftWorld({
   const clearRun = useCallback(() => {
     recorder.current.stop();
     scorer.current = null;
-    runStart.current = null;
     finished.current = false;
     stats.current = { banks: 0, lost: 0, clips: 0, bestChain: 0 };
     Object.assign(tel.current, { drift: null, feed: [], split: null });
@@ -343,7 +344,6 @@ export default function DriftWorld({
         const p = c.body.translation();
         clearRun();
         scorer.current = new Scorer(course);
-        runStart.current = Date.now();
         stepRef.current(recorder.current.begin(now, p.x, p.z, carHeading(c.body)));
         cb.current.onStage("run");
       }
@@ -360,7 +360,7 @@ export default function DriftWorld({
       );
     }
 
-    if (autodrive) (window as unknown as { __drift?: unknown }).__drift = { x: c.body.translation().x, z: c.body.translation().z, stage: sg.stage };
+    if (autodrive) (window as unknown as { __drift?: unknown }).__drift = { x: c.body.translation().x, z: c.body.translation().z, stage: sg.stage, clock: Math.round(recorder.current.elapsed(now)) };
     if (autodrive && sg.stage === "run") {
       const p0 = c.body.translation();
       override(input, autopilot(track, pilot.current, p0.x, p0.z, carHeading(c.body), c.state.speed));
@@ -377,7 +377,8 @@ export default function DriftWorld({
     hud.carScreen = { x: ((_v.x + 1) / 2) * three.size.width, y: ((1 - _v.y) / 2) * three.size.height };
   });
 
-  const ghostClock = useCallback(() => runStart.current, []);
+  // The ghosts play on the run's own clock (Ghost reads Date.now() − lapStart), so they stop when the run is paused.
+  const ghostClock = useCallback(() => (recorder.current.running ? Date.now() - recorder.current.elapsed(performance.now()) : null), []);
   const zero = useCallback(() => 0, []);
   const pbShow = useCallback(() => ghostsOn.current && stageRef.current.stage === "run", []);
 

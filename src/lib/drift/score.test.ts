@@ -183,4 +183,17 @@ describe("FrameRecorder", () => {
     expect(out[1].x).toBeCloseTo(10, 6);
     expect(r.all().length).toBe(12);
   });
+
+  it("doesn't count a pause: no ticks while held, and the clock picks up where it stopped", () => {
+    const r = new FrameRecorder();
+    r.begin(0, 0, 0, 0);
+    r.push(100, 2, 0, 0);
+    r.hold(100);
+    expect(r.push(5000, 2, 0, 0)).toHaveLength(0);
+    expect(r.elapsed(5000)).toBe(100);
+    r.release(5000);
+    const out = r.push(5100, 4, 0, 0);
+    expect(out.map((f) => f.t)).toEqual([150, 200]);
+    expect(r.elapsed(5100)).toBe(200);
+  });
 });

@@ -355,29 +355,42 @@ export default function DriftHud(p: DriftHudProps) {
 
 function Pause(p: DriftHudProps & { medals: [Medal, number][] }) {
   const next = [...p.medals].reverse().find(([, at]) => p.best === null || at > p.best) ?? null;
-  // The keys the menu shows: R starts over, Enter goes back to the last checkpoint (Esc and Q live on the page).
-  const cb = useRef(p);
+  const items: { id: string; chip?: string; label: string; act: () => void }[] = [
+    { id: "resume", chip: "Esc", label: "Resume", act: () => p.onPause(false) },
+    { id: "restart", chip: "R", label: "Start over", act: () => { p.onPause(false); p.onRestart(); } },
+    ...(p.stage === "run" ? [{ id: "checkpoint", label: "Last checkpoint", act: () => { p.onPause(false); p.onRespawn(); } }] : []),
+    { id: "spots", chip: "Q", label: "Back to spots", act: p.onExit },
+  ];
+  const [sel, setSel] = useState(0);
+  // A game menu: ↑↓ (or W S) choose, Enter or Space picks, the letters jump straight there. Esc lives on the page.
+  const cb = useRef({ items, sel });
   useEffect(() => {
-    cb.current = p;
+    cb.current = { items, sel };
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      const q = cb.current;
-      if (e.code === "KeyR") {
+      const { items: list, sel: at } = cb.current;
+      const go = (d: number) => {
         e.preventDefault();
-        q.onPause(false);
-        q.onRestart();
-      } else if ((e.code === "Enter" || e.code === "NumpadEnter") && q.stage === "run") {
+        setSel((list.length + at + d) % list.length);
+      };
+      if (e.code === "ArrowUp" || e.code === "KeyW") go(-1);
+      else if (e.code === "ArrowDown" || e.code === "KeyS") go(1);
+      else if (e.code === "Enter" || e.code === "NumpadEnter" || e.code === "Space") {
         e.preventDefault();
-        q.onPause(false);
-        q.onRespawn();
+        list[at]?.act();
+      } else if (e.code === "KeyR") {
+        e.preventDefault();
+        list.find((x) => x.id === "restart")?.act();
+      } else if (e.code === "KeyQ") {
+        e.preventDefault();
+        list.find((x) => x.id === "spots")?.act();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  const row = "drift-band flex items-center gap-4 px-5 py-3 shadow-[0_6px_0_rgba(0,0,0,0.35)]";
   return (
     <div className="pointer-events-auto absolute inset-0">
       <Backdrop side="left" />
@@ -385,21 +398,29 @@ function Pause(p: DriftHudProps & { medals: [Medal, number][] }) {
         <Band tone="lime" className="px-6 pb-3 pt-4 leading-none tracking-[0.08em]" style={{ fontSize: "clamp(44px, 9vh, 104px)" }}>
           Paused
         </Band>
-        <div className="flex flex-col items-stretch" style={{ fontSize: T.mid }}>
-          <button type="button" onClick={() => p.onPause(false)} className={`${row} bg-cream text-bg`} style={{ animationDelay: "60ms" }}>
-            <Chip tone="dark">Esc</Chip> Resume
-          </button>
-          <button type="button" onClick={() => { p.onPause(false); p.onRestart(); }} className={`${row} bg-[#141417] text-cream hover:text-lime`} style={{ animationDelay: "110ms" }}>
-            <Chip>R</Chip> Start over
-          </button>
-          {p.stage === "run" && (
-            <button type="button" onClick={() => { p.onPause(false); p.onRespawn(); }} className={`${row} bg-[#141417] text-cream hover:text-lime`} style={{ animationDelay: "160ms" }}>
-              <Chip>Enter</Chip> Last checkpoint
-            </button>
-          )}
-          <button type="button" onClick={p.onExit} className={`${row} bg-[#141417] text-cream hover:text-lime`} style={{ animationDelay: "210ms" }}>
-            <Chip>Q</Chip> Back to spots
-          </button>
+        <div role="menu" className="flex w-[min(420px,80vw)] flex-col items-stretch" style={{ fontSize: T.mid }}>
+          {items.map((it, i) => {
+            const on = i === sel;
+            return (
+              <button
+                key={it.id}
+                type="button"
+                role="menuitem"
+                onClick={it.act}
+                onMouseEnter={() => setSel(i)}
+                className={`drift-band flex items-center gap-4 px-5 py-3 text-left shadow-[0_6px_0_rgba(0,0,0,0.35)] outline-none ${on ? "bg-cream text-bg" : "bg-[#141417] text-cream"}`}
+                style={{ animationDelay: `${60 + i * 50}ms` }}
+              >
+                <span className={`w-3 ${on ? "" : "opacity-0"}`}>▶</span>
+                <span className="flex-1">{it.label}</span>
+                {it.chip && <Chip tone={on ? "dark" : "cream"}>{it.chip}</Chip>}
+              </button>
+            );
+          })}
+          <Band delay={300} className="justify-center gap-3 px-5 py-2 text-muted" style={{ fontSize: T.small }}>
+            <Chip>↑</Chip>
+            <Chip>↓</Chip> choose <Chip>Enter</Chip> select
+          </Band>
         </div>
       </div>
       <div className="absolute right-[6vw] top-1/2 flex w-[min(360px,30vw)] -translate-y-1/2 flex-col items-stretch">
