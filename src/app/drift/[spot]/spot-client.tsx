@@ -11,7 +11,7 @@ import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import { HUD_BOX } from "@/components/league/hud/shared";
 import { isDesktop } from "@/components/towns/useDesktop";
 import DriftHud from "@/components/drift/DriftHud";
-import DriftTitle, { DriftLoading } from "@/components/drift/DriftTitle";
+import DriftTitle, { DriftLoading, type BoardRowLite } from "@/components/drift/DriftTitle";
 import DriftResults, { type PostResult, type PostState } from "@/components/drift/DriftResults";
 import type { DriftFinish } from "@/components/drift/DriftWorld";
 import { carColor } from "@/lib/league-city/drive/net";
@@ -66,16 +66,16 @@ export default function SpotClient({
   spotId,
   viewerLogin,
   boardScores,
+  board,
   myBest,
-  record,
   rivalLogin,
   challenger,
 }: {
   spotId: SpotId;
   viewerLogin: string | null;
   boardScores: number[];
+  board: BoardRowLite[];
   myBest: number | null;
-  record: { login: string; score: number } | null;
   rivalLogin: string | null;
   challenger: string | null;
 }) {
@@ -191,7 +191,7 @@ export default function SpotClient({
       if (e.key === "Escape") {
         e.preventDefault();
         if (trial.stage === "menu") exit();
-        else setPaused((v) => !v);
+        else if (trial.stage !== "finish") setPaused((v) => !v);
       } else if (e.code === "KeyQ" && paused) exit();
     };
     window.addEventListener("keydown", onKey);
@@ -329,7 +329,7 @@ export default function SpotClient({
       </Canvas>
 
       {ready && trial.stage === "menu" && (
-        <DriftTitle spot={spot} best={best} record={record} rival={rival?.login ?? null} challenger={challenger} onStart={begin} onSpots={exit} />
+        <DriftTitle spot={spot} best={best} board={board} you={viewerLogin} rival={rival?.login ?? null} challenger={challenger} onStart={begin} onSpots={exit} />
       )}
 
       {!failed && <DriftLoading spot={spot} ready={ready} />}
@@ -367,6 +367,7 @@ export default function SpotClient({
           score={finish.run.score}
           before={finish.before}
           stats={finish.run.stats}
+          board={board}
           post={post}
           you={viewerLogin}
           onRetry={retry}

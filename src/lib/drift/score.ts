@@ -91,6 +91,22 @@ export type DriftEvent =
 
 export type AngleBand = "dead" | "ideal" | "over";
 
+/** Why a slide isn't scoring right now (the HUD says it), or null. */
+export type SlideHint = "shallow" | "over" | "slow" | "off" | null;
+
+/** How good a scoring drift is: the word the HUD shows instead of degrees (Forza, CarX, NFS). */
+export function driftGrade(angle: number, kmh: number): "Good" | "Great" | "Insane" {
+  const q = quality(angle, kmh);
+  return q < 0.35 ? "Good" : q < 0.75 ? "Great" : "Insane";
+}
+
+function quality(angle: number, kmh: number): number {
+  return (
+    clamp01((angle - DRIFT_SCORE.minAngle) / (DRIFT_SCORE.fullAngle - DRIFT_SCORE.minAngle)) *
+    clamp01((kmh - DRIFT_SCORE.minKmh) / (DRIFT_SCORE.fullKmh - DRIFT_SCORE.minKmh))
+  );
+}
+
 export interface DriftState {
   /** Time into the run (ms). */
   t: number;
@@ -108,6 +124,8 @@ export interface DriftState {
   /** Scoring this tick. */
   drifting: boolean;
   braking: boolean;
+  /** Sliding but not scoring: why. */
+  hint: SlideHint;
   /** Distance along the course from the start line (m); a loop's first meters can be negative (the grid). */
   progress: number;
   /** Score (banked plus risk) at each of the track's split checkpoints passed so far. */
@@ -154,7 +172,7 @@ export class Scorer {
     this.wallFace = spec.width / 2 + spec.runoff;
     this.limiter = spec.width / 2 + spec.curb + 0.3;
     this.state = {
-      t: 0, score: 0, risk: 0, mult: 1, gap: 0, angle: 0, band: "dead", kmh: 0, drifting: false, braking: false,
+      t: 0, score: 0, risk: 0, mult: 1, gap: 0, angle: 0, band: "dead", kmh: 0, drifting: false, braking: false, hint: null,
       progress: 0, splits: [], finished: false, events: [],
     };
   }
@@ -221,6 +239,19 @@ export class Scorer {
     const finish = t.closed ? st.progress >= t.length : st.progress >= t.length - 1;
 
     const onAsphalt = Math.abs(lateral) <= this.asphalt;
+    // A slide that doesn't count, and why (the scoring below doesn't read this).
+    const sliding = st.angle > 5 && st.angle < DRIFT_SCORE.spinAngle && st.kmh > 8;
+    st.hint = !sliding
+      ? null
+      : st.angle < DRIFT_SCORE.minAngle
+        ? "shallow"
+        : st.angle > DRIFT_SCORE.maxAngle
+          ? "over"
+          : st.kmh <= DRIFT_SCORE.minKmh
+            ? "slow"
+            : !onAsphalt
+              ? "off"
+              : null;
     if (wall || spin || limiter) {
       st.drifting = false;
       st.braking = false;
@@ -235,8 +266,7 @@ export class Scorer {
         const ramp = clamp01(this.segment / DRIFT_SCORE.ramp);
         const rate = (st.angle - DRIFT_SCORE.minAngle + st.kmh - DRIFT_SCORE.minKmh) * DRIFT_SCORE.scale;
         st.risk += rate * st.mult * ramp * (st.braking ? DRIFT_SCORE.brakeMul : 1) * DT;
-        const q = clamp01((st.angle - DRIFT_SCORE.minAngle) / (DRIFT_SCORE.fullAngle - DRIFT_SCORE.minAngle)) *
-          clamp01((st.kmh - DRIFT_SCORE.minKmh) / (DRIFT_SCORE.fullKmh - DRIFT_SCORE.minKmh));
+        const q = quality(st.angle, st.kmh);
         st.mult = Math.min(DRIFT_SCORE.multMax, st.mult + (DRIFT_SCORE.multBase + (DRIFT_SCORE.multBest - DRIFT_SCORE.multBase) * q) * DT);
         this.clipAt(f, lateral, nx, nz);
       } else {

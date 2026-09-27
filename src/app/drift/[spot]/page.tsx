@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getViewer } from "@/lib/leagues/service";
-import { getBoard, getMyRow, getRecords, nextAbove } from "@/lib/drift/board";
+import { getBoard, getMyRow, nextAbove } from "@/lib/drift/board";
 import { getLiveSpot } from "@/lib/drift/spots";
 import { medalScores } from "@/lib/drift/spots/types";
 import SpotClient from "./spot-client";
@@ -27,10 +27,9 @@ export default async function DriftSpotPage({ params, searchParams }: Props) {
   const spot = getLiveSpot(id);
   if (!spot) notFound();
   const viewer = await getViewer();
-  const [board, me, records] = await Promise.all([
+  const [board, me] = await Promise.all([
     getBoard(spot.id, "world", 50),
     viewer ? getMyRow(spot.id, viewer.id) : Promise.resolve(null),
-    getRecords(),
   ]);
   // The ghost to race: the one asked for (a challenge link, a board row), else
   // the driver just above you (Mario Kart), else the first run past gold.
@@ -46,8 +45,8 @@ export default async function DriftSpotPage({ params, searchParams }: Props) {
       spotId={spot.id}
       viewerLogin={viewer?.github_login ?? null}
       boardScores={board.map((r) => r.score)}
+      board={board.slice(0, 50).map((r) => ({ rank: r.rank, login: r.login, score: r.score }))}
       myBest={me?.score ?? null}
-      record={records[spot.id] ? { login: records[spot.id]!.login, score: records[spot.id]!.score } : null}
       rivalLogin={rival && rival.toLowerCase() !== viewer?.github_login.toLowerCase() ? rival : null}
       challenger={vs && LOGIN.test(vs) ? vs : null}
     />

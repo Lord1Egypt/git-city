@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { HUD_BOX } from "@/components/league/hud/shared";
-import { carColor } from "@/lib/league-city/drive/net";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
 import { medalFor, medalScores, type LiveSpot } from "@/lib/drift/spots/types";
 import { MEDAL_COLORS, fmt } from "./DriftHud";
+import type { BoardRowLite } from "./DriftTitle";
+import { Backdrop, Band, Chip } from "./ui";
 
-// Past the line, the race card's pattern, in Trackmania's order: FINISH, the
-// score counting up, the medal slamming on, where it ranks in the world and
-// your country, who it passed, and the next thing to chase (the driver just
-// above, with their ghost a key away, or the next medal). A run worse than
-// your best gets no fanfare, just the gap. Again has the focus: R or Enter.
+// Past the line, in Trackmania's order: FINISH on the scene, then the frame
+// blurs and a timing tower builds on the right, like motorsport TV: the run's
+// score counting up on the cream band with its medal, then the drivers around
+// you with your row in lime (the ones you just passed below you), then the
+// rest. The next driver up is one key away as a ghost. Again is R or Enter.
 
 export interface PostResult {
   score: number;
@@ -25,6 +25,7 @@ export interface PostResult {
   country: string | null;
   passed: string[];
   next: { login: string; score: number; rank: number } | null;
+  around: BoardRowLite[];
 }
 
 export type PostState =
@@ -37,30 +38,45 @@ export interface DriftResultsProps {
   spot: LiveSpot;
   score: number;
   before: number | null;
-  /** Banks, drifts lost and clipping points hit in the run. */
   stats: { banks: number; lost: number; clips: number; bestChain: number };
   post: PostState;
   you: string | null;
+  /** The world board as the page loaded it: where an unposted run would land. */
+  board: BoardRowLite[];
   onRetry: () => void;
   onRetryPost: () => void;
   onRaceGhost: (login: string) => void;
   onSpots: () => void;
 }
 
-const flag = (cc: string | null) => (cc ? String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "");
+const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
+const T = { hero: "clamp(52px, 11vh, 128px)", big: "clamp(20px, 3vh, 34px)", body: "clamp(12px, 1.8vh, 19px)", small: "clamp(10px, 1.4vh, 15px)" };
+
+/** Rows around a score that isn't on the board yet: two above, you, two below. */
+function projected(board: BoardRowLite[], score: number, you: string): BoardRowLite[] {
+  const others = board.filter((r) => r.login.toLowerCase() !== you.toLowerCase());
+  const at = others.filter((r) => r.score > score).length;
+  const rows: BoardRowLite[] = others.slice(Math.max(0, at - 2), at).map((r, i, a) => ({ ...r, rank: at - a.length + i + 1 }));
+  rows.push({ rank: at + 1, login: you, score });
+  others.slice(at, at + 2).forEach((r, i) => rows.push({ ...r, rank: at + 2 + i }));
+  return rows;
+}
 
 export default function DriftResults(p: DriftResultsProps) {
   const [beat, setBeat] = useState(0);
   const [shown, setShown] = useState(0);
   const [copied, setCopied] = useState(false);
-  const again = useRef<HTMLButtonElement>(null);
   const better = p.before === null || p.score > p.before;
   const medal = medalFor(p.spot, p.score);
   const nextMedal = [...medalScores(p.spot)].reverse().find(([, at]) => at > p.score) ?? null;
+  const r = p.post.status === "posted" ? p.post.result : null;
+  const me = p.you ?? "you";
+  const rows = r ? r.around : projected(p.board, p.score, me);
+  const passed = new Set((r?.passed ?? []).map((l) => l.toLowerCase()));
 
-  // 0 FINISH · 1 card and count-up · 2 medal · 3 ranks and what's next.
+  // 0 FINISH on the scene · 1 blur, tower, count-up · 2 medal and verdict · 3 the rows and what's next.
   useEffect(() => {
-    const ts = [1300, 2500, 3100].map((ms, i) => setTimeout(() => setBeat(i + 1), ms));
+    const ts = [1100, 2300, 2900].map((ms, i) => setTimeout(() => setBeat(i + 1), ms));
     return () => ts.forEach(clearTimeout);
   }, []);
   const showing = beat >= 1;
@@ -69,32 +85,15 @@ export default function DriftResults(p: DriftResultsProps) {
     const start = performance.now();
     let raf = 0;
     const tick = () => {
-      const k = Math.min(1, (performance.now() - start) / 1000);
+      const k = Math.min(1, (performance.now() - start) / 1100);
       setShown(Math.round(p.score * (1 - (1 - k) ** 3)));
       if (k < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    again.current?.focus({ preventScroll: true });
     return () => cancelAnimationFrame(raf);
   }, [showing, p.score]);
 
-  const cb = useRef(p);
-  useEffect(() => {
-    cb.current = p;
-  });
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.repeat) return;
-      if (e.code === "KeyR" || e.code === "Enter" || e.code === "NumpadEnter") {
-        e.preventDefault();
-        cb.current.onRetry();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  const r = p.post.status === "posted" ? p.post.result : null;
+  const cb = useRef({ p, challenge: () => {} });
   const challenge = () => {
     if (!p.you) return;
     const url = `${window.location.origin}/drift/${p.spot.id}?vs=${encodeURIComponent(p.you)}`;
@@ -103,116 +102,159 @@ export default function DriftResults(p: DriftResultsProps) {
       () => setCopied(false),
     );
   };
+  useEffect(() => {
+    cb.current = { p, challenge };
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      const { p: q, challenge: c } = cb.current;
+      const res = q.post.status === "posted" ? q.post.result : null;
+      if (e.code === "KeyR" || e.code === "Enter" || e.code === "NumpadEnter") {
+        e.preventDefault();
+        q.onRetry();
+      } else if (e.code === "KeyG" && res?.next) q.onRaceGhost(res.next.login);
+      else if (e.code === "KeyC") c();
+      else if (e.key === "Escape") q.onSpots();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const signIn = () => void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=/drift/${p.spot.id}`);
+  const act = "drift-band flex items-center gap-3 shadow-[0_6px_0_rgba(0,0,0,0.35)]";
 
   return (
     <div className="pointer-events-none fixed inset-0 z-40 font-pixel uppercase">
       {beat === 0 && (
-        <div className="absolute left-1/2 top-[34%] -translate-x-1/2 -translate-y-1/2">
-          <span className="block animate-[race-slam_0.3s_ease-out_both] text-6xl tracking-[0.2em] text-cream drop-shadow-[0_5px_0_rgba(0,0,0,0.6)]">Finish</span>
+        <div className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2">
+          <span className="block animate-[drift-pop_0.3s_ease-out_both] bg-lime px-8 pb-4 pt-5 leading-none tracking-[0.12em] text-bg shadow-[0_10px_0_rgba(0,0,0,0.35)]" style={{ fontSize: T.hero }}>
+            Finish
+          </span>
         </div>
       )}
 
       {showing && (
-        <section className={`${HUD_BOX} pointer-events-auto absolute right-[6vw] top-1/2 w-[380px] max-w-[calc(100vw-2rem)] animate-[race-card-in_0.35s_ease-out_both] px-5 py-4`} style={{ transform: "translateY(-50%)" }}>
-          <div className="flex items-start justify-between">
-            <p className="text-[11px] text-muted">{p.spot.name}</p>
-            {beat >= 2 && medal && (
-              <span className="animate-[race-slam_0.3s_ease-out_both] border-[3px] px-2 py-0.5 text-[11px]" style={{ borderColor: MEDAL_COLORS[medal], color: MEDAL_COLORS[medal] }}>
-                {medal}
+        <>
+          <Backdrop side="right" />
+          <div className="absolute right-[6vw] top-[10vh] flex w-[min(620px,46vw)] flex-col items-stretch">
+            <Band className="justify-between px-5 py-2.5" style={{ fontSize: T.small }}>
+              <span className="text-lime">{p.spot.name} · finish</span>
+              {beat >= 2 && medal && (
+                <span className="animate-[drift-pop_0.3s_ease-out_both]" style={{ color: MEDAL_COLORS[medal] }}>
+                  {medal} medal
+                </span>
+              )}
+            </Band>
+            <Band tone="cream" delay={60} tab={beat >= 2 && medal ? MEDAL_COLORS[medal] : undefined} className="items-baseline justify-between gap-6 px-6 pb-4 pt-5">
+              <span className="leading-none tabular-nums" style={{ fontSize: T.hero }}>
+                {fmt(shown)}
               </span>
+              {beat >= 2 && (
+                <span className="animate-[drift-pop_0.3s_ease-out_both] text-right" style={{ fontSize: T.body }}>
+                  {better && p.before !== null && <span className="bg-bg px-2 py-1 text-lime">New best</span>}
+                  {!better && p.before !== null && <span className="text-[#c0392b]">−{fmt(p.before - p.score)} to best</span>}
+                  {p.before === null && <span>First run</span>}
+                </span>
+              )}
+            </Band>
+
+            {beat >= 3 && (
+              <>
+                <div className="mt-5 flex flex-col">
+                  {rows.map((row, i) => {
+                    const mine = row.login.toLowerCase() === me.toLowerCase();
+                    return (
+                      <Band
+                        key={`${row.rank}-${row.login}`}
+                        tone={mine ? "lime" : "dark"}
+                        delay={i * 70}
+                        className={`justify-between gap-4 px-5 tabular-nums ${mine ? "py-3" : "py-2"}`}
+                        style={{ fontSize: mine ? T.body : T.small }}
+                      >
+                        <span className="flex gap-5">
+                          <span className={mine ? "" : "text-muted"}>{row.rank}</span>
+                          <span className="normal-case">{mine && !p.you ? "You" : `@${row.login}`}</span>
+                          {passed.has(row.login.toLowerCase()) && <span className="text-lime">passed</span>}
+                        </span>
+                        <span>{fmt(row.score)}</span>
+                      </Band>
+                    );
+                  })}
+                </div>
+                <Band delay={420} className="mt-5 flex-wrap gap-x-5 gap-y-1 px-5 py-2.5 text-muted" style={{ fontSize: T.small }}>
+                  {r?.country && (
+                    <span>
+                      {COUNTRY.of(r.country) ?? r.country} <span className="text-cream">#{r.rankCountry}</span>
+                    </span>
+                  )}
+                  {r && (
+                    <span>
+                      World <span className="text-cream">#{r.rankWorld}</span> of {fmt(r.totalWorld)}
+                    </span>
+                  )}
+                  <span>
+                    <span className="text-cream">{p.stats.banks}</span> banked
+                  </span>
+                  <span>
+                    <span className={p.stats.lost ? "text-[#ff5a52]" : "text-cream"}>{p.stats.lost}</span> lost
+                  </span>
+                  <span>
+                    <span className="text-cream">{p.stats.clips}</span> clips
+                  </span>
+                  <span>
+                    Best chain <span className="text-cream">{fmt(p.stats.bestChain)}</span>
+                  </span>
+                </Band>
+                {!r?.next && nextMedal && (
+                  <Band delay={480} tab={MEDAL_COLORS[nextMedal[0]]} className="gap-3 px-5 py-2.5" style={{ fontSize: T.small }}>
+                    <span className="text-muted">Next</span>
+                    <span>
+                      {nextMedal[0]} {fmt(nextMedal[1])}
+                    </span>
+                  </Band>
+                )}
+              </>
             )}
           </div>
-          <p className="mt-2 text-4xl text-cream tabular-nums">{fmt(shown)}</p>
-          <p className="mt-2 flex items-center gap-3 text-xs tabular-nums">
-            {beat >= 2 && better && p.before !== null && <span className="animate-pulse bg-lime px-2 py-0.5 text-bg">New best</span>}
-            {beat >= 2 && !better && p.before !== null && <span className="text-[#ff6b6b]">−{fmt(p.before - p.score)} to your best</span>}
-            {beat >= 2 && p.before === null && <span className="text-lime">First run</span>}
-          </p>
 
-          <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t-2 border-border pt-3 text-[10px] tabular-nums">
-            <li className="flex justify-between"><span className="text-muted">Banked</span><span className="text-cream">{p.stats.banks}</span></li>
-            <li className="flex justify-between"><span className="text-muted">Lost</span><span className={p.stats.lost ? "text-[#ff6b6b]" : "text-cream"}>{p.stats.lost}</span></li>
-            <li className="flex justify-between"><span className="text-muted">Clips</span><span className="text-cream">{p.stats.clips}</span></li>
-            <li className="flex justify-between"><span className="text-muted">Best chain</span><span className="text-cream">{fmt(p.stats.bestChain)}</span></li>
-          </ul>
-
+          {/* What's next */}
           {beat >= 3 && (
-            <div className="mt-3 flex flex-col gap-2 text-[11px]">
-              {p.post.status === "posting" && <p className="text-muted">Posting…</p>}
-              {p.post.status === "failed" && (
-                <p className="flex items-center justify-between border-2 border-[#ff9a3c] px-3 py-2 text-[#ff9a3c]">
-                  Not posted yet
-                  <button type="button" onClick={p.onRetryPost} className="border-2 border-border px-2 py-0.5 text-[10px] text-cream hover:text-lime">
-                    Try again
-                  </button>
-                </p>
-              )}
+            <div className="pointer-events-auto absolute bottom-[6vh] right-[6vw] flex flex-wrap items-stretch justify-end" style={{ fontSize: T.body }}>
+              <button type="button" onClick={p.onSpots} className={`${act} bg-[#141417] px-4 text-cream hover:text-lime`} style={{ animationDelay: "560ms" }}>
+                <Chip>Esc</Chip> Spots
+              </button>
               {p.post.status === "signed-out" && (
-                <button type="button" onClick={signIn} className="flex items-center justify-between border-2 border-lime px-3 py-2 text-left text-lime">
-                  <span>Sign in to post {fmt(p.score)}</span>
-                  <span className="text-[9px] normal-case">GitHub →</span>
+                <button type="button" onClick={signIn} className={`${act} bg-[#141417] px-4 text-lime`} style={{ animationDelay: "520ms" }}>
+                  Sign in to post
                 </button>
               )}
-              {r && (
-                <>
-                  <p className="flex gap-5 text-muted">
-                    <span>
-                      World <span className="text-cream">#{r.rankWorld}</span> <span className="text-dim">/ {fmt(r.totalWorld)}</span>
-                    </span>
-                    {r.country && (
-                      <span>
-                        {flag(r.country)} <span className="text-cream">#{r.rankCountry}</span> <span className="text-dim">/ {fmt(r.totalCountry)}</span>
-                      </span>
-                    )}
-                  </p>
-                  {r.passed.length > 0 && <p className="normal-case text-lime">Passed {r.passed.map((l) => `@${l}`).join(", ")}</p>}
-                  {r.next && (
-                    <button type="button" onClick={() => p.onRaceGhost(r.next!.login)} className="flex items-center justify-between border-2 border-border px-3 py-2 text-left hover:border-lime">
-                      <span className="normal-case" style={{ color: carColor(r.next.login) }}>
-                        @{r.next.login} · #{r.next.rank}
-                      </span>
-                      <span className="text-[10px] text-cream">+{fmt(r.next.score - r.best)} · race ghost</span>
-                    </button>
-                  )}
-                </>
+              {p.post.status === "failed" && (
+                <button type="button" onClick={p.onRetryPost} className={`${act} bg-[#ff9a3c] px-4 text-bg`} style={{ animationDelay: "520ms" }}>
+                  Not posted · try again
+                </button>
               )}
-              {!r?.next && nextMedal && (
-                <p className="flex justify-between text-muted">
-                  <span>Next</span>
-                  <span style={{ color: MEDAL_COLORS[nextMedal[0]] }}>
-                    {nextMedal[0]} {fmt(nextMedal[1])}
-                  </span>
-                </p>
+              {p.post.status === "posting" && (
+                <span className={`${act} bg-[#141417] px-4 text-muted`} style={{ animationDelay: "520ms" }}>
+                  Posting…
+                </span>
               )}
+              {p.you && p.post.status === "posted" && (
+                <button type="button" onClick={challenge} className={`${act} bg-[#141417] px-4 text-cream hover:text-lime`} style={{ animationDelay: "500ms" }}>
+                  <Chip>C</Chip> {copied ? "Link copied" : "Challenge"}
+                </button>
+              )}
+              {r?.next && (
+                <button type="button" onClick={() => p.onRaceGhost(r.next!.login)} className={`${act} bg-[#141417] px-4 normal-case text-cream hover:text-lime`} style={{ animationDelay: "460ms" }}>
+                  <Chip>G</Chip> Race @{r.next.login}
+                </button>
+              )}
+              <button type="button" onClick={p.onRetry} autoFocus className={`${act} bg-cream px-7 py-4 text-bg outline-none hover:bg-lime focus-visible:bg-lime`} style={{ fontSize: T.big, animationDelay: "420ms" }}>
+                <Chip tone="dark">R</Chip> Again
+              </button>
             </div>
           )}
-
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button
-              ref={again}
-              type="button"
-              onClick={p.onRetry}
-              className="flex items-center justify-center gap-2 bg-lime px-3 py-2.5 text-[11px] text-bg outline-none transition-[filter] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-cream active:translate-y-px"
-            >
-              <span className="border-2 border-bg px-1">R</span> Again
-            </button>
-            {p.you ? (
-              <button type="button" onClick={challenge} className="flex items-center justify-center gap-2 border-2 border-border px-3 py-2.5 text-[11px] text-cream transition-colors hover:text-lime">
-                {copied ? "Link copied" : "Challenge"}
-              </button>
-            ) : (
-              <button type="button" onClick={p.onSpots} className="flex items-center justify-center gap-2 border-2 border-border px-3 py-2.5 text-[11px] text-cream transition-colors hover:text-lime">
-                Spots
-              </button>
-            )}
-          </div>
-          {p.you && (
-            <button type="button" onClick={p.onSpots} className="mt-2 w-full text-center text-[10px] text-muted hover:text-lime">
-              Back to spots
-            </button>
-          )}
-        </section>
+        </>
       )}
     </div>
   );
