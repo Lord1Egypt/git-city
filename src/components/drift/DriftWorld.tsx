@@ -361,7 +361,8 @@ export default function DriftWorld({
         input,
         track.closed
           ? autopilot(track, pilot.current, p0.x, p0.z, carHeading(c.body), c.state.speed)
-          : { throttle: 0, brake: 1, steer: 0, handbrake: false },
+          : // Brake to a stop, then let go: held at rest, the brake is reverse.
+            { throttle: 0, brake: c.state.speed > 0.5 ? 1 : 0, steer: 0, handbrake: false },
       );
     }
 
