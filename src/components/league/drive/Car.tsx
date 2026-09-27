@@ -242,6 +242,7 @@ export default function Car({
     if (input.current.pressed.horn && near.current) onHonk?.(near.current);
     telemetry.speed = s.speed;
     telemetry.boosting = s.boosting;
+    telemetry.drifting = s.drifting;
 
     apiRef.current = { group: g, body, controller: c, state: s, wheels: wheelRefs.current.filter((o): o is THREE.Object3D => !!o) };
   });

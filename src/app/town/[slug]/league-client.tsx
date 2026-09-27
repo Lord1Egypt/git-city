@@ -34,7 +34,7 @@ import type { EditCameraApi, Pickable } from "@/components/league/editor/EditCam
 import { useEditorController } from "@/components/league/editor/useEditorController";
 import { useCityAutosave } from "@/components/league/editor/useCityAutosave";
 import type { CoverApi, SceneMode } from "@/components/league/LeagueScene";
-import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
+import { createTelemetry, type DriveCameraMode, type DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import type { DriverInfo } from "@/lib/league-city/drive/net";
 import type { CrownApi, CrownView } from "@/components/league/drive/CrownMode";
 import { createEditorStore } from "@/lib/league-city/editor/store";
@@ -321,7 +321,7 @@ export default function LeagueClient({
     [viewer, members],
   );
   // Mutated by the car every frame, read by the HUD; a fresh one per drive.
-  const [telemetry, setTelemetry] = useState<DriveTelemetry>(() => ({ speed: 0, boosting: false, near: null, held: null, gotAt: 0 }));
+  const [telemetry, setTelemetry] = useState<DriveTelemetry>(createTelemetry);
   const [driveReady, setDriveReady] = useState(false);
   const [driveCamera, setDriveCamera] = useState<DriveCameraMode>("chase");
   const [paused, setPaused] = useState(false);
@@ -350,7 +350,7 @@ export default function LeagueClient({
     setPanel(null);
     setFirstDrive(false);
     setDriveReady(false);
-    setTelemetry({ speed: 0, boosting: false, near: null, held: null, gotAt: 0 });
+    setTelemetry(createTelemetry());
     setPaused(false);
     try {
       setMuted(localStorage.getItem(MUTE_KEY) === "1");
