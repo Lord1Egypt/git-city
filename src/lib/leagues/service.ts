@@ -45,6 +45,8 @@ export interface League {
   hidden?: boolean;
   /** Custom towns: how newcomers get in (migration 143). */
   join_mode: JoinMode;
+  /** A country town's ISO code (BR), else null (migration 155). */
+  country: string | null;
 }
 
 export interface Viewer {
@@ -63,7 +65,7 @@ const STAFF_CAP = 1000;
 export const MAX_LEAGUES_CREATED_PER_DAY = 5;
 
 /** Every league column except invite_token, which only the admin may read. */
-export const LEAGUE_COLUMNS = "id, slug, name, kind, github_org, admin_id, created_by, created_at, hidden, join_mode";
+export const LEAGUE_COLUMNS = "id, slug, name, kind, github_org, admin_id, created_by, created_at, hidden, join_mode, country";
 
 // ─── Viewer ─────────────────────────────────────────────────
 

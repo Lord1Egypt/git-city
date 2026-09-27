@@ -869,7 +869,7 @@ export default function LeagueClient({
       {!editing && !driving && !intro && outro === null && (
         <>
           <div className="pointer-events-none fixed left-4 top-4 z-30 flex flex-col gap-3 max-sm:hidden" style={hudEnter ? { animation: "fade-in 0.45s ease-out both" } : undefined}>
-            <LeagueTitle data={data} badges={badges} pendingRequests={pendingRequests} />
+            <LeagueTitle data={data} badges={badges} logoUrl={identity.logoUrl} place={place} pendingRequests={pendingRequests} />
             {questCard}
           </div>
           {/* Phones: one compact header row. */}
