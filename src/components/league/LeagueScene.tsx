@@ -222,18 +222,9 @@ function LeagueCamera({
     const camHeight = mobile ? 200 : 120;
     const lookDrop = mobile ? 60 : 0;
     const [bx, , bz] = focus.position;
-    // Step outward from the terrain center, or along the current view when
-    // the building sits at the center.
-    let dx = bx - frame.target.x;
-    let dz = bz - frame.target.z;
-    let len = Math.hypot(dx, dz);
-    if (len < 1) {
-      dx = camera.position.x - bx;
-      dz = camera.position.z - bz;
-      len = Math.hypot(dx, dz) || 1;
-    }
+    // From the south, looking north (the map's up), whichever building it is.
     flyTo(
-      new THREE.Vector3(bx + (dx / len) * dist, focus.height + camHeight, bz + (dz / len) * dist),
+      new THREE.Vector3(bx, focus.height + camHeight, bz + dist),
       new THREE.Vector3(bx, Math.max(0, focus.height + 15 - lookDrop), bz),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -590,10 +581,13 @@ export default function LeagueScene({
 }: LeagueSceneProps) {
   const editing = mode === "edit";
   const driving = mode === "drive" && !!drive;
-  const focusedBuilding = useMemo(
-    () => (focused ? (buildings.find((b) => b.loginLower === focused.toLowerCase()) ?? null) : null),
-    [buildings, focused],
-  );
+  const focusedBuilding = useMemo(() => {
+    const b = focused ? (buildings.find((x) => x.loginLower === focused.toLowerCase()) ?? null) : null;
+    // A broken building: the camera frames what still stands (down to the rubble and its flag).
+    const store = smashTown?.store;
+    const i = b && store ? store.index.get(b.loginLower) : undefined;
+    return b && store && i !== undefined && store.isDamaged(i) ? { ...b, height: store.standingHeight(i) } : b;
+  }, [buildings, focused, smashTown]);
   const [lost, setLost] = useState(false);
   const decorations = useMemo(() => toDecorations(objects, driving), [objects, driving]);
   const tallest = useMemo(() => buildings.reduce((m, b) => Math.max(m, b.height), 0), [buildings]);

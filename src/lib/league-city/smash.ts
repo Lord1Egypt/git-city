@@ -427,6 +427,14 @@ export class SmashStore {
     return [t.x - t.w / 2 + ((t.xs[a] + t.xs[a + 1]) / 2) * t.w, t.z - t.d / 2 + ((t.zs[b] + t.zs[b + 1]) / 2) * t.d];
   }
 
+  /** How tall (units) the building stands now: its tallest column, a floor of rubble at least. */
+  standingHeight(target: number): number {
+    const t = this.targets[target];
+    let top = 0;
+    for (let c = 0; c < cols(t); c++) top = Math.max(top, this.rows[target * SMASH_SLOTS + c]);
+    return Math.max(1, top) * t.floorH;
+  }
+
   /** Floors left in the whole building. */
   standing(target: number): number {
     let sum = 0;
