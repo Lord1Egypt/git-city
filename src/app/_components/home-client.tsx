@@ -47,7 +47,6 @@ import { useRaidSequence } from "@/lib/useRaidSequence";
 import { isFridayThe13th } from "@/lib/raid";
 import { useDailies } from "@/lib/useDailies";
 import InviteCard, { type InvitePreview } from "@/components/InviteCard";
-import XpBar from "@/components/XpBar";
 import { rankFromLevel, tierFromLevel, levelProgress, xpForLevel } from "@/lib/xp";
 import LoadingScreen, { type LoadingStage } from "@/components/LoadingScreen";
 import RadarMap from "@/components/RadarMap";
@@ -4618,19 +4617,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
                   Shop
                 </Link>
                 <Link
-                  href="/advertise"
-                  className="btn-press relative border-[3px] px-4 py-1.5 text-[10px] backdrop-blur-sm transition-colors"
-                  style={{ color: theme.accent, borderColor: theme.accent + "60", backgroundColor: theme.accent + "12" }}
-                >
-                  Place your Ad
-                  <span
-                    className="absolute -top-1.5 -right-2 rounded-sm px-1 py-px text-[7px] font-bold leading-none text-bg"
-                    style={{ backgroundColor: theme.accent }}
-                  >
-                    NEW
-                  </span>
-                </Link>
-                <Link
                   href="/leaderboard"
                   className="btn-press border-[3px] border-border bg-bg/80 px-4 py-1.5 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
                   style={{ color: theme.accent }}
@@ -4684,15 +4670,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
                         </span>
                       )}
                     </Link>
-                    {myBuilding?.claimed && (
-                      <>
-                        <XpBar
-                          xpTotal={myBuilding.xp_total ?? 0}
-                          xpLevel={myBuilding.xp_level ?? 1}
-                          accent={theme.accent}
-                        />
-                      </>
-                    )}
                     <a
                       href="/settings"
                       className="border-2 border-border bg-bg/80 px-2 py-1 text-[9px] text-muted backdrop-blur-sm transition-colors hover:text-cream hover:border-border-light"
@@ -4730,19 +4707,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
             style={{ color: theme.accent }}
           >
             Shop
-          </Link>
-          <Link
-            href="/advertise"
-            className="btn-press relative border-2 px-3 py-1.5 text-[10px] transition-colors active:bg-white/5"
-            style={{ color: theme.accent, borderColor: theme.accent + "60", backgroundColor: theme.accent + "12" }}
-          >
-            Ad
-            <span
-              className="absolute -top-1.5 -right-1.5 rounded-sm px-0.5 py-px text-[6px] font-bold leading-none text-bg"
-              style={{ backgroundColor: theme.accent }}
-            >
-              NEW
-            </span>
           </Link>
           <button
             onClick={() => {
