@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "../supabase";
 import { getDiscover } from "../towns/discover";
 import { EMAIL_BASE_URL, bulletList, button, heading, heroImage, label, statTiles, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
+import { SHOW_TOWNS } from "@/lib/towns/visibility";
 
 export interface WeeklyRecapData {
   login: string;
@@ -74,7 +75,7 @@ export function renderWeeklyRecapEmail(d: WeeklyRecapData, links: EmailLinks) {
   const events = weekEvents(d);
 
   const city: { lead: string; text: string }[] = [];
-  if (d.townOfWeek) city.push({ lead: "Town of the week:", text: d.townOfWeek.name });
+  if (SHOW_TOWNS && d.townOfWeek) city.push({ lead: "Town of the week:", text: d.townOfWeek.name });
   if (d.newDevelopers > 0) city.push({ lead: plural(d.newDevelopers, "new developer"), text: "moved in." });
 
   const cta = d.activeTagBy

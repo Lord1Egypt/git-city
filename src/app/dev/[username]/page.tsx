@@ -22,6 +22,7 @@ import TrophyCase from "@/components/profile/TrophyCase";
 import ProfileStats from "@/components/profile/ProfileStats";
 import ProfileActions from "@/components/profile/ProfileActions";
 import { getDevLeagues } from "@/lib/leagues/queries";
+import { SHOW_TOWNS } from "@/lib/towns/visibility";
 
 export const revalidate = 3600; // ISR: regenerate every 1 hour
 
@@ -261,9 +262,9 @@ export default async function DevPage({ params }: Props) {
         </div>
 
         {/* Social — leagues + invite + invited devs */}
-        {(isOwner || (referredDevs?.length ?? 0) > 0 || leagues.length > 0) && (
+        {(isOwner || (referredDevs?.length ?? 0) > 0 || (SHOW_TOWNS && leagues.length > 0)) && (
           <div className="mt-5 grid gap-5 md:grid-cols-2">
-            {leagues.length > 0 && (
+            {SHOW_TOWNS && leagues.length > 0 && (
               <section className="border-[3px] border-border bg-bg-raised p-4 sm:p-6 md:col-span-2">
                 <h2 className="text-sm text-cream">Towns</h2>
                 <div className="mt-3 flex flex-wrap gap-2">

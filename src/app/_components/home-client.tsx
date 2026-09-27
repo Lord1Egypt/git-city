@@ -84,6 +84,7 @@ import {
   trackLandmarkClicked,
 } from "@/lib/himetrica";
 import posthog from "posthog-js";
+import { SHOW_TOWNS } from "@/lib/towns/visibility";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
   ssr: false,
@@ -4151,14 +4152,17 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
                 <span className="text-sm text-cream">Leaderboard</span>
                 <span className="text-xs" style={{ color: theme.accent }}>&#8594;</span>
               </Link>
-              <Link
-                href="/towns"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-5 py-3.5 active:bg-white/5"
-              >
-                <span className="text-sm text-cream">Towns</span>
-                <span className="text-xs" style={{ color: theme.accent }}>&#8594;</span>
-              </Link>
+              {/* Towns are URL-only until launch. */}
+              {SHOW_TOWNS && (
+                <Link
+                  href="/towns"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-5 py-3.5 active:bg-white/5"
+                >
+                  <span className="text-sm text-cream">Towns</span>
+                  <span className="text-xs" style={{ color: theme.accent }}>&#8594;</span>
+                </Link>
+              )}
             </div>
 
             {/* ── Opportunities ── */}
@@ -4658,13 +4662,15 @@ function HomeContent({ resolvedSponsors, serverIsAdmin }: HomeContentProps) {
                 >
                   &#9819; Leaderboard
                 </Link>
-                <Link
-                  href="/towns"
-                  className="btn-press border-[3px] border-border bg-bg/80 px-4 py-1.5 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
-                  style={{ color: theme.accent }}
-                >
-                  &#9873; Towns
-                </Link>
+                {SHOW_TOWNS && (
+                  <Link
+                    href="/towns"
+                    className="btn-press border-[3px] border-border bg-bg/80 px-4 py-1.5 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
+                    style={{ color: theme.accent }}
+                  >
+                    &#9873; Towns
+                  </Link>
+                )}
               </div>
               <div className="hidden sm:flex items-center justify-center gap-2">
                 {!session ? (

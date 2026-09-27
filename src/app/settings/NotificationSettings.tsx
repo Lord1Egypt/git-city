@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { SHOW_TOWNS } from "@/lib/towns/visibility";
 
 interface Prefs {
   email_enabled: boolean;
@@ -210,13 +211,15 @@ export default function NotificationSettings() {
               sublabel="Raids on your building, gifts, rare emblems and referrals"
               disabled={emailOff}
             />
-            <Toggle
-              checked={prefs.leagues}
-              onChange={(v) => save({ leagues: v })}
-              label="Towns"
-              sublabel="Weekly results, overtakes and teammates lighting up"
-              disabled={emailOff}
-            />
+            {SHOW_TOWNS && (
+              <Toggle
+                checked={prefs.leagues}
+                onChange={(v) => save({ leagues: v })}
+                label="Towns"
+                sublabel="Weekly results, overtakes and teammates lighting up"
+                disabled={emailOff}
+              />
+            )}
             <Toggle
               checked={prefs.digest}
               onChange={(v) => save({ digest: v })}
