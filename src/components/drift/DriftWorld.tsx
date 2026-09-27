@@ -14,6 +14,9 @@ import { useDriveInput } from "@/components/league/drive/useDriveInput";
 import TrackScene from "@/components/race/TrackScene";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import DriftCamera from "./DriftCamera";
+import HarborGround from "./HarborGround";
+import KenneyProps from "./KenneyProps";
+import { sceneryFor } from "@/lib/drift/scenery";
 import { Ghost } from "@/components/race/Ghost";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
 import { GRAVITY, M_TO_UNIT } from "@/lib/league-city/drive/tuning";
@@ -157,6 +160,7 @@ export default function DriftWorld({
   }, []);
 
   const surface = useMemo(() => trackSurface(track, spot.surface), [track, spot.surface]);
+  const scenery = useMemo(() => sceneryFor(spot.id, track, course.clips), [spot.id, track, course.clips]);
   const spawn = useMemo<Spawn>(() => {
     const g = track.grid[0];
     return { x: g.x * U, z: g.z * U, rot: rotOf(g.heading) };
@@ -363,7 +367,12 @@ export default function DriftWorld({
 
   return (
     <Boundary onFail={onFail}>
-      <TrackScene track={track} lit={lit} title={title} />
+      <TrackScene track={track} lit={lit} title={title} grass={spot.id !== "harbor"} stands={false} trees={false}>
+        {spot.id === "harbor" && <HarborGround track={track} />}
+        <Suspense fallback={null}>
+          <KenneyProps items={scenery} />
+        </Suspense>
+      </TrackScene>
       <Suspense fallback={null}>
         <Physics timeStep={1 / 60} interpolate paused={hidden || paused} gravity={[0, GRAVITY, 0]} updatePriority={-50}>
           <Walls track={track} />

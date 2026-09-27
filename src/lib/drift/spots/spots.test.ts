@@ -12,7 +12,7 @@ function lap(spot: LiveSpot, speed = 18): Frames {
   const { track } = courseOf(spot);
   const out: Frames = [];
   const slot = track.grid[0];
-  const start = track.closed ? track.length - track.spec.gridFirst : 2;
+  const start = track.closed ? track.length - track.spec.gridFirst : 12;
   const end = track.closed ? start + track.length + track.spec.gridFirst + 5 : track.length + 5;
   let t = 0;
   out.push(0, Math.round(slot.x * 100) / 100, Math.round(slot.z * 100) / 100, Math.round(slot.heading * 1000) / 1000);

@@ -1,4 +1,4 @@
-// Touge: down a mountain pass at dusk. Irohazaka's rhythm (straight,
+// Touge: down a mountain pass through the pines. Irohazaka's rhythm (straight,
 // hairpin, straight, hairpin), an S to break it, then a double hairpin to the
 // finish with a clipping point on each apex. Dry asphalt: it grips, so a
 // drift needs speed going in.
@@ -31,7 +31,7 @@ export const TOUGE: LiveSpot = {
   id: "touge",
   status: "live",
   name: "Touge",
-  tagline: "A mountain pass at dusk. Switchbacks, then the double hairpin.",
+  tagline: "A mountain pass through the pines. Switchbacks, then the double hairpin.",
   track: {
     ...SPRINT,
     id: "touge",

@@ -224,7 +224,7 @@ export class Scorer {
     if (wall || spin || limiter) {
       st.drifting = false;
       st.braking = false;
-      if (st.risk > 0) st.events.push({ t: f.t, kind: "lost", points: Math.round(st.risk), why: wall ? "wall" : spin ? "spin" : "limiter" });
+      if (st.risk >= 0.5) st.events.push({ t: f.t, kind: "lost", points: Math.round(st.risk), why: wall ? "wall" : spin ? "spin" : "limiter" });
       this.reset();
     } else {
       st.drifting = st.band === "ideal" && st.kmh > DRIFT_SCORE.minKmh && onAsphalt;
@@ -270,7 +270,7 @@ export class Scorer {
       const p = respawnPose(this.track, k);
       if (Math.hypot(f.x - p.x, f.z - p.z) > 1 || Math.abs(wrap(f.yaw - p.heading)) > 0.2) continue;
       this.respawns.push(tick);
-      if (st.risk > 0) st.events.push({ t: f.t, kind: "lost", points: Math.round(st.risk), why: "respawn" });
+      if (st.risk >= 0.5) st.events.push({ t: f.t, kind: "lost", points: Math.round(st.risk), why: "respawn" });
       this.reset();
       this.recent.length = 0;
       this.speeds.length = 0;
