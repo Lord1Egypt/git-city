@@ -326,6 +326,8 @@ export default function DriftWorld({
     const c = car.current;
     const hud = tel.current;
     if (!c) return;
+    // Paused (or a hidden tab): nothing moves on, not the countdown, the camera or the run.
+    if (pausedRef.current) return;
 
     const now = performance.now();
     const sg = stageRef.current;
@@ -433,7 +435,7 @@ export default function DriftWorld({
           <DriveAudio car={car} input={input} impact={impact} muted={muted || paused} />
           <Ghost run={pbRef} lapStart={ghostClock} offset={zero} show={pbShow} near={carAt} />
           {rival && <Ghost run={rivalRun} lapStart={ghostClock} offset={zero} show={pbShow} color={rival.color} label={`@${rival.login}`} near={carAt} />}
-          <DriftCamera car={car} mode={camera} stage={stage} stageAt={stageAt} countdownMs={beatMs * TRIAL.beats} />
+          <DriftCamera car={car} mode={camera} stage={stage} stageAt={stageAt} countdownMs={beatMs * TRIAL.beats} paused={paused || hidden} />
           <CameraKey input={input} onToggle={onCameraToggle} />
           <PhysicsTick step={physicsStep} />
           <Ready onReady={onReady} />

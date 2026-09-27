@@ -37,6 +37,7 @@ export default function DriftCamera({
   stage,
   stageAt,
   countdownMs,
+  paused = false,
 }: {
   car: React.MutableRefObject<CarApi | null>;
   mode: DriveCameraMode;
@@ -44,6 +45,8 @@ export default function DriftCamera({
   stageAt: number;
   /** How long 3-2-1 lasts (ms): the descent takes exactly this long. */
   countdownMs: number;
+  /** Frozen where it is while the game is paused. */
+  paused?: boolean;
 }) {
   const heading = useRef<THREE.Vector3 | null>(null);
   const spring = useRef({ pos: new THREE.Vector3(), look: new THREE.Vector3(), ready: false });
@@ -52,7 +55,7 @@ export default function DriftCamera({
   useFrame((three, dt) => {
     const camera = three.camera as THREE.PerspectiveCamera;
     const c = car.current;
-    if (!c) return;
+    if (!c || paused) return;
     const g = c.group;
     const rig = chaseRig(three.size.width / Math.max(1, three.size.height));
 
