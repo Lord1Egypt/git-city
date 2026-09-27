@@ -1,9 +1,9 @@
 import { sendNotification } from "../notifications";
 import { EMAIL_BASE_URL, button, heading, paragraph, statTiles, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
-import { CODE_DAILY_CONTRIBUTION_CAP, CODE_POINTS_PER_CONTRIBUTION, weekEnd, weekStart, type ScoringMode } from "../leagues/scoring";
+import { DAILY_CONTRIBUTION_CAP, weekEnd, weekStart } from "../leagues/scoring";
 import { townDisplayName } from "../towns/names";
-import { points } from "./town-email";
+import { contributions } from "./town-email";
 
 export interface LeagueOvertakenEmailData {
   leagueSlug: string;
@@ -11,7 +11,6 @@ export interface LeagueOvertakenEmailData {
   overtakerLogin: string;
   gap: number;
   newRank: number;
-  scoringMode: ScoringMode;
   /** Hours until the week closes (Monday 00:00 UTC). */
   hoursLeft: number;
 }
@@ -27,7 +26,7 @@ function leagueOvertakenHeader(d: LeagueOvertakenEmailData) {
   return {
     town,
     subject: `@${d.overtakerLogin} passed you in ${town}`,
-    preheader: `You're #${d.newRank} now, ${points(d.gap)} behind. The week closes Monday 00:00 UTC.`,
+    preheader: `You're #${d.newRank} now, ${contributions(d.gap)} behind. The week closes Monday 00:00 UTC.`,
   };
 }
 
@@ -35,12 +34,10 @@ export function renderLeagueOvertakenEmail(d: LeagueOvertakenEmailData, links: E
   const { town, subject, preheader } = leagueOvertakenHeader(d);
   const townUrl = trackedUrl(`/town/${d.leagueSlug}`, "league_overtaken");
   const intro = `They moved ahead of you in this week's ${town} race.`;
-  const howTo =
-    `Every contribution you push is worth ${CODE_POINTS_PER_CONTRIBUTION} points, up to ${CODE_DAILY_CONTRIBUTION_CAP} contributions a day.` +
-    (d.scoringMode === "xp" ? " Check-ins, dailies, raids and kudos add points too." : "");
+  const howTo = `Every GitHub contribution counts, up to ${DAILY_CONTRIBUTION_CAP} a day.`;
   const tiles = [
     { value: `#${d.newRank}`, label: "Your rank" },
-    { value: d.gap.toLocaleString("en-US"), label: d.gap === 1 ? "Point behind" : "Points behind" },
+    { value: d.gap.toLocaleString("en-US"), label: "Behind" },
     { value: timeLeft(d.hoursLeft), label: "Until the close" },
   ];
   const reason = `You're getting this because you're racing in ${town} on Git City.`;
@@ -86,7 +83,6 @@ export async function sendLeagueOvertakenNotification(opts: {
   overtakerLogin: string;
   gap: number;
   newRank: number;
-  scoringMode: ScoringMode;
 }) {
   const now = new Date();
   const day = now.toISOString().slice(0, 10);
@@ -96,7 +92,6 @@ export async function sendLeagueOvertakenNotification(opts: {
     overtakerLogin: opts.overtakerLogin,
     gap: opts.gap,
     newRank: opts.newRank,
-    scoringMode: opts.scoringMode,
     hoursLeft: (weekEnd(weekStart(now)).getTime() - now.getTime()) / 3_600_000,
   };
   const { subject, preheader } = leagueOvertakenHeader(data);

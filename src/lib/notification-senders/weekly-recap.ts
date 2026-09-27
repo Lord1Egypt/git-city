@@ -1,6 +1,6 @@
 import { levelFromXp, xpForLevel } from "../xp";
 import { getSupabaseAdmin } from "../supabase";
-import { getDiscover } from "../towns/discover";
+import { getTownOfWeek } from "../towns/weekly";
 import { EMAIL_BASE_URL, bulletList, button, heading, heroImage, label, statTiles, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { SHOW_TOWNS } from "@/lib/towns/visibility";
@@ -150,13 +150,13 @@ export const RECAP_DEV_COLUMNS = "id, github_login, app_streak, last_checkin_dat
 /** City-wide lines for this week's recap, the same for everyone. */
 export async function loadRecapContext(now = new Date()): Promise<RecapContext> {
   const weekStart = new Date(now.getTime() - 7 * 86_400_000).toISOString();
-  const [discover, newDevs] = await Promise.all([
-    getDiscover(null).catch(() => null),
+  const [town, newDevs] = await Promise.all([
+    getTownOfWeek().catch(() => null),
     getSupabaseAdmin().from("developers").select("id", { count: "exact", head: true }).eq("claimed", true).gte("claimed_at", weekStart),
   ]);
   return {
     now,
-    townOfWeek: discover?.featured ? { name: discover.featured.name, slug: discover.featured.slug } : null,
+    townOfWeek: town ? { name: town.name, slug: town.slug } : null,
     newDevelopers: newDevs.count ?? 0,
   };
 }
