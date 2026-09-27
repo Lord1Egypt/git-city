@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { champions, gridWeeks, monumentWeeks, type HallWeek } from "./hall";
+import { champions, frozenScore, gridWeeks, monumentWeeks, type HallWeek } from "./hall";
 
 const w = (week_start: string, login: string | null, monument = false): HallWeek => ({
   week_start,
@@ -32,5 +32,12 @@ describe("gridWeeks and monumentWeeks", () => {
 
   it("collects the monument weeks", () => {
     expect([...monumentWeeks(weeks)]).toEqual(["2026-09-21", "2026-08-24"]);
+  });
+});
+
+describe("frozenScore", () => {
+  it("shows contributions weeks and hides the old points weeks", () => {
+    expect(frozenScore(2, 361)).toBe(361);
+    expect(frozenScore(null, 1805)).toBeNull();
   });
 });

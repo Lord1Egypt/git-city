@@ -2,6 +2,13 @@
 // The Season grid: the weeks shown, each crowned member's weeks, the town's
 // monument weeks.
 
+import { STANDINGS_VERSION } from "@/lib/leagues/scoring";
+
+/** A frozen week's winner score: shown only for weeks scored in contributions (old ones were points). */
+export function frozenScore(version: number | null, total: number): number | null {
+  return version === STANDINGS_VERSION ? total : null;
+}
+
 export interface HallWeek {
   week_start: string;
   winner: { login: string; avatar_url: string | null } | null;

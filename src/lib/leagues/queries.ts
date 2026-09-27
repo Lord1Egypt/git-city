@@ -3,11 +3,12 @@ import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { CITY_DEV_COLUMNS, loadCityExtras, mergeCityExtras } from "@/lib/city-extras";
 import type { LayoutNorms } from "@/lib/github";
-import { isoDay, rankTowns, STANDINGS_VERSION, weekStart } from "./scoring";
+import { isoDay, rankTowns, weekStart } from "./scoring";
 import { leagueTag } from "./cache";
 import { loadStandings, loadLeagueStandings, type LeagueWeekStandings } from "./standings";
 import type { League, MemberStatus, Viewer } from "./service";
 import type { TownPlace } from "@/lib/towns/place";
+import { frozenScore } from "@/lib/towns/hall";
 
 // ─── Town ranking ───────────────────────────────────────────
 
@@ -214,7 +215,7 @@ export async function getLeaguePageData(league: League, viewer: Viewer | null): 
         ? {
             login: member?.login ?? top.login,
             avatar_url: member?.avatar_url ?? top.avatar_url,
-            score: w.version === STANDINGS_VERSION ? top.total : null,
+            score: frozenScore(w.version, top.total),
             ex_member: member?.status !== "active",
           }
         : null,
