@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import PixelSpinner from "@/components/leagues/PixelSpinner";
@@ -60,7 +60,8 @@ import { chime } from "@/lib/sfx/chime";
 import { useDriveWatch } from "@/components/league/drive/useDriveWatch";
 import { RIVALRY } from "@/lib/towns/rivalry";
 import MapNavControls from "@/components/MapNavControls";
-import { createCameraStore } from "@/lib/map-nav";
+import RadarMap from "@/components/RadarMap";
+import { createCameraStore, mapNav, type MapCameraStore } from "@/lib/map-nav";
 import { smashStoreFor, type DamageEntry } from "@/lib/league-city/smash";
 import { applyRoomDamage } from "@/lib/league-city/smash-net";
 import { useTownBots } from "@/components/league/drive/useTownBots";
@@ -87,6 +88,25 @@ const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"),
 
 const MUTE_KEY = "gc:drive-muted";
 const LIME = "#c8e64a";
+
+/** The main city's minimap for the town: its buildings, the camera's view, click to fly there. */
+function TownRadar({ buildings, camera }: { buildings: CityBuilding[]; camera: MapCameraStore }) {
+  const cam = useSyncExternalStore(camera.subscribe, camera.get, camera.get);
+  return (
+    <RadarMap
+      buildings={buildings}
+      visible
+      flyMode={false}
+      playerX={0}
+      playerZ={0}
+      cameraX={cam.x}
+      cameraZ={cam.z}
+      cameraTargetX={cam.tx}
+      cameraTargetZ={cam.tz}
+      onWorldClick={(x, z) => mapNav.send({ type: "flyTo", x, z })}
+    />
+  );
+}
 
 /** While driving, check for city changes (an admin's Done) this often. */
 const DRIVE_POLL_MS = 5000;
@@ -915,17 +935,22 @@ export default function LeagueClient({
       {/* HUD: the wrappers ignore the pointer so the city stays draggable. */}
       {!editing && !driving && !intro && outro === null && (
         <>
-          {/* The main city's compass and zoom buttons, and its controls hints (no card open). */}
+          {/* The main city's minimap (desktop), compass, zoom buttons and controls hints. */}
+          <div className="hidden sm:block">
+            <TownRadar buildings={buildings} camera={navCamera} />
+          </div>
           <MapNavControls camera={navCamera} accent={smashColor ?? LIME} showPlaces={false} />
-          {!focused && (
-            <div className="pointer-events-none fixed bottom-20 left-4 z-30 hidden font-pixel text-[9px] uppercase leading-loose text-muted sm:block">
-              <div><span className="text-cream">Drag</span> move</div>
-              <div><span className="text-cream">Scroll</span> zoom</div>
-              <div><span className="text-cream">Right-drag</span> rotate</div>
-              <div><span className="text-cream">Double-click</span> zoom in</div>
+          <div className="pointer-events-none fixed bottom-20 left-4 z-30 hidden font-pixel text-[9px] uppercase leading-loose text-muted sm:block">
+            <div><span className="text-cream">Drag</span> move</div>
+            <div><span className="text-cream">Scroll</span> zoom</div>
+            <div><span className="text-cream">Right-drag</span> rotate</div>
+            <div><span className="text-cream">Double-click</span> zoom in</div>
+            {focused ? (
+              <div><span className="text-lime">ESC</span> close</div>
+            ) : (
               <div><span className="text-cream">Click</span> building</div>
-            </div>
-          )}
+            )}
+          </div>
           <div className="pointer-events-none fixed left-4 top-4 z-30 flex flex-col gap-3 max-sm:hidden" style={hudEnter ? { animation: "fade-in 0.45s ease-out both" } : undefined}>
             <LeagueTitle data={data} badges={badges} logoUrl={identity.logoUrl} place={place} pendingRequests={pendingRequests} />
             {questCard}
@@ -1078,7 +1103,6 @@ export default function LeagueClient({
           key={focused.loginLower}
           building={focused}
           data={data}
-          driving={driving}
           onClose={() => setFocused(null)}
         />
       )}
