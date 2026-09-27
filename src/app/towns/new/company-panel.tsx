@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { SCORING_LABEL } from "@/lib/league-city/templates";
 import { NO_AUTOFILL } from "@/components/league/hud/shared";
 import type { OrgState } from "@/lib/towns/company-orgs";
 import { colleaguesLabel, type CompanyStep, type OrgCheck } from "@/lib/towns/company-step";
@@ -168,7 +167,7 @@ export function CityStepNote({ check, step }: { check: OrgCheck; step: CompanySt
       {step.kind === "open" && (
         <p className="text-[11px] leading-relaxed text-muted normal-case">
           {check.town?.isAdmin
-            ? "You live here and run it. The city was picked when it was built: change it in the editor, and the race in settings."
+            ? "You live here and run it. The city was picked when it was built: change it in the editor, and who runs it in settings."
             : "You already live here. Its city and settings are set by the town's admin."}
         </p>
       )}
@@ -198,11 +197,10 @@ export function CityStepNote({ check, step }: { check: OrgCheck; step: CompanySt
   );
 }
 
-/** What an existing town already has: its size, how its race scores, who can join. */
+/** What an existing town already has: its size and who can join. */
 function TownFacts({ town, org }: { town: NonNullable<OrgCheck["town"]>; org: string }) {
   const rows: [string, string][] = [
     ["Buildings", String(town.buildings)],
-    ["Weekly race by", SCORING_LABEL[town.scoring]],
     ["Who can join", `Members of @${org}`],
   ];
   return (

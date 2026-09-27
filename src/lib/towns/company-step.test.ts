@@ -12,7 +12,7 @@ const base: OrgCheck = {
   otherTown: null,
   colleagues: 3,
 };
-const town = { slug: "zard-ui", name: "Zard Town", buildings: 12, scoring: "xp" as const, isAdmin: false };
+const town = { slug: "zard-ui", name: "Zard Town", buildings: 12, isAdmin: false };
 
 describe("normalizeOrgInput", () => {
   it.each([

@@ -4,7 +4,6 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthedDeveloper } from "@/lib/auth-identity";
 import { FETCH_TIMEOUT_MS, GitHubFetchError, ghHeaders } from "@/lib/github-api";
 import { createDeveloperFromGitHub } from "@/lib/create-developer";
-import type { ScoringMode } from "./scoring";
 import { inviteJoined } from "./joined";
 import { autoPlace, ensureCity, removeBuilding } from "@/lib/league-city/service";
 import { DEFAULT_TEMPLATE, templateFor, type TemplateId } from "@/lib/league-city/templates";
@@ -38,7 +37,6 @@ export interface League {
   name: string;
   kind: LeagueKind;
   github_org: string | null;
-  scoring_mode: ScoringMode;
   admin_id: number | null;
   created_by: number | null;
   created_at: string;
@@ -64,7 +62,7 @@ const STAFF_CAP = 1000;
 export const MAX_LEAGUES_CREATED_PER_DAY = 5;
 
 /** Every league column except invite_token, which only the admin may read. */
-export const LEAGUE_COLUMNS = "id, slug, name, kind, github_org, scoring_mode, admin_id, created_by, created_at, hidden, join_mode";
+export const LEAGUE_COLUMNS = "id, slug, name, kind, github_org, admin_id, created_by, created_at, hidden, join_mode";
 
 // ─── Viewer ─────────────────────────────────────────────────
 
@@ -186,7 +184,7 @@ export async function createCustomLeague(
   viewer: Viewer,
   rawName: string,
   template: TemplateId = DEFAULT_TEMPLATE,
-  settings: { scoring?: ScoringMode; join?: JoinMode } = {},
+  settings: { join?: JoinMode } = {},
 ): Promise<League> {
   const name = cleanLeagueName(rawName);
 
@@ -216,9 +214,8 @@ export async function createCustomLeague(
   }
 
   const t = templateFor(template);
-  const scoring = settings.scoring ?? t.scoring;
   const join = settings.join ?? t.join;
-  const { error: setErr } = await sb.from("leagues").update({ scoring_mode: scoring, join_mode: join }).eq("id", id as string);
+  const { error: setErr } = await sb.from("leagues").update({ join_mode: join }).eq("id", id as string);
   if (setErr) console.error("[towns] template settings failed", setErr);
 
   const { data: league } = await sb.from("leagues").select(LEAGUE_COLUMNS).eq("id", id as string).single();
@@ -687,14 +684,6 @@ export async function decideJoinRequest(viewer: Viewer, league: League, rawLogin
 
 function requireAdmin(viewer: Viewer, league: League) {
   if (league.admin_id !== viewer.id) throw new LeagueError("not_admin", "Only the town admin can do that.", 403);
-}
-
-export async function setScoringMode(viewer: Viewer, league: League, mode: ScoringMode): Promise<void> {
-  requireAdmin(viewer, league);
-  if (mode !== "xp" && mode !== "contributions") throw new LeagueError("invalid_mode", "Unknown scoring mode.");
-  const { error } = await getSupabaseAdmin().from("leagues").update({ scoring_mode: mode }).eq("id", league.id);
-  if (error) throw dbError("update_failed", error);
-  invalidateLeague(league.id);
 }
 
 export async function setJoinMode(viewer: Viewer, league: League, mode: unknown): Promise<void> {
