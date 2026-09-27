@@ -1,13 +1,10 @@
-// Shared geometry for the San Francisco civic plaza — the downtown cluster
-// (Founder Spire to the east, the town monument mount at the centre).
+// Shared geometry for the San Francisco civic plaza at downtown, which holds
+// the Town of the week monument.
 //
 // Two places derive plaza positions from these numbers and MUST agree:
 //   - CityCanvas.tsx — renders the 3D plaza group.
 //   - home-client.tsx — computes camera focus targets on the plaza.
 // Keep the single source of truth here so a tweak can't silently desync them.
-
-/** Distance each landmark sits from the civic center, in local (pre-scale) units. */
-export const SF_PLAZA_RADIUS = 360;
 
 /** The whole plaza is rendered inside a group scaled by this factor. */
 export const SF_PLAZA_SCALE = 0.55;

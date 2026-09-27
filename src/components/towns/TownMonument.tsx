@@ -29,16 +29,15 @@ export type MonumentVariant = "obelisk" | "trophy" | "gate";
 
 export const MONUMENT_VARIANTS: readonly MonumentVariant[] = ["obelisk", "trophy", "gate"];
 /** The one the main city shows. */
-export const MONUMENT_VARIANT: MonumentVariant = "obelisk";
+export const MONUMENT_VARIANT: MonumentVariant = "gate";
 
 type MonumentWindowFlags = Window & {
   __monumentClicked?: boolean;
   __monumentCursor?: boolean;
-  __spireClicked?: boolean;
 };
 
-/** Turns the front (+z) toward the home camera, which sits at (-500, +850) from downtown. */
-const HOME_FACING = Math.atan2(-500, 850);
+/** Turns the front (the plaque side) toward the home camera, which sits at (-500, +850) from downtown. */
+const HOME_FACING = Math.atan2(-500, 850) + Math.PI;
 
 /** Everything below is modelled at this fraction of its size on the plaza. */
 const MONUMENT_SCALE = 1.5;
@@ -469,7 +468,6 @@ export default function TownMonument({ town, variant, onClick }: { town: Monumen
 
     let tap: { time: number; x: number; y: number } | null = null;
     const onDown = (e: PointerEvent) => {
-      if (w.__spireClicked) return;
       if (hits(e)) {
         w.__monumentClicked = true;
         tap = { time: performance.now(), x: e.clientX, y: e.clientY };

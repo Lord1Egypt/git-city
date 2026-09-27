@@ -2991,7 +2991,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
         raidAttacker={raidState.attackerBuilding}
         raidDefender={raidState.defenderBuilding}
         onRaidPhaseComplete={raidActions.onPhaseComplete}
-        onLandmarkClick={() => { setPillModalOpen(true); setSelectedBuilding(null); }}
         plazaCenter={
           // Towns are URL-only until launch, so the plaza stays empty until then.
           SHOW_TOWNS ? (

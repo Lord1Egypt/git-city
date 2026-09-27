@@ -20,8 +20,7 @@ import type { SkyAd } from "@/lib/skyAds";
 import RaidSequence3D, { VehicleMesh } from "./RaidSequence3D";
 import type { RaidPhase } from "@/lib/useRaidSequence";
 import type { RaidExecuteResponse } from "@/lib/raid";
-import FounderSpire from "./FounderSpire";
-import { SF_PLAZA_RADIUS, SF_PLAZA_SCALE, plazaCenterWorld } from "@/lib/sponsors/sfPlaza";
+import { SF_PLAZA_SCALE, plazaCenterWorld } from "@/lib/sponsors/sfPlaza";
 import { sunPosition, samplePalette, skyState } from "@/lib/sky";
 import WhiteRabbit from "./WhiteRabbit";
 import CelebrationEffect from "./CelebrationEffect";
@@ -1931,7 +1930,6 @@ interface Props {
   raidAttacker?: CityBuilding | null;
   raidDefender?: CityBuilding | null;
   onRaidPhaseComplete?: (phase: RaidPhase) => void;
-  onLandmarkClick?: () => void;
   /** Camera focus on a fixed world position (e.g. the plaza monument); dims the buildings. */
   focusPos?: [number, number, number] | null;
   /** Rendered at the plaza centre, in plaza-local coordinates (inside the scaled plaza group with the SF map). */
@@ -2136,7 +2134,7 @@ function NoPointLights() {
   return null;
 }
 
-export default function CityCanvas({ buildings, plazas, decorations, river, bridges, sfMap, flyMode, flyVehicle, onExitFly, onCollect, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, flyStartPaused, isMobile, onJoystickState, flyBoostActive, flyBrakeActive, skyAds, onAdClick, onAdViewed, introMode, onIntroEnd, perfMode = "high", onPerfDecline, raidPhase, raidData, raidAttacker, raidDefender, onRaidPhaseComplete, onLandmarkClick, focusPos, plazaCenter, rabbitSighting, onRabbitCaught, rabbitCinematic, onRabbitCinematicEnd, rabbitCinematicTarget, ghostPreviewLogin, holdRise, celebrationActive, wallpaperMode, wallpaperSpeed, liveByLogin, cityEnergy, onCompareCinematicEnd, onFlyMove, flyPilotsRef, flyProjectilesRef, flySelfStateRef, flySelfId, flyOnShoot, flyOnReportHit, flyPvpEnabled, flyPendingRespawnRef, onCameraMove, bossPreview, flyBossStateRef, flyEngageBoss, flySendBossHit, flySendBossSelfHit }: Props) {
+export default function CityCanvas({ buildings, plazas, decorations, river, bridges, sfMap, flyMode, flyVehicle, onExitFly, onCollect, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, flyStartPaused, isMobile, onJoystickState, flyBoostActive, flyBrakeActive, skyAds, onAdClick, onAdViewed, introMode, onIntroEnd, perfMode = "high", onPerfDecline, raidPhase, raidData, raidAttacker, raidDefender, onRaidPhaseComplete, focusPos, plazaCenter, rabbitSighting, onRabbitCaught, rabbitCinematic, onRabbitCinematicEnd, rabbitCinematicTarget, ghostPreviewLogin, holdRise, celebrationActive, wallpaperMode, wallpaperSpeed, liveByLogin, cityEnergy, onCompareCinematicEnd, onFlyMove, flyPilotsRef, flyProjectilesRef, flySelfStateRef, flySelfId, flyOnShoot, flyOnReportHit, flyPvpEnabled, flyPendingRespawnRef, onCameraMove, bossPreview, flyBossStateRef, flyEngageBoss, flySendBossHit, flySendBossSelfHit }: Props) {
   const [isCompareCinematicPlaying, setIsCompareCinematicPlaying] = useState(false);
   const prevComparePairRef = useRef<string>("");
 
@@ -2364,22 +2362,12 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       {sfMap && <SFMapLayers sfMap={sfMap} />}
 
       {(() => {
-        const spire = <FounderSpire onClick={blockCityClicks ? () => { } : (onLandmarkClick ?? (() => { }))} />;
-        if (!sfMap) {
-          // Built-in layout: the spire keeps its authored spot east of the
-          // origin; the plaza centre (monument mount) is the origin.
-          return <>{spire}<group position={[0, 0, 0]}>{plazaCenter}</group></>;
-        }
-        // SF civic plaza: Spire (E) keeps its native axis, the town monument
-        // mount sits at the centre. Native (authored) X offset of the Spire.
-        const LANDMARK_NATIVE_X = 519;
+        // The civic plaza holds one thing: the Town of the week monument.
+        // Built-in layout: the origin. SF map: downtown, at plaza scale.
+        if (!sfMap) return <group position={[0, 0, 0]}>{plazaCenter}</group>;
         return (
           <group position={[sfMap.downtown[0], 0, sfMap.downtown[1]]} scale={SF_PLAZA_SCALE}>
-            {/* Spire (E, native +519): counter-translate so it ends up at
-                +SF_PLAZA_RADIUS (pulled in toward the center). */}
-            <group position={[SF_PLAZA_RADIUS - LANDMARK_NATIVE_X, 0, 0]}>{spire}</group>
-            {/* plaza centre: town monument mount point */}
-            <group position={[0, 0, 0]}>{plazaCenter}</group>
+            {plazaCenter}
           </group>
         );
       })()}
