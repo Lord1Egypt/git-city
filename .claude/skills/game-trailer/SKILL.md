@@ -1,11 +1,21 @@
 ---
 name: game-trailer
-description: Make a game trailer or teaser played live in the engine and screen-recorded, from story to end card. Use when someone asks for a trailer, teaser, launch video, "coming soon" clip, gameplay montage, end card or logo reveal for Git City (or a similar web game), or wants to add or fix a take in the trailer studio (/trailer/demo, /trailer/towns).
+description: Make a web game's trailer or teaser played live in the game's own engine and screen-recorded, from story to end card, with the trailer kit bundled in this skill (a beat-grid film format, a studio page, titles, an end card, synthesized music and effects). Use when someone asks for a trailer, teaser, launch video, "coming soon" clip, gameplay montage, end card or logo reveal for a React web game (React Three Fiber, canvas or DOM), or wants to add or fix a take in a trailer studio.
 ---
 
 # Game trailer
 
-The film is data played by the studio in the real engine, then recorded in one clean pass. The kit, its API and the craft notes are in `tools/trailer/README.md`: read it first. This skill is the order of work, and the rules that each cost a round of rework when they were skipped.
+The film is data played by the studio in the real engine, then recorded in one clean pass. The kit ships with this skill in `kit/` (MIT): its API and the craft notes are in `kit/README.md`, read it first. This skill is the order of work, and the rules that each cost a round of rework when they were skipped.
+
+## 0. Set up the kit (a project that doesn't have it yet)
+
+If the project has no `Studio` from this kit yet:
+- Copy `kit/src/` into the app (for example `src/trailer-kit/`) and `kit/tools/` next to its scripts. Keep `kit/LICENSE` with the copy.
+- Mount `kit/src/examples/MinimalFilm.tsx` on a route (in Next.js, a `page.tsx` under `app/trailer/`), start the dev server, and check that the studio plays.
+- Match the studio to the game with the `--tk-*` variables (`kit/README.md`, "Styling").
+- New films start as a copy of the minimal film, with the game's own scene as the stages.
+
+Git City already has it (`@trailer-kit/*`, examples at `/trailer/minimal`, `/trailer/demo`, `/trailer/towns`).
 
 ## 1. The idea is the owner's
 
@@ -24,7 +34,7 @@ Save the scripts that aren't used for the next launch.
 
 ## 3. Build scene by scene, with the owner watching
 
-Keep a dev server running and build one take at a time in the studio (a new film starts as a copy of `/trailer/demo`). Before handing any take over, step through it beat by beat at 0.25× (Home, Shift+→) and look at every screenshot. Fix what they show, and say what you fixed.
+Keep a dev server running and build one take at a time in the studio (a new film starts as a copy of the minimal film). Before handing any take over, step through it beat by beat at 0.25× (Home, Shift+→) and look at every screenshot. Fix what they show, and say what you fixed.
 
 **Why:** the owner can't see anything until it's on screen. Several "done" takes were broken (a lost branch, an empty street, a car hidden behind a wall) and only the frames showed it.
 
@@ -50,14 +60,14 @@ A reference the owner shows (a social card, a profile) is for colors and type on
 
 ## 6. Sound
 
-Generate music and effects with `npm run trailer:audio` (`tools/trailer/music.mjs`, `sfx.mjs`), with the BPM matching the film's.
+Generate music and effects with `kit/tools/music.mjs` and `sfx.mjs` (in Git City: `npm run trailer:audio`), with the BPM matching the film's.
 - Give every visual hit a sound: skid on drifts, whoosh and explosion on the missile, a thud on the stamp.
 - Put silence right before the name.
 - Rebuild a sound the owner calls bad from scratch; don't just re-pitch it.
 
 ## 7. Recording
 
-Walk the owner through `tools/trailer/capture.sh`, OBS (window capture, no cursor, the crop from the README, 60 fps), then Shift R in the studio.
+Walk the owner through `capture.sh`, OBS (window capture, no cursor, the crop from the README, 60 fps), then Shift R in the studio.
 
 ## Engine pitfalls (so they don't recur)
 
