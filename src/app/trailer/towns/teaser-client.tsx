@@ -20,10 +20,12 @@ import {
   LENGTH,
   SCENES,
   SONG_OFFSET,
+  SOUNDS,
   TEXTS,
   frameAt,
   smashRun,
   type Frame,
+  type SoundCue,
   type Stage,
 } from "@/lib/trailer/teaser";
 import TeaserRig, { beatOf, TeaserTransport } from "@/components/trailer/TeaserRig";
@@ -103,6 +105,12 @@ function plainStreet(objects: readonly CityObject[]): number {
 }
 
 const CSS = `
+@keyframes teaser-bar { 0% { clip-path: polygon(0 0, 0 0, -8% 100%, -8% 100%); } 100% { clip-path: polygon(0 0, 100% 0, 92% 100%, -8% 100%); } }
+@keyframes teaser-letter { 0% { opacity: 0; transform: translateY(40%) scale(1.6); } 60% { opacity: 1; transform: translateY(-6%) scale(0.95); } 100% { opacity: 1; transform: none; } }
+@keyframes teaser-hit { 0%, 100% { transform: translate(0, 0) skewX(-12deg); } 20% { transform: translate(-0.6cqw, 0.3cqw) skewX(-12deg); } 40% { transform: translate(0.5cqw, -0.2cqw) skewX(-12deg); } 60% { transform: translate(-0.3cqw, 0.1cqw) skewX(-12deg); } }
+.teaser-tag { animation: teaser-hit 0.22s steps(4) 0.18s both; }
+.teaser-tag-bar { animation: teaser-bar 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.teaser-tag-letter { display: inline-block; animation: teaser-letter 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes teaser-slam { 0% { opacity: 0; transform: scale(1.7); } 55% { opacity: 1; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
 .teaser-slam { animation: teaser-slam 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .teaser-recording, .teaser-recording * { cursor: none !important; }
@@ -137,6 +145,57 @@ export default function TeaserClient({
   const range = useRef<[number, number]>([SCENES[0].start, SCENES[0].end]);
   const [shownRange, setShownRange] = useState<[number, number]>([SCENES[0].start, SCENES[0].end]);
   const rec = useRef(false);
+
+  // Effects through Web Audio: every file decoded once, each cue its own source.
+  const sfx = useRef<((c: SoundCue) => void) | null>(null);
+  useEffect(() => {
+    let ctx: AudioContext | null = null;
+    const buffers = new Map<string, Promise<AudioBuffer | null>>();
+    const load = (src: string) => {
+      if (!ctx) return null;
+      const c = ctx;
+      if (!buffers.has(src))
+        buffers.set(
+          src,
+          fetch(src)
+            .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(src))))
+            .then((b) => c.decodeAudioData(b))
+            .catch(() => null),
+        );
+      return buffers.get(src)!;
+    };
+    const wake = () => {
+      ctx ??= new AudioContext();
+      void ctx.resume();
+      for (const c of SOUNDS) load(c.src);
+    };
+    window.addEventListener("pointerdown", wake);
+    window.addEventListener("keydown", wake);
+    sfx.current = (cue) => {
+      wake();
+      const c = ctx;
+      void load(cue.src)?.then((buf) => {
+        if (!buf || !c) return;
+        const node = c.createBufferSource();
+        node.buffer = buf;
+        node.playbackRate.value = cue.rate ?? 1;
+        const gain = c.createGain();
+        gain.gain.value = cue.gain;
+        node.connect(gain).connect(c.destination);
+        node.loop = cue.dur !== undefined && cue.dur > buf.duration;
+        node.start();
+        if (cue.dur !== undefined) {
+          gain.gain.setTargetAtTime(0, c.currentTime + cue.dur - 0.08, 0.04);
+          node.stop(c.currentTime + cue.dur + 0.2);
+        }
+      });
+    };
+    return () => {
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("keydown", wake);
+      void ctx?.close();
+    };
+  }, []);
 
   useEffect(() => {
     const a = new Audio("/trailer/teaser.mp3");
@@ -260,10 +319,15 @@ export default function TeaserClient({
   useEffect(() => {
     let raf = 0;
     let key = "";
+    let last = beatOf(clock);
     const tick = () => {
       raf = requestAnimationFrame(tick);
       let beat = beatOf(clock);
       const [a, b] = range.current;
+      // Sound effects on their beats, while it plays at full speed.
+      if (clock.held === null && clock.rate === 1 && beat > last)
+        for (const c of SOUNDS) if (last < c.beat && beat >= c.beat) sfx.current?.(c);
+      last = beat;
       if (clock.held === null && beat >= b) {
         if (rec.current) {
           clock.hold(b - 0.001);
@@ -274,6 +338,7 @@ export default function TeaserClient({
           syncAudio(a, true);
         }
         beat = beatOf(clock);
+        last = beat - 0.001;
       }
       const f = frameAt(beat);
       const on = TEXTS.flatMap((c, i) => (beat >= c.start && beat < c.end ? [i] : []));
@@ -383,6 +448,31 @@ export default function TeaserClient({
           </div>
         );
       })}
+      {cue("tag") && (
+        <div
+          key={`${cue("tag")!.text}-${cue("tag")!.start}`}
+          className="teaser-tag absolute bottom-[11%] left-[6%]"
+        >
+          <div
+            className="teaser-tag-bar absolute inset-0 -mx-[1.2cqw]"
+            style={{ background: cue("tag")!.color }}
+          />
+          <p
+            className="relative px-[1.6cqw] py-[0.6cqw] text-[7cqw] leading-none text-[#0d0d0f]"
+            style={{ textShadow: "0.35cqw 0.35cqw 0 rgba(255,255,255,0.35)" }}
+          >
+            {[...cue("tag")!.text].map((ch, i) => (
+              <span
+                key={i}
+                className="teaser-tag-letter"
+                style={{ animationDelay: `${0.06 + i * 0.035}s` }}
+              >
+                {ch}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
       {cue("center") && (
         <div className="teaser-slam absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <span

@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import GlobalRadio from "@/components/GlobalRadio";
+import CaptureMode from "@/components/CaptureMode";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -77,14 +78,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
-        {/* ?capture=1 hides everything but the 3D scene, ?capture=hud only the cursor: clean trailer footage. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){var c=new URLSearchParams(location.search).get("capture");if(c)document.documentElement.dataset.capture=c})()`,
-          }}
-        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -103,6 +98,7 @@ export default function RootLayout({
       <body className="bg-bg font-pixel text-warm" suppressHydrationWarning>
         {children}
         <GlobalRadio />
+        <CaptureMode />
         <Analytics />
         <SpeedInsights />
         {process.env.NEXT_PUBLIC_HIMETRICA_API_KEY && (
