@@ -3,11 +3,12 @@
 //   full  16 bars for a ~25s launch trailer
 //   soon  the Towns teaser: 1 bar intro, 3 bars of drop, silence on the
 //         freeze, then the end card's hits (see lib/trailer/towns/teaser)
+//   demo  the kit's demo film, the same shape a bar shorter (lib/trailer/demo/film)
 // Everything is a function of beats, so changing BPM retimes it all; the
 // film's timeline must use the same BPM. Tweak the arrangement at the bottom.
 // Bar 1: the burnout (engine rev rising, a hit on beat 4 when the cars launch).
 // Bars 2-9: the drop. 10-13: lead melody. 14-15: build. 16: final hit.
-// Usage: node tools/trailer/music.mjs <out.wav> [full|soon]
+// Usage: node tools/trailer/music.mjs <out.wav> [full|soon|demo]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -15,9 +16,12 @@ const SR = 44100;
 const BPM = 150;
 const BEAT = 60 / BPM;
 const BAR = BEAT * 4;
-// "soon": the teaser cut. 1 bar intro, 3 bars of drop, silence on the freeze (beats 16-18), the hit on the name.
+// A teaser cut ("soon", "demo"): 1 bar intro, the drop until the freeze, silence
+// on the freeze, then the end card's hits from the cut to black. In beats:
 const MODE = process.argv[3] ?? "full";
-const BARS = MODE === "soon" ? 7 : 16;
+const CUTS = { soon: { freeze: 16, card: 18 }, demo: { freeze: 12, card: 14 } };
+const TEASER = CUTS[MODE];
+const BARS = TEASER ? Math.ceil((TEASER.card + 10) / 4) : 16;
 const LEN = Math.ceil((BARS * BAR + 2.5) * SR);
 const L = new Float32Array(LEN);
 const R = new Float32Array(LEN);
@@ -294,12 +298,12 @@ function groove(bar, { hats = true, arp = true, pad = true, bassBusy = true, dro
   if (drop) crash(at(bar), 0.9);
 }
 
-if (MODE === "soon") {
-  for (let b = 1; b < 4; b++) groove(b, { drop: b === 1 });
-  // The end card (beats after the cut on beat 18): an echo on the cut, an
-  // 8-bit kick and crunch on the stamp (19), a thud as TOWNS stamps on (21),
-  // a chord stab on COMING SOON (23) and a held note under the hold.
-  const C = 18 * BEAT;
+if (TEASER) {
+  for (let b = 1; b * 4 < TEASER.freeze; b++) groove(b, { drop: b === 1 });
+  // The end card (beats after the cut to black): an echo on the cut, an
+  // 8-bit kick and crunch as the name stamps on (+1), a thud on the stamp
+  // (+3), a chord stab on the line (+5) and a held note under the hold.
+  const C = TEASER.card * BEAT;
   tone(C, 0.9, 28, {
     wave: "sine",
     gain: 0.25,
@@ -318,7 +322,7 @@ if (MODE === "soon") {
     env: [0.001, 0.12, 0.2, 0.05],
     sc: false,
   });
-  // TOWNS stamps on (card beat 3): a dry thud, like a rubber stamp.
+  // The stamp lands (card beat 3): a dry thud, like a rubber stamp.
   const thud = C + 3 * BEAT;
   kick(thud, 1.2);
   snare(thud, 0.45);
@@ -412,10 +416,10 @@ for (let i = dly; i < LEN; i++) {
   R[i] += echoR[i - dly] * 0.6;
 }
 
-// The teaser's freeze: hard silence from beat 16 until the name lands on beat 18.
-if (MODE === "soon") {
-  const s0 = Math.floor(16 * BEAT * SR),
-    s1 = Math.floor(18 * BEAT * SR) - 40;
+// The teaser's freeze: hard silence from the freeze until the cut to black.
+if (TEASER) {
+  const s0 = Math.floor(TEASER.freeze * BEAT * SR),
+    s1 = Math.floor(TEASER.card * BEAT * SR) - 40;
   for (let i = s0; i < s1 && i < LEN; i++) {
     const k = i < s0 + 220 ? 1 - (i - s0) / 220 : 0;
     L[i] *= k;
