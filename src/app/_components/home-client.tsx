@@ -150,7 +150,6 @@ const FounderMessage = dynamic(() => import("@/components/FounderMessage"), { ss
 const EArcadeCard = dynamic(() => import("@/components/EArcadeCard"), { ssr: false });
 const GiftPreview = dynamic(() => import("@/components/ShopPreview"), { ssr: false });
 const RabbitCompletion = dynamic(() => import("@/components/RabbitCompletion"), { ssr: false });
-const DistrictChooser = dynamic(() => import("@/components/DistrictChooser"), { ssr: false });
 const LevelUpToast = dynamic(() => import("@/components/LevelUpToast"), { ssr: false });
 
 // Feature flags — flip to switch milestone banner
@@ -874,7 +873,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
   const [eArcadeOpen, setEArcadeOpen] = useState(false);
   const [pixelBalance, setPixelBalance] = useState<number | null>(null);
   const [arcadeOnline, setArcadeOnline] = useState<number>(0);
-  const [districtChooserOpen, setDistrictChooserOpen] = useState(false);
   const [rabbitCinematic, setRabbitCinematic] = useState(false);
   const [rabbitCinematicPhase, setRabbitCinematicPhase] = useState(-1);
   const [rabbitProgress, setRabbitProgress] = useState(0);
@@ -2643,16 +2641,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
     !!session &&
     !!myBuilding?.claimed &&
     !myBuilding.owned_items.includes("flag");
-
-  // Show district chooser once per session when user hasn't chosen yet
-  const shouldShowDistrictChooser =
-    !!session && !!myBuilding?.claimed && !myBuilding.district_chosen;
-
-  useEffect(() => {
-    if (shouldShowDistrictChooser && !sessionStorage.getItem("district_dismissed")) {
-      setDistrictChooserOpen(true);
-    }
-  }, [shouldShowDistrictChooser]);
 
   // Streak auto check-in (1x per browser session)
   const { streakData } = useStreakCheckin(session, !!myBuilding?.claimed);
@@ -6158,8 +6146,8 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
         </div>
       )}
 
-      {/* ─── Level Up Toast ─── (held while a first login picks a district) */}
-      {levelUpLevel !== null && !districtChooserOpen && (
+      {/* ─── Level Up Toast ─── */}
+      {levelUpLevel !== null && (
         <LevelUpToast level={levelUpLevel} onDone={() => setLevelUpLevel(null)} />
       )}
 
@@ -6656,28 +6644,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
           onExit={raidActions.exitRaid}
         />
       )}
-
-      {/* District chooser modal */}
-      {districtChooserOpen && myBuilding && (
-        <DistrictChooser
-          currentDistrict={myBuilding.district ?? null}
-          inferredDistrict={myBuilding.district ?? null}
-          onClose={() => { sessionStorage.setItem("district_dismissed", "1"); setDistrictChooserOpen(false); }}
-          onChosen={(districtId) => {
-            sessionStorage.setItem("district_dismissed", "1");
-            setDistrictChooserOpen(false);
-            // Update the building in local state
-            setBuildings((prev) =>
-              prev.map((b) =>
-                b.login === myBuilding.login
-                  ? { ...b, district: districtId, district_chosen: true }
-                  : b
-              )
-            );
-          }}
-        />
-      )}
-
 
       {/* Founder's Landmark modals */}
       {pillModalOpen && (
