@@ -554,6 +554,10 @@ export interface LeagueSceneProps {
   framing?: { zoom: number; shiftPx: number };
   /** Filled with the cover camera (the town page's automatic photo and the admin's "set cover"). */
   coverRef?: React.MutableRefObject<CoverApi | null>;
+  /** A child owns the camera (the trailer's shots): no orbit, no spin, no fly-in. */
+  cinematic?: boolean;
+  /** Pixel ratio, default [1, 1.5]; the trailer renders at the screen's own. */
+  dpr?: number | [number, number];
 }
 
 export default function LeagueScene({
@@ -582,6 +586,8 @@ export default function LeagueScene({
   coverRef,
   smash: smashTown = null,
   navCamera,
+  cinematic = false,
+  dpr = [1, 1.5],
 }: LeagueSceneProps) {
   const editing = mode === "edit";
   const driving = mode === "drive" && !!drive;
@@ -627,7 +633,7 @@ export default function LeagueScene({
       shadows={false}
       // One Canvas for every mode: remounting leaks WebGL contexts.
       frameloop={editing ? "demand" : "always"}
-      dpr={[1, 1.5]}
+      dpr={dpr}
       camera={{ position: initial.position.toArray(), fov: 50, near: 1, far: 12000 }}
       gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: EXPOSURE }}
       style={
@@ -653,9 +659,9 @@ export default function LeagueScene({
       ) : (
         <LeagueCamera
           h={h}
-          focus={mode === "view" && !playing ? focusedBuilding : null}
-          spin={mode === "view" && !playing}
-          driving={driving || playing}
+          focus={mode === "view" && !playing && !cinematic ? focusedBuilding : null}
+          spin={mode === "view" && !playing && !cinematic}
+          driving={driving || playing || cinematic}
           zoom={(embedded ? (framing?.zoom ?? 0.85) : 1) * (push ? 0.45 : 1)}
           tallest={embedded ? tallest : 0}
           nav={embedded ? null : (navCamera ?? null)}
@@ -709,7 +715,7 @@ export default function LeagueScene({
         />
       </Rise>
       {smashTown && !editing && <RubbleFlags store={smashTown.store} logoUrl={smashTown.rivalLogoUrl} />}
-      {watching && mode === "view" && !playing && watching.length > 0 && <WatchedCars cars={watching} />}
+      {watching && mode === "view" && !playing && !cinematic && watching.length > 0 && <WatchedCars cars={watching} />}
       {driving && drive && <DriveWorld objects={withApproach} buildings={buildings} h={h} smash={smash} {...drive} />}
       {coverRef && <CoverShot apiRef={coverRef} h={h} tallest={tallest} />}
       {children}
