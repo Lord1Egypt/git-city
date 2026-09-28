@@ -23,6 +23,9 @@ export const LEGAL_CNPJ_RAW = "66241579000192";
 export const LEGAL_COUNTRY = "Brazil";
 export const LEGAL_EMAIL = "samuel@thegitcity.com";
 
+/** Mailing address for commercial email footers (CAN-SPAM requires one). */
+export const LEGAL_POSTAL_ADDRESS = "Av. Paulista 1106, Suite 01, 16th floor, Bela Vista, São Paulo, SP 01310-914, Brazil";
+
 /** Founder / contact person — used for "built by" / public-facing references only. */
 export const LEGAL_FOUNDER = "Samuel Rizzon";
 export const LEGAL_X_HANDLE = "samuelrizzondev";

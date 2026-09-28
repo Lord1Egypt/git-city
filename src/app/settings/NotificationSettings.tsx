@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SHOW_TOWNS } from "@/lib/towns/visibility";
+import { Toggle, TopicToggles } from "@/components/email/TopicToggles";
 
 interface Prefs {
   email_enabled: boolean;
   social: boolean;
   digest: boolean;
   marketing: boolean;
+  product_news: boolean;
   streak_reminders: boolean;
   jobs_applications: boolean;
   jobs_performance: boolean;
@@ -24,6 +26,7 @@ const DEFAULT_PREFS: Prefs = {
   social: true,
   digest: true,
   marketing: false,
+  product_news: true,
   streak_reminders: true,
   jobs_applications: true,
   jobs_performance: true,
@@ -34,40 +37,6 @@ const DEFAULT_PREFS: Prefs = {
   quiet_hours_start: null,
   quiet_hours_end: null,
 };
-
-function Toggle({ checked, onChange, label, sublabel, disabled }: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  sublabel?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <label className={`flex items-center justify-between cursor-pointer group ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
-      <div>
-        <span className="text-sm text-cream normal-case">{label}</span>
-        {sublabel && <p className="text-xs text-muted/40 normal-case mt-0.5">{sublabel}</p>}
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        disabled={disabled}
-        className={`relative h-6 w-11 shrink-0 border-[3px] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c8e64a]/50 ${
-          checked ? "border-[#c8e64a] bg-[#c8e64a]/10" : "border-border bg-transparent"
-        }`}
-      >
-        <span
-          className={`block h-3 w-3 transition-all absolute top-[3px] ${
-            checked ? "left-[22px]" : "left-[3px]"
-          }`}
-          style={{ backgroundColor: checked ? "#c8e64a" : "var(--color-muted)" }}
-        />
-      </button>
-    </label>
-  );
-}
 
 export default function NotificationSettings() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
@@ -193,70 +162,12 @@ export default function NotificationSettings() {
           )}
         </div>
 
-        {/* Game notifications */}
-        <div className="border-[3px] border-border bg-bg-raised p-6 sm:p-8 mb-6">
-          <h2 className="text-sm text-cream mb-5">Game</h2>
-          <div className="space-y-5">
-            <Toggle
-              checked={prefs.streak_reminders}
-              onChange={(v) => save({ streak_reminders: v })}
-              label="Daily reminder"
-              sublabel="Your streak or unfinished missions, at most once a day"
-              disabled={emailOff}
-            />
-            <Toggle
-              checked={prefs.social}
-              onChange={(v) => save({ social: v })}
-              label="Raids and social"
-              sublabel="Raids on your building, gifts, rare emblems and referrals"
-              disabled={emailOff}
-            />
-            {SHOW_TOWNS && (
-              <Toggle
-                checked={prefs.leagues}
-                onChange={(v) => save({ leagues: v })}
-                label="Towns"
-                sublabel="Weekly results, overtakes and teammates lighting up"
-                disabled={emailOff}
-              />
-            )}
-            <Toggle
-              checked={prefs.digest}
-              onChange={(v) => save({ digest: v })}
-              label="Weekly recap"
-              sublabel="Mondays, only when something happened in your week"
-              disabled={emailOff}
-            />
-            <Toggle
-              checked={prefs.marketing}
-              onChange={(v) => save({ marketing: v })}
-              label="Product updates"
-              sublabel="New features and announcements"
-              disabled={emailOff}
-            />
-          </div>
-        </div>
-
-        {/* Jobs notifications */}
-        <div className="border-[3px] border-border bg-bg-raised p-6 sm:p-8 mb-6">
-          <h2 className="text-sm text-cream mb-5">Jobs</h2>
-          <div className="space-y-5">
-            <Toggle
-              checked={prefs.jobs_digest}
-              onChange={(v) => save({ jobs_digest: v })}
-              label="Weekly job matches"
-              sublabel="New jobs that match your skills and preferences"
-              disabled={emailOff}
-            />
-            <Toggle
-              checked={prefs.jobs_updates}
-              onChange={(v) => save({ jobs_updates: v })}
-              label="Application updates"
-              sublabel="When a job you applied to is filled or updated"
-              disabled={emailOff}
-            />
-          </div>
-        </div>
+        <TopicToggles
+          values={prefs as unknown as Record<string, unknown>}
+          onChange={(key, value) => save({ [key]: value } as Partial<Prefs>)}
+          disabled={emailOff}
+          hidden={SHOW_TOWNS ? [] : ["leagues"]}
+        />
 
         {/* Raid alert bundling (digest_frequency: realtime or not) */}
         <div className="border-[3px] border-border bg-bg-raised p-6 sm:p-8">

@@ -8,6 +8,8 @@ export interface EmailLinks {
   unsubscribeUrl?: string;
   /** Where the reader manages email. Defaults to the player settings page; null hides it. */
   settingsUrl?: string | null;
+  /** Mailing address, shown on commercial email (CAN-SPAM). */
+  postalAddress?: string;
 }
 
 function footerLinks(links: EmailLinks): { label: string; url: string }[] {
@@ -79,7 +81,7 @@ export function renderLayout(opts: LayoutOptions): string {
       <div style="padding-top:20px;">${gmailSafe(`<div style="font-family:${FONT}; font-size:13px; line-height:1.6; color:${COLORS.muted};">
         ${escapeHtml(opts.reason)}<br>
         ${footer ? `${footer}<br>` : ""}
-        ${LEGAL_NAME} &middot; ${CONTACT_EMAIL}
+        ${LEGAL_NAME} &middot; ${CONTACT_EMAIL}${opts.links.postalAddress ? `<br>${escapeHtml(opts.links.postalAddress)}` : ""}
       </div>`)}</div>
     </td></tr>
   </table>
@@ -98,5 +100,6 @@ export function renderText(opts: { lines: string[]; reason: string; links: Email
     opts.reason,
     ...footerLinks(opts.links).map((l) => `${l.label}: ${l.url}`),
     `${LEGAL_NAME} · ${CONTACT_EMAIL}`,
+    ...(opts.links.postalAddress ? [opts.links.postalAddress] : []),
   ].join("\n");
 }

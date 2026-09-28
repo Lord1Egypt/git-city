@@ -6,6 +6,7 @@ import { getDeveloperEmail, isRecentlyActive } from "./notification-helpers";
 import { renderLayout, renderText, type EmailLinks } from "./email/layout";
 import { bulletList, button, heading, paragraph, trackedUrl } from "./email/components";
 import { FROM_MAIL, FROM_NOTIFY } from "./email/senders";
+import { LEGAL_POSTAL_ADDRESS } from "./legal";
 
 // ── Types ──
 
@@ -16,6 +17,7 @@ export type NotificationCategory =
   | "social"
   | "digest"
   | "marketing"
+  | "product_news"
   | "streak_reminders"
   | "jobs_applications"
   | "jobs_performance"
@@ -82,6 +84,10 @@ const RATE_LIMITS: Record<Channel, { perHour: number; perDay: number; perWeek: n
 // triggers like raid alerts still go out: they're the best way back in.
 const SUNSET_DAYS = 90;
 const SUNSET_CATEGORIES: NotificationCategory[] = ["digest", "marketing"];
+
+// Commercial email (promotes the product rather than reporting the player's
+// own activity): gets the postal address in the footer.
+const COMMERCIAL_CATEGORIES: NotificationCategory[] = ["marketing", "product_news"];
 
 // Categories exempt from rate limiting (always send)
 const RATE_LIMIT_EXEMPT: NotificationCategory[] = ["transactional"];
@@ -554,17 +560,23 @@ async function dispatchEmail(
   // way back in settings. They link to email settings instead.
   const isTransactional = payload.forceSend || payload.category === "transactional";
   const unsubUrl = isTransactional ? undefined : buildUnsubscribeUrl(payload.developerId, payload.category);
+  const links: EmailLinks = {
+    unsubscribeUrl: unsubUrl,
+    // Signed, no-login preference page: people who can't log in use it instead of the spam button
+    settingsUrl: buildPreferencesUrl(payload.developerId),
+    // Commercial email must carry a postal address (CAN-SPAM)
+    postalAddress: COMMERCIAL_CATEGORIES.includes(payload.category) ? LEGAL_POSTAL_ADDRESS : undefined,
+  };
 
   // Build final HTML
   let fullHtml: string;
   let text = payload.body;
   if (payload.render) {
-    const rendered = payload.render({ unsubscribeUrl: unsubUrl });
+    const rendered = payload.render(links);
     fullHtml = rendered.html;
     text = rendered.text;
   } else {
     const reason = "You're getting this because you have a Git City account.";
-    const links = { unsubscribeUrl: unsubUrl };
     fullHtml = renderLayout({ title: payload.title, preheader: payload.body, body: paragraph(payload.body), reason, links });
     text = renderText({ lines: [payload.body], reason, links });
   }
@@ -701,6 +713,7 @@ interface NotificationPrefs {
   social: boolean;
   digest: boolean;
   marketing: boolean;
+  product_news: boolean;
   streak_reminders: boolean;
   jobs_applications: boolean;
   jobs_performance: boolean;
@@ -720,6 +733,7 @@ const DEFAULT_PREFS: NotificationPrefs = {
   social: true,
   digest: true,
   marketing: false,
+  product_news: true,
   streak_reminders: true,
   jobs_applications: true,
   jobs_performance: true,
@@ -749,6 +763,7 @@ async function getPreferences(devId: number): Promise<NotificationPrefs> {
     social: data.social ?? true,
     digest: data.digest ?? true,
     marketing: data.marketing ?? false,
+    product_news: data.product_news ?? true,
     streak_reminders: data.streak_reminders ?? true,
     jobs_applications: data.jobs_applications ?? true,
     jobs_performance: data.jobs_performance ?? true,
@@ -862,6 +877,13 @@ async function isInQuietHours(
 }
 
 // ── Unsubscribe URL ──
+
+/** Signed link to /email-preferences, where anyone can manage their email without logging in. */
+export function buildPreferencesUrl(devId: number): string {
+  return `${BASE_URL}/email-preferences?dev=${devId}&token=${generateHmacToken(devId, PREFERENCES_TOKEN_SCOPE)}`;
+}
+
+export const PREFERENCES_TOKEN_SCOPE = "prefs";
 
 export function buildUnsubscribeUrl(devId: number, category: NotificationCategory | "all"): string {
   const token = generateHmacToken(devId, category);
