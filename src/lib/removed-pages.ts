@@ -10,4 +10,5 @@ export const REMOVED_PAGE_REDIRECTS = [
   { source: "/sponsorship", destination: "/", permanent: false },
   { source: "/media-kit", destination: "/", permanent: false },
   { source: "/pitch", destination: "/", permanent: false },
+  { source: "/support", destination: "/", permanent: false },
 ] as const;

@@ -181,8 +181,6 @@ export default function CityPulse({
           <a href="/terms" className="text-[8px] text-cream/20 transition-colors hover:text-cream/50">Terms</a>
           <span className="text-[8px] text-cream/10">·</span>
           <a href="/privacy" className="text-[8px] text-cream/20 transition-colors hover:text-cream/50">Privacy</a>
-          <span className="text-[8px] text-cream/10">·</span>
-          <a href="/support" className="text-[8px] text-cream/20 transition-colors hover:text-cream/50">Support</a>
         </div>
       </div>
 
