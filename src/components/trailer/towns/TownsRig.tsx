@@ -26,49 +26,13 @@ import {
   shotFor,
   type SmashRun,
   type Stage,
-} from "@/lib/trailer/teaser";
+} from "@/lib/trailer/towns-teaser";
+import { beatOf, type FilmClock } from "@/lib/trailer/clock";
 
-// One town's camera and car for the teaser (lib/trailer/teaser): it reads the
+// One town's camera and car for the Towns teaser (lib/trailer/towns-teaser): it reads the
 // shared clock every frame and plays whichever of this town's shots is under
 // way, or holds the next one on its first frame while the other town is on
 // screen. The smashing goes through the same store the game draws.
-
-export interface TeaserClock {
-  /** performance.now() of beat 0 while it plays. */
-  start: number;
-  /** Playback speed: below 1 is slow motion. */
-  rate: number;
-  /** Paused on this beat, or null while it plays. */
-  held: number | null;
-}
-
-/** The studio's clock: play from a beat, hold on one, change speed. */
-export class TeaserTransport implements TeaserClock {
-  start = 0;
-  rate = 1;
-  held: number | null;
-  constructor(beat: number) {
-    this.held = beat;
-  }
-  play(beat: number) {
-    this.held = null;
-    this.start = performance.now() - (beat * BEAT * 1000) / this.rate;
-  }
-  hold(beat: number) {
-    this.held = beat;
-  }
-  speed(rate: number) {
-    const beat = beatOf(this);
-    this.rate = rate;
-    if (this.held === null) this.play(beat);
-  }
-}
-
-/** Beats since the film's first frame (negative during the pre-roll). */
-export function beatOf(clock: TeaserClock): number {
-  if (clock.held !== null) return clock.held;
-  return ((performance.now() - clock.start) * clock.rate) / 1000 / BEAT;
-}
 
 const DEBRIS = ["#1c2233", "#2a3147", "#ffd76a", "#ffe9a8", "#8fa3c7", "#3a4462"];
 const CHUNK = ["#141a2a"];
@@ -157,7 +121,7 @@ export default function TeaserRig({
   attacker,
 }: {
   stage: Stage;
-  clock: TeaserClock;
+  clock: FilmClock;
   h: number;
   /** World z of the portal. */
   gateZ: number;

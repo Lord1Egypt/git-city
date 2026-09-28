@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import CarModel from "@/components/league/drive/CarModel";
 import { M_TO_UNIT, WHEEL } from "@/lib/league-city/drive/tuning";
 import { WHEELS } from "@/lib/league-city/drive/vehicle";
-import { BEAT, BUMP, BUTTON_AT } from "@/lib/trailer/teaser";
+import { BEAT, BUMP, BUTTON_AT, LENGTH, LOGO } from "@/lib/trailer/towns-teaser";
+import { beatOf, type FilmClock } from "@/lib/trailer/clock";
 
 // The teaser's end card, as film end cards go: a hard cut to black, then a
 // centred lockup with nothing around it. Driven by the film's clock in beats
@@ -123,18 +124,25 @@ const _s = new THREE.Quaternion();
 const _x = new THREE.Vector3(1, 0, 0);
 const _y = new THREE.Vector3(0, 1, 0);
 
-export default function EndCard({ beat, active }: { beat: () => number; active: boolean }) {
-  const [b, setB] = useState(beat());
+export default function EndCard({ clock }: { clock: FilmClock }) {
+  // Beats since the cut to black; the card runs from LOGO to the film's end.
+  const beat = useCallback(() => beatOf(clock) - LOGO, [clock]);
+  const [b, setB] = useState(() => beat());
   useEffect(() => {
-    if (!active) return;
     let raf = 0;
+    let was = NaN;
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      setB(beat());
+      const now = beat();
+      // Only re-render while the card is on (or just leaving it).
+      if (now >= 0 && now < LENGTH - LOGO) setB(now);
+      else if (was >= 0 && was < LENGTH - LOGO) setB(now);
+      was = now;
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [beat, active]);
+  }, [beat]);
+  const active = b >= 0 && b < LENGTH - LOGO;
 
   const shown = active && b >= STAMP_AT && b < 10;
   const flash = shown && b - STAMP_AT < 0.05;

@@ -1,26 +1,39 @@
 // ─── Towns teaser ───────────────────────────────────────────
-// The teaser as a timeline the trailer studio plays in the engine, so the
-// film is one screen recording: short gameplay takes, one after another.
-// Everything counts in beats from the first frame, so cuts land on the
-// music without drift. Pure: the studio reads it, tests can too.
+// The Git City Towns "coming soon" teaser, as a Film (lib/trailer/film) the
+// studio plays in the engine, so the whole film is one screen recording. It
+// is also the worked example of the trailer kit (tools/trailer/README.md):
+// the takes, their moments, the sounds on those moments, and the end card.
+//
+// The film: a split screen burnout hooks, three flashes of play cut at their
+// peak, the car freezes mid-air as the music drops out, then the end card
+// (components/trailer/towns/EndCard). Every take's shot is drawn by
+// components/trailer/towns/TownsRig, by its kind.
 
 import type { CityBuilding } from "@/lib/github";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import type { CityObject } from "@/lib/league-city/types";
+import {
+  buildShots,
+  frameOf,
+  momentOf,
+  scenesOf,
+  shotFor as filmShotFor,
+  type Film,
+  type Shot as FilmShot,
+  type SoundCue,
+  type Take,
+  type TitleCue,
+} from "./film";
 
-/** The teaser track (music/make.mjs in the video folder): 150 BPM, a beat is 0.4s, a bar 1.6s. */
+/** The teaser track (tools/trailer/music.mjs, "soon"): 150 BPM, a beat is 0.4s, a bar 1.6s. */
 export const BPM = 150;
 /** Seconds per beat. */
 export const BEAT = 60 / BPM;
-/** Where the film starts in the song. */
-export const SONG_OFFSET = 0;
-
-/** Beat index of a bar (1-indexed) and a beat inside it (1-indexed). */
-export const at = (bar: number, beat = 1) => (bar - 1) * 4 + (beat - 1);
 
 /** Orange world (Claude Code's town) or blue (Codex's). */
 export type Stage = "claude" | "codex";
 
+/** The shots TownsRig can draw. The teaser uses some; the rest are there for the next film. */
 export type ShotKind =
   | "rev"
   | "revback"
@@ -35,37 +48,10 @@ export type ShotKind =
   | "invasion"
   | "finale";
 
-export interface Shot {
-  name: string;
-  stage: Stage;
-  kind: ShotKind;
-  /** Beats, end exclusive. */
-  start: number;
-  end: number;
-  /** Beats of the take's action cut off its start. */
-  trim: number;
-  /** Shown split with the other town's take at the same time. */
-  split: boolean;
-  /** The picture holds from this beat of the take's action on. */
-  freeze?: number;
-}
+export type Shot = FilmShot<Stage, ShotKind>;
 
-/** What's on screen: one town full frame, both halves, or black. */
-export type Frame = { kind: "full"; stage: Stage } | { kind: "split" } | { kind: "black" };
-
-/**
- * The takes in order, as [name, stage, kind, beats long, trim]: trim is how
- * many beats of the take's own action are cut off its start, so it opens in
- * the thick of it.
- */
-/**
- * The "coming soon" teaser: the split burnout hooks, four flashes cut at
- * their peak, the car freezes mid-air as the music drops out, then black,
- * the name, "soon", and a late crash in the dark. As [name, stage, kind,
- * beats long, trim, freeze]: freeze is the beat of the take's action where
- * the picture holds.
- */
-const TAKES: [string, Stage | "both", ShotKind, number, number, number?][] = [
+/** The takes: [name, stage, kind, beats long, trim, freeze] (see lib/trailer/film). */
+const TAKES: Take<Stage, ShotKind>[] = [
   ["Burnout · split", "both", "revback", 4, 0],
   ["Drift", "claude", "drift", 3, 2.1],
   ["Missile", "codex", "missile", 3, 1],
@@ -73,28 +59,12 @@ const TAKES: [string, Stage | "both", ShotKind, number, number, number?][] = [
   ["Jump · freeze", "claude", "jump", 5, 1, 4],
 ];
 
-/** "both" is a split take: one shot per town at the same time. */
-export const SHOTS: Shot[] = TAKES.reduce<Shot[]>((out, [name, stage, kind, len, trim, freeze]) => {
-  const start = out.length ? out[out.length - 1].end : 0;
-  const stages: Stage[] = stage === "both" ? ["claude", "codex"] : [stage];
-  return [
-    ...out,
-    ...stages.map((st) => ({
-      name,
-      stage: st,
-      kind,
-      start,
-      end: start + len,
-      trim,
-      freeze,
-      split: stage === "both",
-    })),
-  ];
-}, []);
+export const SHOTS: Shot[] = buildShots(TAKES, ["claude", "codex"]);
+export { momentOf };
 
-/** Where a moment of a take's action (beats from its untrimmed start) lands on the timeline. */
-export function momentOf(shot: Shot, beats: number): number {
-  return shot.start + beats - shot.trim;
+/** This stage's shot at `beat`, and seconds into its action. */
+export function shotFor(stage: Stage, beat: number) {
+  return filmShotFor(SHOTS, stage, beat, BEAT);
 }
 
 /** The missile hits on its take's third beat. */
@@ -130,15 +100,6 @@ export const BLASTS: number[] = [
   ),
 ];
 
-export interface SoundCue {
-  beat: number;
-  src: string;
-  gain: number;
-  /** Cut it off after this long (s), for a looping sound like the skid. */
-  dur?: number;
-  rate?: number;
-}
-
 /** The end card's button: the little car comes in this many beats after the cut, and bumps the lockup this long after. */
 export const BUTTON_AT = 8;
 export const BUMP = 0.8;
@@ -147,22 +108,24 @@ const SKID = "/sounds/drive/skid.ogg";
 const IMPACT = "/sounds/drive/impact.ogg";
 
 /** Sound effects over the music, from each take's own moments, and the crash in the dark after the name. */
-export const SOUNDS: SoundCue[] = [
-  // The end card's button: the little car skids in, bumps the lockup, honks.
-  {
-    beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT,
-    src: SKID,
-    gain: 0.6,
-    dur: BUMP * BEAT + 0.1,
-    rate: 1.2,
-  },
-  { beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT + BUMP, src: IMPACT, gain: 0.45, rate: 1.4 },
-  {
-    beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT + BUMP + 0.4,
-    src: "/trailer/sfx/horn.wav",
-    gain: 0.45,
-  },
-].concat(
+export const SOUNDS: SoundCue[] = (
+  [
+    // The end card's button: the little car skids in, bumps the lockup, honks.
+    {
+      beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT,
+      src: SKID,
+      gain: 0.6,
+      dur: BUMP * BEAT + 0.1,
+      rate: 1.2,
+    },
+    { beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT + BUMP, src: IMPACT, gain: 0.45, rate: 1.4 },
+    {
+      beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT + BUMP + 0.4,
+      src: "/trailer/sfx/horn.wav",
+      gain: 0.45,
+    },
+  ] as SoundCue[]
+).concat(
   SHOTS.flatMap((s): SoundCue[] => {
     if (s.kind === "revback" && s.stage === "claude")
       return [{ beat: momentOf(s, REV_LAUNCH / BEAT), src: SKID, gain: 0.7, dur: 0.5, rate: 1.1 }];
@@ -215,19 +178,9 @@ export const END = SHOTS[SHOTS.length - 1].end;
 export const LOGO = END;
 export const LENGTH = END + 10;
 
-export interface TextCue {
-  start: number;
-  end: number;
-  text: string;
-  /** "tag": a word dropped on a take (a slanted bar wipes in, the letters pop). */
-  place: "tag" | "big" | "left" | "right" | "center" | "end1" | "end2" | "end3";
-  /** The bar's color: the take's world. */
-  color?: string;
-}
-
 const ORANGE = "#e07a4f";
 const BLUE = "#5b8def";
-/** One word per take, on its moment: [take kind, word, beat into the take, big]. */
+/** A word per take on its moment, [take kind, word, beat into the take, big]. Off in the teaser, which keeps its mystery. */
 const TAGS: [ShotKind, string, number, boolean][] = [
   ["drift", "Drift", DRIFT_LEAD / BEAT + 0.5, false],
   ["missile", "Fire", MISSILE_HIT, false],
@@ -236,48 +189,29 @@ const TAGS: [ShotKind, string, number, boolean][] = [
   ["jump", "Fly", JUMP_OFF, false],
   ["boost", "Boost", BOOST_HIT, false],
 ];
-
-/** The teaser keeps its mystery: no word on the takes, just the name at the end. */
 const TAGGED = false;
 
-export const TEXTS: TextCue[] = [
-  ...(TAGGED ? TAGS : []).flatMap(([kind, text, at, big]) =>
-    SHOTS.filter((s) => s.kind === kind).map((s) => ({
-      start: momentOf(s, at),
-      end: s.end,
-      text,
-      place: big ? ("big" as const) : ("tag" as const),
-      color: s.stage === "claude" ? ORANGE : BLUE,
-    })),
-  ),
-];
-
-/** The scenes the studio lists: one per take (a split take is two shots), then the end card. */
-export const SCENES = [
-  ...SHOTS.filter((s, i) => i === 0 || SHOTS[i - 1].start !== s.start).map((s) => ({
-    name: s.name,
-    start: s.start,
+const TITLES: TitleCue[] = (TAGGED ? TAGS : []).flatMap(([kind, text, at, big]) =>
+  SHOTS.filter((s) => s.kind === kind).map((s) => ({
+    start: momentOf(s, at),
     end: s.end,
+    text,
+    place: big ? ("big" as const) : ("tag" as const),
+    color: s.stage === "claude" ? ORANGE : BLUE,
   })),
-  { name: "End card", start: LOGO, end: LENGTH },
-];
+);
 
-export function frameAt(beat: number): Frame {
-  if (beat < 0 || beat >= END) return { kind: "black" };
-  const shot = [...SHOTS].reverse().find((s) => beat >= s.start) ?? SHOTS[0];
-  return shot.split ? { kind: "split" } : { kind: "full", stage: shot.stage };
-}
-
-/** This stage's shot at `beat`: the one under way, else the next one waiting on its first frame. */
-export function shotFor(stage: Stage, beat: number): { shot: Shot; t: number } {
-  const mine = SHOTS.filter((s) => s.stage === stage);
-  const now = [...mine].reverse().find((s) => beat >= s.start);
-  const shot = now ?? mine[0];
-  return {
-    shot,
-    t: Math.min(Math.max(0, beat - shot.start) + shot.trim, shot.freeze ?? Infinity) * BEAT,
-  };
-}
+/** The film the studio plays. */
+export const FILM: Film<Stage> = {
+  beat: BEAT,
+  length: LENGTH,
+  scenes: [...scenesOf(SHOTS), { name: "End card", start: LOGO, end: LENGTH }],
+  sounds: SOUNDS,
+  titles: TITLES,
+  flashes: BLASTS,
+  song: { src: "/trailer/towns-teaser.wav", offset: 0 },
+  frameAt: (beat) => frameOf(SHOTS, beat),
+};
 
 // ─── The street the car smashes through ─────────────────────
 // Both towns are young (a handful of members), so the teaser fills a run of
