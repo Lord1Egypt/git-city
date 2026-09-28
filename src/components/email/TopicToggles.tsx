@@ -13,7 +13,7 @@ export function Toggle({ checked, onChange, label, sublabel, disabled }: {
     <label className={`flex items-center justify-between cursor-pointer group ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
       <div>
         <span className="text-sm text-cream normal-case">{label}</span>
-        {sublabel && <p className="text-xs text-muted/40 normal-case mt-0.5">{sublabel}</p>}
+        {sublabel && <p className="text-xs text-muted normal-case mt-0.5">{sublabel}</p>}
       </div>
       <button
         type="button"
@@ -59,7 +59,7 @@ export function TopicToggles({ values, onChange, disabled, hidden = [] }: {
               {topics.map((t) => (
                 <Toggle
                   key={t.key}
-                  checked={values[t.key] !== false}
+                  checked={typeof values[t.key] === "boolean" ? (values[t.key] as boolean) : t.defaultOn}
                   onChange={(v) => onChange(t.key, v)}
                   label={t.label}
                   sublabel={t.description}
