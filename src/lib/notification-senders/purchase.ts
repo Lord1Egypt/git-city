@@ -6,7 +6,7 @@ import { ITEM_NAMES } from "../zones";
 /** "@alice's", "@james'" */
 export const possessive = (login: string) => `@${login}${login.endsWith("s") ? "'" : "'s"}`;
 
-/** What the buyer paid: cents in a real currency (usd, brl) or a pixel amount (currency "PX"). */
+/** What the buyer paid: a pixel amount (currency "PX"), or cents in usd/brl on purchases made before Git City dropped real money. */
 export interface PurchasePrice {
   amountCents: number;
   currency: string;

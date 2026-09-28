@@ -7,8 +7,13 @@ import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { buildingItemVisual } from "./cosmetics/itemRenderers";
 import { ClaimedGlow } from "./Building3D";
-import type { BuildingDims } from "./ShopClient";
 import { ZONE_ITEMS } from "@/lib/zones";
+
+export interface BuildingDims {
+  width: number;
+  height: number;
+  depth: number;
+}
 
 const ACCENT = "#c8e64a";
 

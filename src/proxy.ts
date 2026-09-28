@@ -20,8 +20,6 @@ const ROUTE_LIMITS: [string, number, number][] = [
   ["/api/achievements", 30, 60_000],
   ["/api/loadout", 30, 60_000],
   ["/api/feed", 30, 60_000],
-  ["/api/checkout/status", 40, 60_000],
-  ["/api/checkout", 6, 60_000],
   ["/api/claim", 5, 60_000],
   ["/api/city", 30, 60_000],
   ["/api/dev/", 60, 60_000],
@@ -55,7 +53,7 @@ function getLimitForPath(pathname: string): {
   window: number;
   group: string;
 } {
-  // Webhooks are called by trusted third-parties (Stripe, AbacatePay) –
+  // Webhooks are called by trusted third-parties (Resend) –
   // they verify signatures, so we don't rate-limit them.
   if (pathname.startsWith("/api/webhooks")) {
     return { limit: 1000, window: 60_000, group: "webhooks" };

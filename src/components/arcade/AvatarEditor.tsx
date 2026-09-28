@@ -61,14 +61,6 @@ const COLOR_PALETTE = [
 const CELL = 32;
 const DIR_ROW: Record<string, number> = { down: 0, up: 1, left: 3, right: 2 };
 
-// PX packages for inline "Get PX" view
-const PX_PACKAGES = [
-  { id: "starter", name: "Starter", px: 100, price: "$1", priceBrl: "R$5" },
-  { id: "value", name: "Value Pack", px: 525, price: "$5", priceBrl: "R$25", bonus: "+25 (5%)" },
-  { id: "popular", name: "Popular", px: 1200, price: "$10", priceBrl: "R$50", bonus: "+200 (20%)", badge: "Most Popular" },
-  { id: "mega", name: "Mega Pack", px: 2750, price: "$20", priceBrl: "R$99", bonus: "+750 (38%)", badge: "Best Value" },
-];
-
 // ─── Canvas tinting ─────────────────────────────────────────
 // ─── Atlas-based sprite loading (1 request instead of 61) ───
 let atlasImg: HTMLImageElement | null = null;
@@ -630,26 +622,7 @@ export default function AvatarEditor({ onClose, onSave, initialLoadout, playerNa
     }
   };
 
-  // Buy PX checkout
-  const buyPx = async (packageId: string) => {
-    try {
-      const res = await fetch("/api/pixels/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ package_id: packageId, provider: "stripe" }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.open(data.url, "_blank");
-        setMessage("Complete payment in the new tab, then come back");
-      }
-    } catch {
-      setMessage("Failed to start checkout");
-    }
-    setTimeout(() => setMessage(null), 5000);
-  };
-
-  // Refresh balance (after returning from checkout)
+  // Refresh balance (after returning from /pixels)
   useEffect(() => {
     const onFocus = () => {
       fetch("/api/arcade/shop")
@@ -772,23 +745,19 @@ export default function AvatarEditor({ onClose, onSave, initialLoadout, playerNa
                   })}
                 </div>
               ) : showPxPacks ? (
-                /* PX Packs inline */
+                /* How to get PX */
                 <div className="space-y-2">
-                  <p className="text-xs text-gray-500 mb-3">Get more PX to unlock items</p>
-                  {PX_PACKAGES.map((pkg) => (
-                    <button
-                      key={pkg.id}
-                      onClick={() => buyPx(pkg.id)}
-                      className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer"
-                    >
-                      <div>
-                        <span className="text-sm font-bold text-gray-800">{pkg.px} PX</span>
-                        {pkg.bonus && <span className="ml-2 text-[10px] text-green-600">{pkg.bonus}</span>}
-                        {pkg.badge && <span className="ml-2 text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">{pkg.badge}</span>}
-                      </div>
-                      <span className="text-xs font-medium text-gray-600">{pkg.price}</span>
-                    </button>
-                  ))}
+                  <p className="text-xs text-gray-500">
+                    Earn PX by committing daily, finishing dailies, keeping streaks and playing.
+                  </p>
+                  <a
+                    href="/pixels"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-xs text-blue-600 hover:text-blue-700"
+                  >
+                    Trade GITC for PX &rarr;
+                  </a>
                   <button
                     onClick={() => setShowPxPacks(false)}
                     className="text-xs text-gray-400 hover:text-gray-600 mt-2 cursor-pointer"

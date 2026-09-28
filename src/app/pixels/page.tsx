@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { CLAIMED_DEVELOPER_LIMIT, pickClaimedDeveloper } from "@/lib/auth-identity";
@@ -8,15 +7,12 @@ import { getBalance } from "@/lib/pixels";
 import PixelsStoreClient from "./PixelsStoreClient";
 
 export const metadata: Metadata = {
-  title: "Buy Pixels - Git City",
+  title: "Pixels - Git City",
   description:
-    "Get Pixels (PX) to unlock cosmetics, upgrades, and more for your building in Git City.",
+    "Earn Pixels (PX) by coding and playing to unlock cosmetics, upgrades and more for your building in Git City.",
 };
 
 export default async function PixelsPage() {
-  const h = await headers();
-  const country = h.get("x-vercel-ip-country") ?? h.get("cf-ipcountry") ?? null;
-
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -79,8 +75,8 @@ export default async function PixelsPage() {
             Pixels
           </h1>
           <p className="text-base sm:text-lg text-muted normal-case max-w-lg mx-auto leading-relaxed">
-            The currency of Git City. Buy Pixels to unlock cosmetics,
-            upgrades, and raid gear for your building.
+            The currency of Git City. Earn Pixels by coding and playing, or
+            trade GITC for them. Spend them on cosmetics, upgrades and raid gear.
           </p>
         </div>
 
@@ -100,7 +96,6 @@ export default async function PixelsPage() {
           balance={balance}
           isAuthenticated={!!devId}
           githubLogin={githubLogin}
-          serverCountry={country}
         />
 
         {/* What you can buy */}
@@ -200,14 +195,6 @@ export default async function PixelsPage() {
 
           <p className="text-xs text-dim normal-case text-center mt-5">
             Earn up to ~15 PX per day through gameplay. Daily cap: 50 PX.
-          </p>
-        </div>
-
-        {/* Payment methods */}
-        <div className="mt-10 text-center">
-          <p className="text-xs text-dim normal-case">
-            Secure payments via Stripe (credit card) and PIX (Brazil).
-            All purchases are final.
           </p>
         </div>
       </div>

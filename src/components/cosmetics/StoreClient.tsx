@@ -182,19 +182,6 @@ export default function StoreClient({
       flash("Network error — try again");
     } finally { setBusy(false); }
   }
-  async function buyWithMoney(item: Cosmetic) {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item_id: item.id, provider: "stripe" }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { flash(data?.error ?? "Checkout failed"); return; }
-      if (data.url) window.location.href = data.url;
-    } catch {
-      flash("Network error — try again");
-    } finally { setBusy(false); }
-  }
-
   function changeSection(s: ShopSection) {
     if (s === section) return;
     setSection(s);
@@ -249,7 +236,7 @@ export default function StoreClient({
             // Functional items have no 3D preview — info-rich cards with inline buy.
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {visible.map((it) => (
-                <BoostCard key={it.id} item={it} owned={owned.has(it.id)} viewer={viewer} busy={busy} onBuyPixels={buyWithPixels} onBuyMoney={buyWithMoney} onTopUp={onTopUp} />
+                <BoostCard key={it.id} item={it} owned={owned.has(it.id)} viewer={viewer} busy={busy} onBuyPixels={buyWithPixels} onTopUp={onTopUp} />
               ))}
             </div>
           ) : (
@@ -322,8 +309,6 @@ export default function StoreClient({
                         <BalanceLine price={selected.price_pixels} balance={viewer.pxBalance} />
                       </div>
                     )
-                  ) : selected.price_usd_cents > 0 ? (
-                    <button onClick={() => buyWithMoney(selected)} disabled={busy} className="w-full px-4 py-2.5 text-[10px] uppercase tracking-widest text-bg btn-press disabled:opacity-40" style={{ backgroundColor: ACCENT, boxShadow: "3px 3px 0 0 #5a7a00" }}>Buy · ${(selected.price_usd_cents / 100).toFixed(2)}</button>
                   ) : (
                     <div className="border-2 border-border px-4 py-2.5 text-center text-[10px] uppercase text-muted">Earned through gameplay</div>
                   )}
@@ -378,13 +363,12 @@ function BalanceLine({ price, balance }: { price: number; balance: number }) {
 const MULTI_BUY = new Set(["streak_freeze", "billboard"]);
 
 // Functional item: no 3D, so the card itself carries effect + price + buy.
-function BoostCard({ item, owned, viewer, busy, onBuyPixels, onBuyMoney, onTopUp }: {
+function BoostCard({ item, owned, viewer, busy, onBuyPixels, onTopUp }: {
   item: Cosmetic;
   owned: boolean;
   viewer: ViewerContext | null;
   busy: boolean;
   onBuyPixels: (item: Cosmetic) => void;
-  onBuyMoney: (item: Cosmetic) => void;
   onTopUp?: () => void;
 }) {
   const [confirm, setConfirm] = useState(false);
@@ -410,7 +394,7 @@ function BoostCard({ item, owned, viewer, busy, onBuyPixels, onBuyMoney, onTopUp
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
         <span className="flex items-center gap-1.5 text-[11px] text-cream">
           <span className="flex items-center gap-1">
-            {item.price_pixels != null ? <><CurrencyIcon currency="pixels" size={12} /> {item.price_pixels}</> : item.price_usd_cents > 0 ? `$${(item.price_usd_cents / 100).toFixed(2)}` : "free"}
+            {item.price_pixels != null ? <><CurrencyIcon currency="pixels" size={12} /> {item.price_pixels}</> : "earned"}
           </span>
           {item.remaining != null && <span className={`text-[9px] uppercase ${item.remaining > 0 ? "text-amber-400" : "text-red-400"}`}>{item.remaining > 0 ? `${item.remaining} left` : "sold out"}</span>}
         </span>
@@ -430,8 +414,6 @@ function BoostCard({ item, owned, viewer, busy, onBuyPixels, onBuyMoney, onTopUp
               Buy · <CurrencyIcon currency="pixels" size={10} /> {item.price_pixels}
             </button>
           )
-        ) : item.price_usd_cents > 0 ? (
-          <button onClick={() => onBuyMoney(item)} disabled={busy} className="px-3 py-1.5 text-[9px] uppercase tracking-wide text-bg btn-press disabled:opacity-40" style={buyStyle}>Buy · ${(item.price_usd_cents / 100).toFixed(2)}</button>
         ) : (
           <span className="text-[9px] uppercase text-muted">earned</span>
         )}
@@ -473,7 +455,7 @@ function Card({ item, thumb, selected, owned, onClick }: { item: Cosmetic; thumb
           <span className="flex items-center gap-1">
             {item.price_pixels != null ? (
               <><CurrencyIcon currency="pixels" size={10} /> {item.price_pixels}</>
-            ) : item.price_usd_cents > 0 ? `$${(item.price_usd_cents / 100).toFixed(2)}` : "free"}
+            ) : "earned"}
           </span>
           {item.remaining != null && (
             <span className={item.remaining > 0 ? "text-amber-400" : "text-red-400"}>· {item.remaining > 0 ? `${item.remaining} left` : "sold out"}</span>

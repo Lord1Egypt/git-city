@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { queryCatalog, listSets, getCosmeticsByIds, encodeCursor } from "@/lib/cosmetics/catalog";
 import { getViewerCosmeticContext } from "@/lib/cosmetics/viewer";
 import ShopExperience from "@/components/cosmetics/ShopExperience";
@@ -14,9 +13,6 @@ export const metadata: Metadata = {
 // paginated; this server pass seeds the first page + the viewer context, then a
 // client shell (ShopExperience) drives the live wallet, category tabs, etc.
 export default async function ShopPage() {
-  const hdrs = await headers();
-  const serverCountry = hdrs.get("x-vercel-ip-country");
-
   const [viewer, firstPage, sets] = await Promise.all([
     getViewerCosmeticContext(),
     queryCatalog({ section: "building", availableOnly: true, limit: 24 }),
@@ -41,7 +37,6 @@ export default async function ShopPage() {
           initialCursor={encodeCursor(firstPage.nextCursor)}
           sets={sets}
           ownedLookCosmetics={ownedForLook}
-          serverCountry={serverCountry}
         />
       </div>
     </main>

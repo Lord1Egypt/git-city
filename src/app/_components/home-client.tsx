@@ -852,11 +852,11 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
   }, [comparePair]);
   const [compareSelfHint, setCompareSelfHint] = useState(false);
   const [giftModalOpen, setGiftModalOpen] = useState(false);
-  const [giftItems, setGiftItems] = useState<{ id: string; price_usd_cents: number; price_pixels: number | null; name: string; owned: boolean }[] | null>(null);
+  const [giftItems, setGiftItems] = useState<{ id: string; price_pixels: number | null; name: string; owned: boolean }[] | null>(null);
   const [giftBuying, setGiftBuying] = useState<string | null>(null);
   const [giftError, setGiftError] = useState<string | null>(null);
   // Item the sender picked and is now previewing/confirming (null = item list step)
-  const [giftPreviewItem, setGiftPreviewItem] = useState<{ id: string; price_usd_cents: number; price_pixels: number | null; name: string; owned: boolean } | null>(null);
+  const [giftPreviewItem, setGiftPreviewItem] = useState<{ id: string; price_pixels: number | null; name: string; owned: boolean } | null>(null);
   // Set once a gift is successfully sent so the modal shows a confirmation state
   const [giftSent, setGiftSent] = useState(false);
   const [compareCopied, setCompareCopied] = useState(false);
@@ -1443,8 +1443,8 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
       const { items } = await res.json();
       const receiverOwned = new Set(selectedBuilding.owned_items ?? []);
       const NON_GIFTABLE = new Set(["flag", "custom_color"]);
-      const available = (items as { id: string; name: string; price_usd_cents: number; price_pixels: number | null; category: string }[])
-        .filter((i) => (i.price_pixels ?? i.price_usd_cents) > 0 && !NON_GIFTABLE.has(i.id))
+      const available = (items as { id: string; name: string; price_pixels: number | null; category: string }[])
+        .filter((i) => (i.price_pixels ?? 0) > 0 && !NON_GIFTABLE.has(i.id))
         .map((i) => ({ ...i, owned: receiverOwned.has(i.id) }));
       setGiftItems(available);
     } catch { /* ignore */ }
@@ -6050,11 +6050,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
           depth: selectedBuilding.depth,
         };
         const px = giftPreviewItem?.price_pixels ?? null;
-        const priceLabel = giftPreviewItem
-          ? px != null
-            ? `${px} PX`
-            : `$${(giftPreviewItem.price_usd_cents / 100).toFixed(2)}`
-          : "";
+        const priceLabel = px != null ? `${px} PX` : "";
         const canAfford = px == null || pixelBalance == null || pixelBalance >= px;
         const isBuying = giftPreviewItem ? giftBuying === giftPreviewItem.id : false;
         return (
@@ -6205,7 +6201,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
                           {ITEM_NAMES[item.id] ?? item.id}
                         </span>
                         <span className="text-[10px] shrink-0" style={{ color: item.owned ? undefined : theme.accent }}>
-                          {item.owned ? "Owned" : item.price_pixels != null ? `${item.price_pixels} PX` : `$${(item.price_usd_cents / 100).toFixed(2)}`}
+                          {item.owned ? "Owned" : `${item.price_pixels} PX`}
                         </span>
                       </button>
                     ))}

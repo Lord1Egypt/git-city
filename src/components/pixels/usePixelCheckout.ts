@@ -1,9 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { PixModalData } from "./PixModal";
-
-export type PayMethod = "card" | "pix" | "gitc";
 
 export interface PixelPackage {
   id: string;
@@ -15,100 +12,13 @@ export interface PixelPackage {
   sort_order: number;
 }
 
-interface UsePixelCheckoutOptions {
-  packages: PixelPackage[];
-  isAuthenticated: boolean;
-  /** Called after a balance-changing event (PIX/GitC confirmed) to refresh UI. */
-  onPurchased?: () => void;
-}
-
 /**
- * Shared pixel-purchase logic (Stripe redirect, PIX QR generation, GitC
- * on-chain quote/confirm) used by both the /pixels store and the in-city Bank
- * panel. Holds the transient buying/error/PIX-modal state and exposes the
- * handlers; rendering is left to the caller so each surface keeps its own UI.
+ * Pixel purchases with GITC (on-chain quote, then confirm). Used by the
+ * /pixels store, the in-city Bank panel and the avatar editor. Holds the
+ * transient error state; rendering is left to the caller.
  */
-export function usePixelCheckout({
-  packages,
-  isAuthenticated,
-  onPurchased,
-}: UsePixelCheckoutOptions) {
-  const [buying, setBuying] = useState<string | null>(null);
+export function usePixelCheckout() {
   const [error, setError] = useState<string | null>(null);
-  const [pixModal, setPixModal] = useState<PixModalData | null>(null);
-
-  const handleStripeBuy = useCallback(
-    async (pkgId: string) => {
-      if (buying || !isAuthenticated) return;
-      setBuying(pkgId);
-      setError(null);
-      try {
-        const res = await fetch("/api/pixels/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ package_id: pkgId, provider: "stripe" }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || "Checkout failed. Try again.");
-          setBuying(null);
-          return;
-        }
-        if (data.url) {
-          window.location.href = data.url;
-        }
-      } catch {
-        setError("Network error. Please try again.");
-        setBuying(null);
-      }
-    },
-    [buying, isAuthenticated],
-  );
-
-  const handlePixBuy = useCallback(
-    async (pkgId: string) => {
-      if (buying || !isAuthenticated) return;
-      setBuying(pkgId);
-      setError(null);
-      try {
-        const res = await fetch("/api/pixels/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ package_id: pkgId, provider: "abacatepay" }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || "Checkout failed. Try again.");
-          setBuying(null);
-          return;
-        }
-        if (data.brCode) {
-          const pkg = packages.find((p) => p.id === pkgId);
-          const totalPx = pkg ? pkg.pixels + pkg.bonus_pixels : 0;
-          setPixModal({
-            brCode: data.brCode,
-            brCodeBase64: data.brCodeBase64,
-            pixId: data.pixId,
-            packageName: pkg?.name ?? pkgId,
-            totalPx,
-          });
-        }
-      } catch {
-        setError("Network error. Please try again.");
-      } finally {
-        setBuying(null);
-      }
-    },
-    [buying, isAuthenticated, packages],
-  );
-
-  const handlePixClose = useCallback(
-    (purchased: boolean) => {
-      setPixModal(null);
-      if (purchased) onPurchased?.();
-    },
-    [onPurchased],
-  );
 
   /**
    * Build the GitcPayButton callbacks for a package. `redirectUrl` is where the
@@ -153,15 +63,5 @@ export function usePixelCheckout({
     [],
   );
 
-  return {
-    buying,
-    error,
-    setError,
-    pixModal,
-    setPixModal,
-    handleStripeBuy,
-    handlePixBuy,
-    handlePixClose,
-    buildGitcCallbacks,
-  };
+  return { error, setError, buildGitcCallbacks };
 }

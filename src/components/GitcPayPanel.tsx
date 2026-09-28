@@ -8,7 +8,6 @@ import { type PixelPackage, type usePixelCheckout } from "@/components/pixels/us
 
 interface Props {
   pkg: PixelPackage;
-  buying: string | null;
   buildGitcCallbacks: ReturnType<typeof usePixelCheckout>["buildGitcCallbacks"];
   onConfirmed: () => void;
   onError: (msg: string) => void;
@@ -17,15 +16,13 @@ interface Props {
 }
 
 /**
- * "Pay with GITC" payment method for the Add Pixels screen. Mounts its own
- * (lazy-loaded) Web3Provider so the wallet bundle only loads when a player
- * actually chooses to pay with crypto — card/PIX buyers never pay that cost.
+ * "Pay with GITC" on the Add Pixels screen. Mounts its own (lazy-loaded)
+ * Web3Provider so the wallet bundle only loads once a player picks a pack.
  */
-export default function GitcPayPanel({ pkg, buying, buildGitcCallbacks, onConfirmed, onError, onNeedGitc }: Props) {
+export default function GitcPayPanel({ pkg, buildGitcCallbacks, onConfirmed, onError, onNeedGitc }: Props) {
   return (
     <Web3Provider>
       <GitcPayButton
-        disabled={!!buying}
         onError={onError}
         onDone={onConfirmed}
         {...buildGitcCallbacks(pkg, { redirectUrl: "/", onConfirmed })}
