@@ -13,6 +13,7 @@ import type { SmashStore } from "@/lib/league-city/smash";
 import {
   BEAT,
   BOOST_HIT,
+  CORNER_HIT,
   DRIFT_ARC,
   DRIFT_IN,
   REV_LAUNCH,
@@ -117,7 +118,7 @@ const smooth = (u: number) => u * u * (3 - 2 * u);
  * DRIFT_R (dir 1 right, −1 left), then down the cross street. `slip` is how
  * far the tail swings out; `v` is the progress round the corner (0 to 1).
  */
-function driftAt(t: number, x0: number, zTurn: number, dir: number) {
+function driftAt(t: number, x0: number, zTurn: number, dir: number, R = DRIFT_R) {
   const arcEnd = DRIFT_IN + DRIFT_ARC;
   let x: number, z: number, heading: number;
   if (t < DRIFT_IN) {
@@ -126,12 +127,12 @@ function driftAt(t: number, x0: number, zTurn: number, dir: number) {
     heading = Math.PI;
   } else if (t < arcEnd) {
     const phi = ((t - DRIFT_IN) / DRIFT_ARC) * (Math.PI / 2);
-    x = x0 + dir * (DRIFT_R - DRIFT_R * Math.cos(phi));
-    z = zTurn - DRIFT_R * Math.sin(phi);
+    x = x0 + dir * (R - R * Math.cos(phi));
+    z = zTurn - R * Math.sin(phi);
     heading = Math.PI - dir * phi;
   } else {
-    x = x0 + dir * (DRIFT_R + DRIFT_SPEED * (t - arcEnd));
-    z = zTurn - DRIFT_R;
+    x = x0 + dir * (R + DRIFT_SPEED * (t - arcEnd));
+    z = zTurn - R;
     heading = Math.PI - (dir * Math.PI) / 2;
   }
   const v = (t - DRIFT_IN) / DRIFT_ARC;
@@ -222,12 +223,12 @@ export default function TeaserRig({
     });
   };
 
-  const burst = (x: number, y: number, z: number, floorH: number, big: boolean) => {
+  const burst = (x: number, y: number, z: number, floorH: number, big: boolean, chunk = 0.85) => {
     bursts.current?.burst(x, y, z, {
       count: 1,
       speed: 22,
       colors: CHUNK,
-      size: floorH * 0.85,
+      size: floorH * chunk,
       life: 1.6,
       gravity: 60,
     });
@@ -240,9 +241,18 @@ export default function TeaserRig({
     });
   };
 
-  const smash = (x: number, z: number, r: number, rows: number, cooldown: number, big: boolean) => {
+  const smash = (
+    x: number,
+    z: number,
+    r: number,
+    rows: number,
+    cooldown: number,
+    big: boolean,
+    chunk = 0.85,
+  ) => {
     const hits = store.hitCircle(x, z, r, rows, Date.now(), cooldown, attacker);
-    for (const hit of hits) burst(hit.x, hit.y, hit.z, store.targets[hit.target].floorH, big);
+    for (const hit of hits)
+      burst(hit.x, hit.y, hit.z, store.targets[hit.target].floorH, big, chunk);
     if (hits.length) st.current.shake = Math.max(st.current.shake, big ? 1 : 0.35);
   };
 
@@ -338,6 +348,110 @@ export default function TeaserRig({
       _look.set(wx, 1.7 + 0.8 * chase, zCam + 0.6);
       lens = REV_FOV + (REV_WIDE - REV_FOV) * chase;
       st.current.amp = 0.22;
+    } else if (shot.kind === "revback") {
+      // The opening, split screen: each town's car from low behind, both
+      // rear wheels spinning in their smoke, then both launch on the hit.
+      const zPark = revZ;
+      const u = Math.max(0, t - REV_LAUNCH);
+      const zCar = zPark - 0.5 * REV_ACCEL * u * u;
+      const k = Math.min(1, t / REV_LAUNCH);
+      if (t < REV_LAUNCH)
+        pose(
+          home.current,
+          homeWheels.current,
+          LANE,
+          zPark,
+          0,
+          dt,
+          25 + 170 * k * k,
+          0.05 * Math.sin(t * 70) * (0.4 + k),
+          -0.03 * k,
+        );
+      else
+        pose(
+          home.current,
+          homeWheels.current,
+          LANE,
+          zCar,
+          REV_ACCEL * u,
+          dt,
+          REV_ACCEL * u + 60,
+          0,
+          0.05 * Math.max(0, 1 - u * 3),
+        );
+      for (const w of [WHEELS[2], WHEELS[3]]) {
+        const wx = LANE - w.x * M_TO_UNIT;
+        const wz = (t < REV_LAUNCH ? zPark : zCar) - w.z * M_TO_UNIT;
+        if (t < REV_LAUNCH + 0.4)
+          fx?.burst(wx, 0.5, wz + 0.8, {
+            count: 1,
+            speed: 1.5 + 2 * k,
+            colors: SMOKE,
+            size: 0.5 + 0.5 * k,
+            life: 1.1,
+            gravity: -1.5,
+            flat: 0.6,
+          });
+      }
+      st.current.shake = Math.max(
+        st.current.shake,
+        t < REV_LAUNCH ? 0.08 + 0.12 * k : 0.5 * Math.max(0, 1 - u / 0.3),
+      );
+      // Low behind the car; it eases forward a little when the car goes.
+      const go = smooth(Math.min(1, u / 0.4));
+      _pos.set(LANE, 2.4 + 0.6 * go, zPark + 17 - 3 * go);
+      _look.set(LANE, 2.8, zPark - 30);
+      lens = 46;
+      st.current.amp = 0.3;
+    } else if (shot.kind === "cornersmash" && run) {
+      // Drifting round a corner into a Codex building: the orange car comes
+      // up the main street, slides through a right turn and cuts through the
+      // building's corner, then keeps going along its side, the floors
+      // bursting over the hood. Seen from the car's own chase camera.
+      const i = store.index.get(run.buildings[2].loginLower);
+      if (i !== undefined) {
+        const b = store.targets[i];
+        const px = b.x - b.w / 2 + 7;
+        const pz = b.z - b.d / 2 + 7;
+        const R = px - LANE;
+        const zTurn = pz + R;
+        const p = driftAt(t, LANE, zTurn, 1, R);
+        const yaw = p.heading - p.slip;
+        pose(rival.current, rivalWheels.current, p.x, p.z, DRIFT_SPEED, dt, DRIFT_SPEED, 0, 0, yaw);
+        if (rival.current) rival.current.rotation.z = -0.05 * p.slip;
+        if (p.slip > 0.15)
+          for (const w of [WHEELS[2], WHEELS[3]]) {
+            const lx = w.x * M_TO_UNIT;
+            const lz = w.z * M_TO_UNIT;
+            fx?.burst(
+              p.x + lx * Math.cos(yaw) + lz * Math.sin(yaw),
+              0.6,
+              p.z - lx * Math.sin(yaw) + lz * Math.cos(yaw),
+              {
+                count: 1,
+                speed: 2.5,
+                colors: SMOKE,
+                size: 0.9,
+                life: 1.1,
+                gravity: -1.2,
+                flat: 0.6,
+              },
+            );
+          }
+        if (fx) smash(p.x, p.z, 4, 2, 150, false, 0.35);
+        if (crossed(momentOf(shot, CORNER_HIT))) {
+          smash(p.x, p.z, 11, 4, 0, true, 0.35);
+          fx?.burst(p.x, 4, p.z, { count: 30, speed: 30, colors: FIRE, size: 1.8, life: 0.8 });
+          st.current.shake = 1;
+        }
+        // The chase camera: behind along the direction of travel (so the slide shows), up, looking ahead.
+        const fxz = Math.sin(p.heading);
+        const fzz = Math.cos(p.heading);
+        _pos.set(p.x - fxz * 24, 13, p.z - fzz * 24);
+        _look.set(p.x + fxz * 10, 3, p.z + fzz * 10);
+        lens = 56;
+        st.current.amp = 0.45;
+      }
     } else if (shot.kind === "drift" || shot.kind === "topdrift") {
       // Round a corner sideways: the car comes up the main street, throws the
       // tail out and slides through the turn in its own smoke, the

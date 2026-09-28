@@ -23,6 +23,8 @@ export type Stage = "claude" | "codex";
 
 export type ShotKind =
   | "rev"
+  | "revback"
+  | "cornersmash"
   | "drift"
   | "missile"
   | "topdrift"
@@ -42,6 +44,8 @@ export interface Shot {
   end: number;
   /** Beats of the take's action cut off its start. */
   trim: number;
+  /** Shown split with the other town's take at the same time. */
+  split: boolean;
 }
 
 /** What's on screen: one town full frame, both halves, or black. */
@@ -52,20 +56,32 @@ export type Frame = { kind: "full"; stage: Stage } | { kind: "split" } | { kind:
  * many beats of the take's own action are cut off its start, so it opens in
  * the thick of it.
  */
-const TAKES: [string, Stage, ShotKind, number, number][] = [
-  ["Rev · orange", "claude", "rev", 4, 0],
-  ["Rev · blue", "codex", "rev", 4, 0],
+const TAKES: [string, Stage | "both", ShotKind, number, number][] = [
+  ["Burnout · split", "both", "revback", 4, 0],
   ["Drift", "claude", "drift", 3, 0.5],
   ["Missile", "codex", "missile", 3, 1],
   ["Top-down drift", "claude", "topdrift", 3, 0.5],
-  ["Smash a Codex tower", "codex", "invasion", 3, 1],
+  ["Corner smash", "codex", "cornersmash", 4, 0.5],
   ["Ramp jump", "claude", "jump", 3, 1],
   ["Boost", "codex", "boost", 3, 0],
 ];
 
+/** "both" is a split take: one shot per town at the same time. */
 export const SHOTS: Shot[] = TAKES.reduce<Shot[]>((out, [name, stage, kind, len, trim]) => {
   const start = out.length ? out[out.length - 1].end : 0;
-  return [...out, { name, stage, kind, start, end: start + len, trim }];
+  const stages: Stage[] = stage === "both" ? ["claude", "codex"] : [stage];
+  return [
+    ...out,
+    ...stages.map((st) => ({
+      name,
+      stage: st,
+      kind,
+      start,
+      end: start + len,
+      trim,
+      split: stage === "both",
+    })),
+  ];
 }, []);
 
 /** Where a moment of a take's action (beats from its untrimmed start) lands on the timeline. */
@@ -96,6 +112,8 @@ export const DRIFT_IN = 0.3;
 export const DRIFT_ARC = 0.95;
 /** The burnout launches this long into its take (s): the track's hit on beat 4. */
 export const REV_LAUNCH = 1.2;
+/** Corner smash: the car reaches the building's corner at the end of its drift (beats into the take). */
+export const CORNER_HIT = (DRIFT_IN + DRIFT_ARC) / BEAT - 0.25;
 
 export interface SoundCue {
   beat: number;
@@ -111,6 +129,14 @@ const IMPACT = "/sounds/drive/impact.ogg";
 
 /** Sound effects over the music, from each take's own moments. */
 export const SOUNDS: SoundCue[] = SHOTS.flatMap((s): SoundCue[] => {
+  if (s.kind === "revback" && s.stage === "claude")
+    return [{ beat: momentOf(s, REV_LAUNCH / BEAT), src: SKID, gain: 0.7, dur: 0.5, rate: 1.1 }];
+  if (s.kind === "cornersmash")
+    return [
+      { beat: momentOf(s, DRIFT_IN / BEAT), src: SKID, gain: 0.8, dur: DRIFT_ARC },
+      { beat: momentOf(s, CORNER_HIT), src: IMPACT, gain: 1 },
+      { beat: momentOf(s, CORNER_HIT), src: "/trailer/sfx/explosion.wav", gain: 0.6, rate: 1.2 },
+    ];
   if (s.kind === "rev")
     return [{ beat: momentOf(s, REV_LAUNCH / BEAT), src: SKID, gain: 0.55, dur: 0.45, rate: 1.15 }];
   if (s.kind === "drift")
@@ -161,7 +187,7 @@ const TAGS: [ShotKind, string, number, boolean][] = [
   ["drift", "Drift", 0.75, false],
   ["missile", "Fire", MISSILE_HIT, false],
   ["topdrift", "Slide", 0.75, false],
-  ["invasion", "Smash", SMASH_BLAST, false],
+  ["cornersmash", "Smash", CORNER_HIT, false],
   ["jump", "Fly", JUMP_OFF, false],
   ["boost", "Boost", BOOST_HIT, false],
 ];
@@ -176,13 +202,19 @@ export const TEXTS: TextCue[] = TAGS.flatMap(([kind, text, at, big]) =>
   })),
 );
 
-/** The scenes the studio lists. */
-export const SCENES = SHOTS.map((s) => ({ name: s.name, start: s.start, end: s.end }));
+/** The scenes the studio lists: one per take (a split take is two shots). */
+export const SCENES = SHOTS.filter((s, i) => i === 0 || SHOTS[i - 1].start !== s.start).map(
+  (s) => ({
+    name: s.name,
+    start: s.start,
+    end: s.end,
+  }),
+);
 
 export function frameAt(beat: number): Frame {
   if (beat < 0 || beat >= END) return { kind: "black" };
   const shot = [...SHOTS].reverse().find((s) => beat >= s.start) ?? SHOTS[0];
-  return { kind: "full", stage: shot.stage };
+  return shot.split ? { kind: "split" } : { kind: "full", stage: shot.stage };
 }
 
 /** This stage's shot at `beat`: the one under way, else the next one waiting on its first frame. */
