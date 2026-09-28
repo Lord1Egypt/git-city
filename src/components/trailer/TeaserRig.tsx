@@ -68,6 +68,10 @@ const CHUNK = ["#141a2a"];
 const CROSS = 1.0;
 const ARRIVAL_SPEED = 55;
 const INVADE_SPEED = 62;
+/** Rev: the burnout lasts this long, then the car launches (s, units/s²). */
+const REV_LAUNCH = 1.2;
+const REV_ACCEL = 150;
+const SMOKE = ["#d9d6de", "#bdb9c4", "#ece9ef", "#a7a2b0"];
 /** Implosion: one floor off every column this often (s). */
 const FLOOR_EVERY = 0.045;
 
@@ -111,7 +115,7 @@ export default function TeaserRig({
   const homeWheels = useRef<(THREE.Object3D | null)[]>([]);
   const rivalWheels = useRef<(THREE.Object3D | null)[]>([]);
   const bursts = useRef<VoxelBursts | null>(null);
-  const st = useRef({ last: -1, shake: 0, spin: 0 });
+  const st = useRef({ last: -1, shake: 0, spin: 0, amp: 1 });
 
   // The tower is the run's last (tallest) building.
   const tower = useMemo(
@@ -129,12 +133,17 @@ export default function TeaserRig({
     z: number,
     speed: number,
     dt: number,
+    /** How fast the wheels turn (units/s), when it isn't the car's speed (a burnout). */
+    wheelSpeed = speed,
+    /** Body bounce (units) and squat (radians). */
+    bob = 0,
+    squat = 0,
   ) => {
     if (!g) return;
     g.visible = true;
-    g.position.set(x, 0, z);
-    g.rotation.set(0, Math.PI, 0);
-    st.current.spin += (speed * dt) / (WHEEL.radius * M_TO_UNIT);
+    g.position.set(x, bob, z);
+    g.rotation.set(squat, Math.PI, 0);
+    st.current.spin += (wheelSpeed * dt) / (WHEEL.radius * M_TO_UNIT);
     WHEELS.forEach((w, i) => {
       const o = wheels[i];
       if (!o) return;
@@ -184,7 +193,77 @@ export default function TeaserRig({
     if (rival.current) rival.current.visible = false;
     st.current.shake = Math.max(0, st.current.shake - dt * 2.2);
 
-    if (shot.kind === "arrival") {
+    st.current.amp = 1;
+    if (shot.kind === "rev") {
+      // Burnout: parked on the main street, the rear wheel spins up in its own
+      // smoke, the body shakes; then the car launches out of frame and the
+      // street it leaves shows the town.
+      const zPark = gateZ - LOT * 2.5;
+      const wheel = WHEELS[stage === "claude" ? 3 : 2];
+      // The car faces north (rotation π): local (x, z) is world (−x, −z).
+      const wx = LANE - wheel.x * M_TO_UNIT;
+      const wz = zPark - wheel.z * M_TO_UNIT;
+      const out = Math.sign(wx - LANE);
+      if (t < REV_LAUNCH) {
+        const u = t / REV_LAUNCH;
+        const wheelSpeed = 25 + 170 * u * u;
+        pose(
+          home.current,
+          homeWheels.current,
+          LANE,
+          zPark,
+          0,
+          dt,
+          wheelSpeed,
+          0.05 * Math.sin(t * 70) * (0.4 + u),
+          -0.025 * u,
+        );
+        bursts.current?.burst(wx, 0.5, wz + 0.9, {
+          count: 1,
+          speed: 1.5 + 2 * u,
+          colors: SMOKE,
+          size: 0.4 + 0.35 * u,
+          life: 1.0,
+          gravity: -1.5,
+          flat: 0.6,
+        });
+        st.current.shake = Math.max(st.current.shake, 0.06 + 0.12 * u);
+      } else {
+        const u = t - REV_LAUNCH;
+        const speed = REV_ACCEL * u;
+        pose(
+          home.current,
+          homeWheels.current,
+          LANE,
+          zPark - 0.5 * REV_ACCEL * u * u,
+          speed,
+          dt,
+          speed + 60,
+          0,
+          0.04 * Math.max(0, 1 - u * 3),
+        );
+        // The smoke trails the wheel as it goes.
+        const zWheel = zPark - 0.5 * REV_ACCEL * u * u - wheel.z * M_TO_UNIT;
+        if (u < 0.6)
+          bursts.current?.burst(wx, 0.5, zWheel + 0.9, {
+            count: 1,
+            speed: 3,
+            colors: SMOKE,
+            size: 0.6,
+            life: 0.8,
+            gravity: -1.5,
+            flat: 0.6,
+          });
+        if (u < 0.3) st.current.shake = Math.max(st.current.shake, 0.5 * (1 - u / 0.3));
+      }
+      // Low beside the car, just ahead of the rear wheel, looking back at it
+      // (the arch far behind); it eases in while the wheel spins, then the
+      // car launches past the lens.
+      const dolly = 0.8 * smooth(Math.min(1, t / REV_LAUNCH));
+      _pos.set(wx + out * (4.6 - dolly), 0.95, wz - 2.6 + dolly * 0.5);
+      _look.set(wx - out * 0.3, 1.0, wz + 1.6);
+      st.current.amp = 0.22;
+    } else if (shot.kind === "arrival") {
       const z = gateZ + ARRIVAL_SPEED * (CROSS - t);
       pose(home.current, homeWheels.current, LANE, z, ARRIVAL_SPEED, dt);
       // Low behind the car, pushing in a little, the arch and the town above it.
@@ -261,8 +340,8 @@ export default function TeaserRig({
     const k = st.current.shake;
     if (k > 0) {
       const n = performance.now() / 1000;
-      _pos.x += Math.sin(n * 71) * 1.6 * k;
-      _pos.y += Math.cos(n * 53) * 1.2 * k;
+      _pos.x += Math.sin(n * 71) * 1.6 * k * st.current.amp;
+      _pos.y += Math.cos(n * 53) * 1.2 * k * st.current.amp;
     }
     camera.position.copy(_pos);
     camera.lookAt(_look);

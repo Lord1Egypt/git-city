@@ -1,27 +1,31 @@
 // ─── Towns teaser ───────────────────────────────────────────
-// The Claude Code vs Codex teaser as a timeline the trailer page plays in
-// the engine, so the whole film is one screen recording. Everything counts
-// in beats of the 174 BPM track from the first frame, so every cut lands on
-// the music without drift. Pure: the page reads it, tests can too.
+// The teaser as a timeline the trailer studio plays in the engine, so the
+// film is one screen recording: short gameplay takes, one after another.
+// Everything counts in beats from the first frame, so cuts land on the
+// music without drift. The song isn't made yet: BPM is a placeholder until
+// it is. Pure: the studio reads it, tests can too.
 
 import type { CityBuilding } from "@/lib/github";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import type { CityObject } from "@/lib/league-city/types";
 
-export const BPM = 174;
+/** Placeholder until the new song: 120 BPM, half a second a beat. */
+export const BPM = 120;
 /** Seconds per beat. */
 export const BEAT = 60 / BPM;
-/** Where the teaser starts in the song (bar 12 of the 174 BPM track). */
-export const SONG_OFFSET = 11 * 4 * BEAT;
+/** Where the film starts in the song. */
+export const SONG_OFFSET = 0;
 
 /** Beat index of a bar (1-indexed) and a beat inside it (1-indexed). */
 export const at = (bar: number, beat = 1) => (bar - 1) * 4 + (beat - 1);
 
+/** Orange world (Claude Code's town) or blue (Codex's). */
 export type Stage = "claude" | "codex";
 
-export type ShotKind = "arrival" | "aerial" | "invasion" | "finale";
+export type ShotKind = "rev" | "arrival" | "aerial" | "invasion" | "finale";
 
 export interface Shot {
+  name: string;
   stage: Stage;
   kind: ShotKind;
   /** Beats, end exclusive. */
@@ -32,56 +36,37 @@ export interface Shot {
 /** What's on screen: one town full frame, both halves, or black. */
 export type Frame = { kind: "full"; stage: Stage } | { kind: "split" } | { kind: "black" };
 
-export const SHOTS: Shot[] = [
-  { stage: "claude", kind: "arrival", start: at(1), end: at(2) },
-  { stage: "codex", kind: "arrival", start: at(2), end: at(3) },
-  { stage: "claude", kind: "aerial", start: at(3), end: at(5) },
-  { stage: "codex", kind: "aerial", start: at(3), end: at(5) },
-  { stage: "codex", kind: "invasion", start: at(5), end: at(7) },
-  { stage: "claude", kind: "invasion", start: at(7), end: at(7, 4) },
-  { stage: "codex", kind: "finale", start: at(7, 4), end: at(9) },
+/** The takes in order, as [name, stage, kind, beats long]. */
+const TAKES: [string, Stage, ShotKind, number][] = [
+  ["Rev · orange", "claude", "rev", 4],
+  ["Rev · blue", "codex", "rev", 4],
 ];
 
-/** Bomb hits during the invasions: the song's countdown beats. */
-export const BLASTS = [at(5, 4), at(6, 3), at(7, 2)];
-/** The drop: the Codex tower comes down. */
-export const COLLAPSE = at(8);
-/** The end card, then the film holds on it. */
-export const END = at(9);
-export const LENGTH = at(11);
+export const SHOTS: Shot[] = TAKES.reduce<Shot[]>((out, [name, stage, kind, len]) => {
+  const start = out.length ? out[out.length - 1].end : 0;
+  return [...out, { name, stage, kind, start, end: start + len }];
+}, []);
+
+/** Bomb hits and the tower's fall, for the takes that have them (none yet). */
+export const BLASTS: number[] = [];
+export const COLLAPSE = -1;
+export const END = SHOTS[SHOTS.length - 1].end;
+export const LENGTH = END;
 
 export interface TextCue {
   start: number;
   end: number;
   text: string;
-  /** Where it sits: over a half of the split, the middle, or the end card's lines. */
   place: "left" | "right" | "center" | "end1" | "end2" | "end3";
 }
 
-export const TEXTS: TextCue[] = [
-  { start: at(3), end: at(5), text: "Claude Code", place: "left" },
-  { start: at(3, 3), end: at(5), text: "vs", place: "center" },
-  { start: at(4), end: at(5), text: "Codex", place: "right" },
-  { start: END, end: LENGTH, text: "Pick your side.", place: "end1" },
-  { start: at(9, 3), end: LENGTH, text: "Git City Towns", place: "end2" },
-  { start: at(10), end: LENGTH, text: "Soon", place: "end3" },
-];
+export const TEXTS: TextCue[] = [];
 
-/** The scenes the studio lists, in beats. */
-export const SCENES: { name: string; start: number; end: number }[] = [
-  { name: "Claude arrives", start: at(1), end: at(2) },
-  { name: "Codex arrives", start: at(2), end: at(3) },
-  { name: "Claude vs Codex", start: at(3), end: at(5) },
-  { name: "Codex gets hit", start: at(5), end: at(7) },
-  { name: "Claude hits back", start: at(7), end: at(7, 4) },
-  { name: "The tower falls", start: at(7, 4), end: at(9) },
-  { name: "Pick your side", start: at(9), end: at(11) },
-];
+/** The scenes the studio lists. */
+export const SCENES = SHOTS.map((s) => ({ name: s.name, start: s.start, end: s.end }));
 
 export function frameAt(beat: number): Frame {
-  if (beat < 0) return { kind: "black" };
-  if (beat >= END) return { kind: "black" };
-  if (beat >= at(3) && beat < at(5)) return { kind: "split" };
+  if (beat < 0 || beat >= END) return { kind: "black" };
   const shot = [...SHOTS].reverse().find((s) => beat >= s.start) ?? SHOTS[0];
   return { kind: "full", stage: shot.stage };
 }
