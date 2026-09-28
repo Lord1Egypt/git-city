@@ -46,6 +46,8 @@ export interface Shot {
   trim: number;
   /** Shown split with the other town's take at the same time. */
   split: boolean;
+  /** The picture holds from this beat of the take's action on. */
+  freeze?: number;
 }
 
 /** What's on screen: one town full frame, both halves, or black. */
@@ -56,18 +58,23 @@ export type Frame = { kind: "full"; stage: Stage } | { kind: "split" } | { kind:
  * many beats of the take's own action are cut off its start, so it opens in
  * the thick of it.
  */
-const TAKES: [string, Stage | "both", ShotKind, number, number][] = [
+/**
+ * The "coming soon" teaser: the split burnout hooks, four flashes cut at
+ * their peak, the car freezes mid-air as the music drops out, then black,
+ * the name, "soon", and a late crash in the dark. As [name, stage, kind,
+ * beats long, trim, freeze]: freeze is the beat of the take's action where
+ * the picture holds.
+ */
+const TAKES: [string, Stage | "both", ShotKind, number, number, number?][] = [
   ["Burnout · split", "both", "revback", 4, 0],
-  ["Drift", "claude", "drift", 6, 0],
-  ["Missile", "codex", "missile", 4, 0],
-  ["Top-down drift", "claude", "topdrift", 3, 0.5],
-  ["Corner smash", "codex", "cornersmash", 4, 0.5],
-  ["Ramp jump", "claude", "jump", 3, 1],
-  ["Boost", "codex", "boost", 3, 0],
+  ["Drift", "claude", "drift", 3, 2.1],
+  ["Missile", "codex", "missile", 3, 1],
+  ["Corner smash", "codex", "cornersmash", 3, 1.6],
+  ["Jump · freeze", "claude", "jump", 5, 1, 4],
 ];
 
 /** "both" is a split take: one shot per town at the same time. */
-export const SHOTS: Shot[] = TAKES.reduce<Shot[]>((out, [name, stage, kind, len, trim]) => {
+export const SHOTS: Shot[] = TAKES.reduce<Shot[]>((out, [name, stage, kind, len, trim, freeze]) => {
   const start = out.length ? out[out.length - 1].end : 0;
   const stages: Stage[] = stage === "both" ? ["claude", "codex"] : [stage];
   return [
@@ -79,6 +86,7 @@ export const SHOTS: Shot[] = TAKES.reduce<Shot[]>((out, [name, stage, kind, len,
       start,
       end: start + len,
       trim,
+      freeze,
       split: stage === "both",
     })),
   ];
@@ -93,14 +101,6 @@ export function momentOf(shot: Shot, beats: number): number {
 export const MISSILE_HIT = 2;
 /** A bomb goes off on the smash take's third beat. */
 export const SMASH_BLAST = 2;
-/** Beats that flash the screen: the missile hits and the bombs. */
-export const BLASTS: number[] = SHOTS.flatMap((s) =>
-  s.kind === "missile"
-    ? [momentOf(s, MISSILE_HIT)]
-    : s.kind === "invasion"
-      ? [momentOf(s, SMASH_BLAST)]
-      : [],
-);
 /** The boost take hits its pad on beat 2; the jump leaves the ramp on beat 3. */
 export const BOOST_HIT = 1;
 export const JUMP_OFF = 2.2;
@@ -117,6 +117,20 @@ export const REV_LAUNCH = 1.2;
 /** Corner smash: the car reaches the building's corner at the end of its drift (beats into the take). */
 export const CORNER_HIT = (DRIFT_IN + DRIFT_ARC) / BEAT - 0.25;
 
+/** Beats that flash the screen: the missile hit, the corner hit, the bombs, and the name landing. */
+export const BLASTS: number[] = [
+  ...SHOTS.flatMap((s) =>
+    s.kind === "cornersmash"
+      ? [momentOf(s, CORNER_HIT)]
+      : s.kind === "missile"
+        ? [momentOf(s, MISSILE_HIT)]
+        : s.kind === "invasion"
+          ? [momentOf(s, SMASH_BLAST)]
+          : [],
+  ),
+  SHOTS[SHOTS.length - 1].end,
+];
+
 export interface SoundCue {
   beat: number;
   src: string;
@@ -129,48 +143,67 @@ export interface SoundCue {
 const SKID = "/sounds/drive/skid.ogg";
 const IMPACT = "/sounds/drive/impact.ogg";
 
-/** Sound effects over the music, from each take's own moments. */
-export const SOUNDS: SoundCue[] = SHOTS.flatMap((s): SoundCue[] => {
-  if (s.kind === "revback" && s.stage === "claude")
-    return [{ beat: momentOf(s, REV_LAUNCH / BEAT), src: SKID, gain: 0.7, dur: 0.5, rate: 1.1 }];
-  if (s.kind === "cornersmash")
-    return [
-      { beat: momentOf(s, DRIFT_IN / BEAT), src: SKID, gain: 0.8, dur: DRIFT_ARC },
-      { beat: momentOf(s, CORNER_HIT), src: IMPACT, gain: 1 },
-      { beat: momentOf(s, CORNER_HIT), src: "/trailer/sfx/explosion.wav", gain: 0.6, rate: 1.2 },
-    ];
-  if (s.kind === "rev")
-    return [{ beat: momentOf(s, REV_LAUNCH / BEAT), src: SKID, gain: 0.55, dur: 0.45, rate: 1.15 }];
-  if (s.kind === "drift")
-    return [{ beat: momentOf(s, DRIFT_LEAD / BEAT), src: SKID, gain: 0.9, dur: DRIFT_ARC + 0.2 }];
-  if (s.kind === "topdrift")
-    return [{ beat: momentOf(s, DRIFT_IN / BEAT), src: SKID, gain: 0.8, dur: DRIFT_ARC + 0.2 }];
-  if (s.kind === "invasion")
-    return [
-      { beat: momentOf(s, 1.5), src: IMPACT, gain: 0.8 },
-      { beat: momentOf(s, SMASH_BLAST), src: "/trailer/sfx/explosion.wav", gain: 0.9 },
-    ];
-  if (s.kind === "boost")
-    return [{ beat: momentOf(s, BOOST_HIT), src: "/trailer/sfx/whoosh.wav", gain: 0.9, rate: 0.8 }];
-  if (s.kind === "jump")
-    return [{ beat: momentOf(s, JUMP_OFF), src: "/trailer/sfx/whoosh.wav", gain: 0.6, rate: 0.6 }];
-  if (s.kind === "finale")
-    return [
-      { beat: s.start + 2, src: IMPACT, gain: 1 },
-      { beat: s.start + 2, src: "/trailer/sfx/explosion.wav", gain: 1, rate: 0.7 },
-      { beat: s.start + 3.5, src: "/trailer/sfx/explosion.wav", gain: 0.7, rate: 0.5 },
-    ];
-  if (s.kind === "missile")
-    return [
-      { beat: momentOf(s, 1), src: "/trailer/sfx/whoosh.wav", gain: 0.6 },
-      { beat: momentOf(s, MISSILE_HIT), src: "/trailer/sfx/explosion.wav", gain: 1 },
-      { beat: momentOf(s, MISSILE_HIT), src: IMPACT, gain: 0.7, rate: 0.8 },
-    ];
-  return [];
-});
+/** Sound effects over the music, from each take's own moments, and the crash in the dark after the name. */
+export const SOUNDS: SoundCue[] = [
+  {
+    beat: SHOTS[SHOTS.length - 1].end + 7,
+    src: "/trailer/sfx/explosion.wav",
+    gain: 0.9,
+    rate: 0.45,
+  },
+  { beat: SHOTS[SHOTS.length - 1].end + 7, src: IMPACT, gain: 0.8, rate: 0.6 },
+].concat(
+  SHOTS.flatMap((s): SoundCue[] => {
+    if (s.kind === "revback" && s.stage === "claude")
+      return [{ beat: momentOf(s, REV_LAUNCH / BEAT), src: SKID, gain: 0.7, dur: 0.5, rate: 1.1 }];
+    if (s.kind === "cornersmash")
+      return [
+        { beat: momentOf(s, DRIFT_IN / BEAT), src: SKID, gain: 0.8, dur: DRIFT_ARC },
+        { beat: momentOf(s, CORNER_HIT), src: IMPACT, gain: 1 },
+        { beat: momentOf(s, CORNER_HIT), src: "/trailer/sfx/explosion.wav", gain: 0.6, rate: 1.2 },
+      ];
+    if (s.kind === "rev")
+      return [
+        { beat: momentOf(s, REV_LAUNCH / BEAT), src: SKID, gain: 0.55, dur: 0.45, rate: 1.15 },
+      ];
+    if (s.kind === "drift")
+      return [{ beat: momentOf(s, DRIFT_LEAD / BEAT), src: SKID, gain: 0.9, dur: DRIFT_ARC + 0.2 }];
+    if (s.kind === "topdrift")
+      return [{ beat: momentOf(s, DRIFT_IN / BEAT), src: SKID, gain: 0.8, dur: DRIFT_ARC + 0.2 }];
+    if (s.kind === "invasion")
+      return [
+        { beat: momentOf(s, 1.5), src: IMPACT, gain: 0.8 },
+        { beat: momentOf(s, SMASH_BLAST), src: "/trailer/sfx/explosion.wav", gain: 0.9 },
+      ];
+    if (s.kind === "boost")
+      return [
+        { beat: momentOf(s, BOOST_HIT), src: "/trailer/sfx/whoosh.wav", gain: 0.9, rate: 0.8 },
+      ];
+    if (s.kind === "jump")
+      return [
+        { beat: momentOf(s, JUMP_OFF), src: "/trailer/sfx/whoosh.wav", gain: 0.6, rate: 0.6 },
+      ];
+    if (s.kind === "finale")
+      return [
+        { beat: s.start + 2, src: IMPACT, gain: 1 },
+        { beat: s.start + 2, src: "/trailer/sfx/explosion.wav", gain: 1, rate: 0.7 },
+        { beat: s.start + 3.5, src: "/trailer/sfx/explosion.wav", gain: 0.7, rate: 0.5 },
+      ];
+    if (s.kind === "missile")
+      return [
+        { beat: momentOf(s, 1), src: "/trailer/sfx/whoosh.wav", gain: 0.6 },
+        { beat: momentOf(s, MISSILE_HIT), src: "/trailer/sfx/explosion.wav", gain: 1 },
+        { beat: momentOf(s, MISSILE_HIT), src: IMPACT, gain: 0.7, rate: 0.8 },
+      ];
+    return [];
+  }),
+);
 
+/** The pictures end here; the rest is the black end card and the late crash. */
 export const END = SHOTS[SHOTS.length - 1].end;
-export const LENGTH = END;
+/** The name lands on this beat, "soon" two beats later, the crash in the dark after. */
+export const LOGO = END;
+export const LENGTH = END + 10;
 
 export interface TextCue {
   start: number;
@@ -194,15 +227,22 @@ const TAGS: [ShotKind, string, number, boolean][] = [
   ["boost", "Boost", BOOST_HIT, false],
 ];
 
-export const TEXTS: TextCue[] = TAGS.flatMap(([kind, text, at, big]) =>
-  SHOTS.filter((s) => s.kind === kind).map((s) => ({
-    start: momentOf(s, at),
-    end: s.end,
-    text,
-    place: big ? ("big" as const) : ("tag" as const),
-    color: s.stage === "claude" ? ORANGE : BLUE,
-  })),
-);
+/** The teaser keeps its mystery: no word on the takes, just the name at the end. */
+const TAGGED = false;
+
+export const TEXTS: TextCue[] = [
+  { start: LOGO, end: LENGTH, text: "Git City Towns", place: "end1" as const },
+  { start: LOGO + 2, end: LENGTH, text: "Soon", place: "end3" as const },
+  ...(TAGGED ? TAGS : []).flatMap(([kind, text, at, big]) =>
+    SHOTS.filter((s) => s.kind === kind).map((s) => ({
+      start: momentOf(s, at),
+      end: s.end,
+      text,
+      place: big ? ("big" as const) : ("tag" as const),
+      color: s.stage === "claude" ? ORANGE : BLUE,
+    })),
+  ),
+];
 
 /** The scenes the studio lists: one per take (a split take is two shots). */
 export const SCENES = SHOTS.filter((s, i) => i === 0 || SHOTS[i - 1].start !== s.start).map(
@@ -224,7 +264,10 @@ export function shotFor(stage: Stage, beat: number): { shot: Shot; t: number } {
   const mine = SHOTS.filter((s) => s.stage === stage);
   const now = [...mine].reverse().find((s) => beat >= s.start);
   const shot = now ?? mine[0];
-  return { shot, t: (Math.max(0, beat - shot.start) + shot.trim) * BEAT };
+  return {
+    shot,
+    t: Math.min(Math.max(0, beat - shot.start) + shot.trim, shot.freeze ?? Infinity) * BEAT,
+  };
 }
 
 // ─── The street the car smashes through ─────────────────────
