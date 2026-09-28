@@ -49,6 +49,7 @@ import { useDailies } from "@/lib/useDailies";
 import InviteCard, { type InvitePreview } from "@/components/InviteCard";
 import { rankFromLevel, tierFromLevel, levelProgress, xpForLevel } from "@/lib/xp";
 import LoadingScreen, { type LoadingStage } from "@/components/LoadingScreen";
+import { useLoginSetup } from "@/lib/use-login-setup";
 import RadarMap from "@/components/RadarMap";
 import { getCityCache, setCityCache, clearCityCache } from "@/lib/cityCache";
 import { ensureFootprints, loadHomeSnapshot, loadSFMap, type HomeSnapshot } from "@/lib/city-snapshot-client";
@@ -547,6 +548,19 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
   const router = useRouter();
   const userParam = searchParams.get("user");
   const giftedParam = searchParams.get("gifted");
+  // Fresh from OAuth (/auth/callback sends ?setup=1): the loading screen builds
+  // the player's building first, printing each step, while the city downloads.
+  // Read once so dropping the param from the URL doesn't stop it.
+  const [setupRequested] = useState(() => searchParams.get("setup") === "1");
+  const [setupRef] = useState(() => searchParams.get("ref"));
+  const loginSetup = useLoginSetup(setupRequested, null, setupRef);
+  const [setupShown, setSetupShown] = useState(setupRequested);
+  useEffect(() => {
+    // Land on the player's own building: ?user= drives the focus below.
+    if (loginSetup.status === "ready" && loginSetup.redirect) {
+      window.history.replaceState(null, "", loginSetup.redirect);
+    }
+  }, [loginSetup.status, loginSetup.redirect]);
   // The lo-fi radio portals into #gc-radio-slot. Rendered only after this page
   // hydrates, so the server HTML never has the slot: when the radio filled it
   // mid-hydration (a heavy page outlasts GlobalRadio's two-frame wait), React
@@ -1761,6 +1775,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
   // Handle loading fade complete: transition to "done" and trigger intro
   const handleLoadFadeComplete = useCallback(() => {
     setLoadStage("done");
+    setSetupShown(false);
     const hasDeepLink = searchParams.get("user") || searchParams.get("compare");
     if (!localStorage.getItem("gitcity_intro_seen") && !hasDeepLink) {
       setIntroMode(true);
@@ -3059,9 +3074,10 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
       )}
 
       {/* Loading screen overlay */}
-      {loadStage !== "done" && (
+      {(loadStage !== "done" || setupShown) && (
         <LoadingScreen
-          stage={loadStage}
+          stage={loadStage === "done" ? "ready" : loadStage}
+          setup={setupRequested ? loginSetup : undefined}
           progress={loadProgress}
           error={loadError}
           stats={stats}

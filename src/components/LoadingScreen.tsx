@@ -9,6 +9,8 @@ import {
   TerminalBackdrop,
   TerminalCursor as Cursor,
 } from "@/components/Terminal";
+import LoginSetupLines from "@/components/LoginSetupLines";
+import type { LoginSetup } from "@/lib/use-login-setup";
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -28,6 +30,8 @@ interface LoadingScreenProps {
   stats?: { total_developers: number; total_contributions: number };
   onRetry: () => void;
   onFadeComplete: () => void;
+  /** Right after sign-in: the login steps print first, then the city script. */
+  setup?: LoginSetup;
 }
 
 interface TermLine {
@@ -88,6 +92,7 @@ export default function LoadingScreen({
   stats,
   onRetry,
   onFadeComplete,
+  setup,
 }: LoadingScreenProps) {
   const [lines, setLines] = useState<TermLine[]>([]);
   const [showCursor, setShowCursor] = useState(false);
@@ -97,6 +102,10 @@ export default function LoadingScreen({
   const lineIdRef = useRef(0);
   const stageRef = useRef(stage);
   const statsRef = useRef(stats);
+  const setupStatusRef = useRef(setup?.status);
+  useEffect(() => {
+    setupStatusRef.current = setup?.status;
+  }, [setup?.status]);
   const [restartKey, setRestartKey] = useState(0);
 
   const isError = stage === "error";
@@ -129,7 +138,7 @@ export default function LoadingScreen({
 
     // Script clock: 1× until the city is ready and MIN_PLAY_MS has passed,
     // then READY_BOOST×, then instant once the fast-forward cap runs out.
-    const startedAt = performance.now();
+    let startedAt = performance.now();
     const speed = () => {
       const readyAt = readyAtRef.current;
       if (readyAt == null) return 1;
@@ -202,6 +211,19 @@ export default function LoadingScreen({
 
       const devs = () => statsRef.current?.total_developers || FALLBACK_DEVS;
       const contribs = () => statsRef.current?.total_contributions || FALLBACK_CONTRIBS;
+
+      // Signing in: hold the city script until the building exists. The city
+      // keeps downloading meanwhile, so the script below usually fast-forwards.
+      while (setupStatusRef.current === "running" || setupStatusRef.current === "idle" || setupStatusRef.current === "failed") {
+        if (!alive()) throw new Error("aborted");
+        await new Promise((r) => setTimeout(r, TICK_MS));
+      }
+      if (setupStatusRef.current === "ready") {
+        addLine("blank", "");
+        // The login already held the screen: skip the minimum play time so
+        // the city script runs as a quick burst once the city is ready.
+        startedAt = performance.now() - MIN_PLAY_MS;
+      }
 
       await typeCmd("git clone git@git.city:world/bay-area.git");
       await vsleep(150);
@@ -311,6 +333,7 @@ export default function LoadingScreen({
 
       <div className="flex h-full items-center justify-center p-6">
         <div className={TERMINAL_TEXT_CLASS} style={TERMINAL_TEXT_STYLE}>
+          {setup && <LoginSetupLines setup={setup} />}
           {lines.map((l) => (
             <div key={l.id} className="min-h-[1.9em] whitespace-pre-wrap break-all">
               {l.cls === "cmd" && (

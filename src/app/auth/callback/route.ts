@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   // From the GitHub identity GoTrue wrote, never user_metadata (user-editable).
   const githubLogin = githubLoginFromIdentity(data.user);
 
-  // The building is built on /auth/setup, which streams each step so the
+  // The building is built after the redirect, streaming each step so the
   // player sees progress instead of a frozen page. ?ref= from the login URL,
   // else the gc_ref cookie set by the proxy on any page.
   const cookieStore = await cookies();
@@ -66,10 +66,15 @@ export async function GET(request: Request) {
     }
   });
 
+  // Landing on the city: its loading screen runs the setup steps. Anywhere
+  // else (?next=): the standalone /auth/setup terminal, then that page.
   const setup = new URLSearchParams();
   const next = searchParams.get("next");
-  if (next) setup.set("next", next);
   if (ref) setup.set("ref", ref);
-  const query = setup.toString();
-  return NextResponse.redirect(`${origin}/auth/setup${query ? `?${query}` : ""}`);
+  if (!next) {
+    setup.set("setup", "1");
+    return NextResponse.redirect(`${origin}/?${setup.toString()}`);
+  }
+  setup.set("next", next);
+  return NextResponse.redirect(`${origin}/auth/setup?${setup.toString()}`);
 }
