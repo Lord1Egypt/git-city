@@ -14,7 +14,7 @@ import {
   GITC_ABI,
   GITC_ADDRESS,
   GITC_DISCOUNT_BPS,
-  GITC_TREASURY_ADDRESS,
+  GITC_BURN_ADDRESS,
   formatGitcAmount,
 } from "@/lib/gitc";
 
@@ -59,7 +59,7 @@ function formatUsd(cents: number): string {
 }
 
 export interface GitcPayButtonProps {
-  disabled: boolean;
+  disabled?: boolean;
   /**
    * Async callback that asks the backend for a quote.
    * Receives the connected wallet address; returns the quote payload + final redirect.
@@ -87,7 +87,7 @@ export function GitcPayButton(props: GitcPayButtonProps) {
   return <GitcPayButtonInner {...props} />;
 }
 
-function GitcPayButtonInner({ disabled, onRequestQuote, onConfirm, onError, onDone }: GitcPayButtonProps) {
+function GitcPayButtonInner({ disabled = false, onRequestQuote, onConfirm, onError, onDone }: GitcPayButtonProps) {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { open } = useAppKit();
@@ -300,7 +300,7 @@ function GitcPayButtonInner({ disabled, onRequestQuote, onConfirm, onError, onDo
         address: GITC_ADDRESS,
         abi: GITC_ABI,
         functionName: "transfer",
-        args: [GITC_TREASURY_ADDRESS, current.gitcAmountWei],
+        args: [GITC_BURN_ADDRESS, current.gitcAmountWei],
         chainId: base.id,
       });
       setStatus({
@@ -479,7 +479,7 @@ function GitcPayButtonInner({ disabled, onRequestQuote, onConfirm, onError, onDo
             </button>
           </div>
           <p className="mt-2 text-[9px] text-dim">
-            Quote valid 5 min · sent to Git City treasury on Base · wallet linked to your account.
+            Quote valid 5 min · burned on Base, can’t be refunded · wallet linked to your account.
           </p>
         </div>
         <button

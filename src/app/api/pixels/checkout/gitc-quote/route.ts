@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { CLAIMED_DEVELOPER_LIMIT, pickClaimedDeveloper } from "@/lib/auth-identity";
 import { rateLimit } from "@/lib/rate-limit";
 import { quoteGitcWeiForUsdCents, getCurrentBaseBlock } from "@/lib/gitc-server";
-import { GITC_QUOTE_TTL_SECONDS, GITC_TREASURY_ADDRESS, isGitcEnabled } from "@/lib/gitc";
+import { GITC_QUOTE_TTL_SECONDS, GITC_BURN_ADDRESS, isGitcEnabled } from "@/lib/gitc";
 
 const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
 
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
   }
 
   const checksumWallet = getAddress(wallet).toLowerCase();
-  const treasury = getAddress(GITC_TREASURY_ADDRESS).toLowerCase();
+  const burnAddress = getAddress(GITC_BURN_ADDRESS).toLowerCase();
   const expiresAt = new Date(Date.now() + GITC_QUOTE_TTL_SECONDS * 1000);
   const quoteId = "pix-gitc-" + generateToken().slice(0, 24);
 
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     quote_id: quoteId,
     quote_block_number: Number(quoteBlock),
     wallet_address: checksumWallet,
-    treasury_address: treasury,
+    treasury_address: burnAddress,
     gitc_amount_wei: quote.gitcAmountWei.toString(),
     usd_quote_cents: pkg.price_usd_cents,
     gitc_price_usd_at_quote: quote.gitcPriceUsd,
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     quoteId,
     purchaseId: purchase.id,
-    treasuryAddress: treasury,
+    burnAddress,
     gitcAmountWei: quote.gitcAmountWei.toString(),
     gitcPriceUsd: quote.gitcPriceUsd,
     usdQuoteCents: pkg.price_usd_cents,
