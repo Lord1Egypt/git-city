@@ -6,7 +6,7 @@ import * as THREE from "three";
 import CarModel from "@/components/league/drive/CarModel";
 import { M_TO_UNIT, WHEEL } from "@/lib/league-city/drive/tuning";
 import { WHEELS } from "@/lib/league-city/drive/vehicle";
-import { BEAT, BUMP, BUTTON_AT, LENGTH, LOGO } from "@/lib/trailer/towns-teaser";
+import { BEAT, BUMP, BUTTON_AT, LENGTH, LOGO } from "@/lib/trailer/towns/teaser";
 import { beatOf, type FilmClock } from "@/lib/trailer/clock";
 
 // The teaser's end card, as film end cards go: a hard cut to black, then a
@@ -15,7 +15,7 @@ import { beatOf, type FilmClock } from "@/lib/trailer/clock";
 //   0  black, only the echo of the last hit
 //   1  GIT CITY stamps in, big and centred: stepped, no easing, a flash
 //   3  TOWNS slams onto its corner like a rubber stamp
-//   5  COMING SOON snaps on, small and spaced, well under it
+//   5  COMING SOON types on, small and spaced, right under it
 //   8  the button: the game's car rolls in along the baseline and into the
 //      Y, which wobbles and stays up (like a friend's building); the car
 //      honks; black at 10
@@ -51,7 +51,7 @@ const CAR_LEN = 10;
 
 /**
  * The game's own car, side on, rolling in from the right along the baseline
- * of TOWNS and into the S. Like a friend's building in the game, the letter
+ * of GIT CITY and into the Y. Like a friend's building in the game, the letter
  * doesn't break: the car bounces off it, rocks, and honks.
  */
 function CarBump({ beat }: { beat: () => number }) {
@@ -144,7 +144,7 @@ export default function EndCard({ clock }: { clock: FilmClock }) {
   }, [beat]);
   const active = b >= 0 && b < LENGTH - LOGO;
 
-  const shown = active && b >= STAMP_AT && b < 10;
+  const shown = active && b >= STAMP_AT && b < LENGTH - LOGO;
   const flash = shown && b - STAMP_AT < 0.05;
   // TOWNS lands like a rubber stamp: big and faint for a frame, then down hard.
   const stampIn = b - TOWNS_AT;

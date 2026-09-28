@@ -2,7 +2,7 @@
 // The Git City Towns "coming soon" teaser, as a Film (lib/trailer/film) the
 // studio plays in the engine, so the whole film is one screen recording. It
 // is also the worked example of the trailer kit (tools/trailer/README.md):
-// the takes, their moments, the sounds on those moments, and the end card.
+// the takes, their moments, and the sounds on those moments.
 //
 // The film: a split screen burnout hooks, three flashes of play cut at their
 // peak, the car freezes mid-air as the music drops out, then the end card
@@ -23,7 +23,7 @@ import {
   type SoundCue,
   type Take,
   type TitleCue,
-} from "./film";
+} from "../film";
 
 /** The teaser track (tools/trailer/music.mjs, "soon"): 150 BPM, a beat is 0.4s, a bar 1.6s. */
 export const BPM = 150;
@@ -71,7 +71,7 @@ export function shotFor(stage: Stage, beat: number) {
 export const MISSILE_HIT = 2;
 /** A bomb goes off on the smash take's third beat. */
 export const SMASH_BLAST = 2;
-/** The boost take hits its pad on beat 2; the jump leaves the ramp on beat 3. */
+/** Beats into their action: the boost take hits its pad, the jump leaves the ramp. */
 export const BOOST_HIT = 1;
 export const JUMP_OFF = 2.2;
 /** The tower take: the car hits and the tower starts to come down on its third beat. */
@@ -87,7 +87,7 @@ export const REV_LAUNCH = 1.2;
 /** Corner smash: the car reaches the building's corner at the end of its drift (beats into the take). */
 export const CORNER_HIT = (DRIFT_IN + DRIFT_ARC) / BEAT - 0.25;
 
-/** Beats that flash the screen: the missile hit, the corner hit, the bombs, and the name landing. */
+/** Beats that flash the screen: the missile hit, the corner hit, the bombs. */
 export const BLASTS: number[] = [
   ...SHOTS.flatMap((s) =>
     s.kind === "cornersmash"
@@ -107,7 +107,7 @@ export const BUMP = 0.8;
 const SKID = "/sounds/drive/skid.ogg";
 const IMPACT = "/sounds/drive/impact.ogg";
 
-/** Sound effects over the music, from each take's own moments, and the crash in the dark after the name. */
+/** Sound effects over the music: each take's own moments, and the end card's button. */
 export const SOUNDS: SoundCue[] = (
   [
     // The end card's button: the little car skids in, bumps the lockup, honks.
@@ -174,7 +174,7 @@ export const SOUNDS: SoundCue[] = (
 
 /** The pictures end here; the rest is the black end card and the late crash. */
 export const END = SHOTS[SHOTS.length - 1].end;
-/** The name lands on this beat, "soon" two beats later, the crash in the dark after. */
+/** The end card starts here, on the cut to black, and runs ten beats. */
 export const LOGO = END;
 export const LENGTH = END + 10;
 
@@ -189,6 +189,7 @@ const TAGS: [ShotKind, string, number, boolean][] = [
   ["jump", "Fly", JUMP_OFF, false],
   ["boost", "Boost", BOOST_HIT, false],
 ];
+// Flip to see word tags on the takes (the teaser went without them).
 const TAGGED = false;
 
 const TITLES: TitleCue[] = (TAGGED ? TAGS : []).flatMap(([kind, text, at, big]) =>

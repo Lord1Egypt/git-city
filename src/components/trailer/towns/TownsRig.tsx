@@ -26,10 +26,10 @@ import {
   shotFor,
   type SmashRun,
   type Stage,
-} from "@/lib/trailer/towns-teaser";
+} from "@/lib/trailer/towns/teaser";
 import { beatOf, type FilmClock } from "@/lib/trailer/clock";
 
-// One town's camera and car for the Towns teaser (lib/trailer/towns-teaser): it reads the
+// One town's camera and car for the Towns teaser (lib/trailer/towns/teaser): it reads the
 // shared clock every frame and plays whichever of this town's shots is under
 // way, or holds the next one on its first frame while the other town is on
 // screen. The smashing goes through the same store the game draws.
@@ -41,7 +41,6 @@ const CHUNK = ["#141a2a"];
 const CROSS = 1.0;
 const ARRIVAL_SPEED = 55;
 const INVADE_SPEED = 62;
-/** Rev: how hard the car launches (units/s²). */
 /** The long lens on the wheel from across the street, and how wide it opens for the launch. */
 const REV_DIST = 24;
 const REV_FOV = 11;
@@ -108,7 +107,7 @@ function driftAt(t: number, x0: number, zTurn: number, dir: number, R = DRIFT_R,
   return { x, z, heading, slip, v };
 }
 
-export default function TeaserRig({
+export default function TownsRig({
   stage,
   clock,
   h,

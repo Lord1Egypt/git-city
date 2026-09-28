@@ -9,7 +9,7 @@
 // untrimmed start, so trimming a take never moves its hits off their beats:
 // `momentOf` maps them onto the timeline.
 
-/** A take as written: [name, stage (or "both" for a split screen), kind, beats long, trim, freeze]. */
+/** A take as written: [name, stage (or "both": every stage at once, a split screen), kind, beats long, trim, freeze]. */
 export type Take<S extends string, K extends string> = [
   string,
   S | "both",
@@ -34,7 +34,7 @@ export interface Shot<S extends string = string, K extends string = string> {
   freeze?: number;
 }
 
-/** What's on screen: one stage full frame, two halves, or black. */
+/** What's on screen: one stage full frame, all stages side by side (a split take), or black. */
 export type Frame<S extends string = string> =
   | { kind: "full"; stage: S }
   | { kind: "split" }
@@ -89,7 +89,7 @@ export function buildShots<S extends string, K extends string>(
 ): Shot<S, K>[] {
   return takes.reduce<Shot<S, K>[]>((out, [name, stage, kind, len, trim, freeze]) => {
     const start = out.length ? out[out.length - 1].end : 0;
-    const on: S[] = stage === "both" ? stages : [stage];
+    const on: S[] = stage === "both" ? [...stages] : [stage];
     return [
       ...out,
       ...on.map((st) => ({
@@ -123,6 +123,8 @@ export function shotFor<S extends string, K extends string>(
   secondsPerBeat: number,
 ): { shot: Shot<S, K>; t: number } {
   const mine = shots.filter((s) => s.stage === stage);
+  if (!mine.length)
+    throw new Error(`Stage "${stage}" has no takes: give it one, or don't draw it.`);
   const now = [...mine].reverse().find((s) => beat >= s.start);
   const shot = now ?? mine[0];
   return {
@@ -135,6 +137,7 @@ export function shotFor<S extends string, K extends string>(
 
 /** The frame at `beat`: black before the first shot and after the last, split for a "both" take. */
 export function frameOf<S extends string>(shots: Shot<S>[], beat: number): Frame<S> {
+  if (!shots.length) return { kind: "black" };
   const end = shots[shots.length - 1].end;
   if (beat < 0 || beat >= end) return { kind: "black" };
   const shot = [...shots].reverse().find((s) => beat >= s.start) ?? shots[0];

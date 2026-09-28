@@ -4,7 +4,7 @@ import { getCityNorms, getLeagueCityDevs, getLeagueMembers } from "@/lib/leagues
 import { getCachedCity } from "@/lib/league-city/service";
 import { RIVALRY } from "@/lib/towns/rivalry";
 import { townDisplayName } from "@/lib/towns/names";
-import TownsFilm, { type TeaserSide } from "./towns-film";
+import TownsFilm, { type TownSide } from "./towns-film";
 
 // The Git City Towns teaser in the trailer studio (tools/trailer/README.md):
 // played live in the engine so the film is one screen recording. Not linked
@@ -17,14 +17,14 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function TeaserPage() {
+export default async function TownsTeaserPage() {
   const [norms, ...sides] = await Promise.all([getCityNorms(), ...RIVALRY.map(loadSide)]);
   // A fork without the rivalry towns gets told what the example needs, not a bare 404.
   if (sides.some((s) => !s)) return <MissingTowns />;
-  return <TownsFilm sides={sides as [TeaserSide, TeaserSide]} cityNorms={norms} />;
+  return <TownsFilm sides={sides as [TownSide, TownSide]} cityNorms={norms} />;
 }
 
-async function loadSide(r: (typeof RIVALRY)[number]): Promise<TeaserSide | null> {
+async function loadSide(r: (typeof RIVALRY)[number]): Promise<TownSide | null> {
   const league = await getLeagueBySlug(r.slug);
   if (!league) return null;
   const [members, city] = await Promise.all([
@@ -46,9 +46,9 @@ function MissingTowns() {
       <div className="max-w-xl space-y-3 text-[12px] normal-case leading-relaxed">
         <p className="text-lime uppercase">Towns teaser</p>
         <p>
-          This example film plays in the two rivalry towns,{" "}
-          {RIVALRY.map((r) => r.slug).join(" and ")}, and neither was found in your database. Create
-          them (or point RIVALRY in src/lib/towns/rivalry.ts at two towns you have) and reload.
+          This example film plays in Git City&apos;s two rivalry towns,{" "}
+          {RIVALRY.map((r) => r.slug).join(" and ")}, and they aren&apos;t in your database. For a
+          film that runs anywhere, open /trailer/demo, and start your own from it.
         </p>
         <p className="text-muted">
           The trailer kit and how to make your own film: tools/trailer/README.md

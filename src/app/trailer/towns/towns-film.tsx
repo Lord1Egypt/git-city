@@ -15,7 +15,7 @@ import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
 import { smashStoreFor } from "@/lib/league-city/smash";
 import { Transport } from "@/lib/trailer/clock";
 import type { Frame } from "@/lib/trailer/film";
-import { FILM, smashRun, type Stage } from "@/lib/trailer/towns-teaser";
+import { FILM, smashRun, type Stage } from "@/lib/trailer/towns/teaser";
 import Studio from "@/components/trailer/Studio";
 import TownsRig from "@/components/trailer/towns/TownsRig";
 import EndCard from "@/components/trailer/towns/EndCard";
@@ -25,12 +25,12 @@ const LeagueScene = dynamic(() => import("@/components/league/LeagueScene"), {
   loading: () => null,
 });
 
-// The Towns teaser (lib/trailer/towns-teaser) in the studio: both rivalry
+// The Towns teaser (lib/trailer/towns/teaser) in the studio: both rivalry
 // towns, each its own canvas that never remounts. A cut only changes which
 // one shows, and a split shows the middle half of each. The shots are
 // TownsRig's; the end card is EndCard's. Everything reads the same clock.
 
-export interface TeaserSide {
+export interface TownSide {
   slug: string;
   name: string;
   color: string;
@@ -38,7 +38,7 @@ export interface TeaserSide {
   cityDevs: Record<string, unknown>[];
 }
 
-function useTown(side: TeaserSide, cityNorms: LayoutNorms, gen: number) {
+function useTown(side: TownSide, cityNorms: LayoutNorms, gen: number) {
   const base = useMemo(() => {
     const devs = side.cityDevs as unknown as DeveloperRecord[];
     const layout = generateCityLayout(devs, undefined, cityNorms);
@@ -90,7 +90,7 @@ export default function TownsFilm({
   sides,
   cityNorms,
 }: {
-  sides: [TeaserSide, TeaserSide];
+  sides: [TownSide, TownSide];
   cityNorms: LayoutNorms;
 }) {
   const [claudeSide, codexSide] = sides;
@@ -100,9 +100,6 @@ export default function TownsFilm({
   const claude = useTown(claudeSide, cityNorms, gen);
   const codex = useTown(codexSide, cityNorms, gen);
   const [clock] = useState(() => new Transport(FILM.beat));
-  // The flag planted on a town's rubble names someone from the other side.
-  const loginOf = (side: TeaserSide) =>
-    String((side.cityDevs[0] as { github_login?: string } | undefined)?.github_login ?? side.name);
 
   const town = (stage: Stage, frame: Frame<Stage>) => {
     const side = stage === "claude" ? claudeSide : codexSide;
@@ -147,7 +144,7 @@ export default function TownsFilm({
               store={t.store}
               homeColor={side.color}
               rivalColor={other.color}
-              attacker={loginOf(other)}
+              attacker={other.name}
             />
           </LeagueScene>
         </div>
