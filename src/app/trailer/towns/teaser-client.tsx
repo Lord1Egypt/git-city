@@ -435,7 +435,7 @@ export default function TeaserClient({
       {town("claude")}
       {town("codex")}
       {frame.kind === "black" && <div className="absolute inset-0 bg-black" />}
-      {endCard && <EndCard beat={endBeat} />}
+      <EndCard beat={endBeat} active={endCard} />
 
       {(["left", "right"] as const).map((place) => {
         const c = cue(place);

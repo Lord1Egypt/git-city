@@ -128,7 +128,6 @@ export const BLASTS: number[] = [
           ? [momentOf(s, SMASH_BLAST)]
           : [],
   ),
-  SHOTS[SHOTS.length - 1].end,
 ];
 
 export interface SoundCue {
@@ -140,18 +139,29 @@ export interface SoundCue {
   rate?: number;
 }
 
+/** The end card's button: the little car comes in this many beats after the cut, and bumps the lockup this long after. */
+export const BUTTON_AT = 8;
+export const BUMP = 0.8;
+
 const SKID = "/sounds/drive/skid.ogg";
 const IMPACT = "/sounds/drive/impact.ogg";
 
 /** Sound effects over the music, from each take's own moments, and the crash in the dark after the name. */
 export const SOUNDS: SoundCue[] = [
-  // The end card: a click as each chip pops (DRIVE, DRIFT, SMASH), the building settling at the end.
-  ...Array.from({ length: 3 }, (_, i) => ({
-    beat: SHOTS[SHOTS.length - 1].end + 3 + i * 0.5,
-    src: "/trailer/sfx/key.wav",
-    gain: 0.7,
-  })),
-  { beat: SHOTS[SHOTS.length - 1].end + 7, src: "/trailer/sfx/crumble.wav", gain: 0.75 },
+  // The end card's button: the little car skids in, bumps the lockup, honks.
+  {
+    beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT,
+    src: SKID,
+    gain: 0.6,
+    dur: BUMP * BEAT + 0.1,
+    rate: 1.2,
+  },
+  { beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT + BUMP, src: IMPACT, gain: 0.45, rate: 1.4 },
+  {
+    beat: SHOTS[SHOTS.length - 1].end + BUTTON_AT + BUMP + 0.4,
+    src: "/trailer/sfx/horn.wav",
+    gain: 0.45,
+  },
 ].concat(
   SHOTS.flatMap((s): SoundCue[] => {
     if (s.kind === "revback" && s.stage === "claude")

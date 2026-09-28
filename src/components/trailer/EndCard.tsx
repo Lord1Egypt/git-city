@@ -1,49 +1,132 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+import CarModel from "@/components/league/drive/CarModel";
+import { M_TO_UNIT, WHEEL } from "@/lib/league-city/drive/tuning";
+import { WHEELS } from "@/lib/league-city/drive/vehicle";
+import { BEAT, BUMP, BUTTON_AT } from "@/lib/trailer/teaser";
 
-// The teaser's end card in the profile card's identity (lib/og/devHero):
-// the accent-tinted pixel grid, a framed panel, pixel chips, one big
-// building with lit windows, and the GIT CITY footer bar. Driven by the
-// film's clock (beats after the hit), so a scrub shows what records. On the
-// hit the building rises and its windows light row by row; TOWNS drops in
-// with a «SOON» chip, then DRIVE · DRIFT · SMASH pop one per half beat. The
-// button: on the late crash the building gets smashed, floors coming off
-// the bottom, and the card shakes.
+// The teaser's end card, as film end cards go: a hard cut to black, then a
+// centred lockup with nothing around it. Driven by the film's clock in beats
+// after the cut, so a scrub shows what records.
+//   0  black, only the echo of the last hit
+//   1  GIT CITY stamps in, big and centred: stepped, no easing, a flash
+//   3  TOWNS slams onto its corner like a rubber stamp
+//   5  COMING SOON snaps on, small and spaced, well under it
+//   8  the button: the game's car rolls in along the baseline and into the
+//      Y, which wobbles and stays up (like a friend's building); the car
+//      honks; black at 10
+// The car's canvas stays mounted the whole film (hidden until the card), so
+// no WebGL context is made and dropped on every loop.
 
-const OG = {
-  accent: "#c8e64a",
-  bg: "#0d0d0f",
-  raised: "#161618",
-  cardBg: "#1c1c20",
-  cream: "#e8dcc8",
-  border: "#2a2a30",
-  borderLight: "#3a3a44",
-  muted: "#8c8c9c",
-};
+const CREAM = "#e8dcc8";
+const LIME = "#c8e64a";
+const ORANGE = "#e07a4f";
 
-/** Beats after the hit. */
-const RISE_AT = 0.1;
-const NAME_AT = 0.5;
-const SOON_AT = 2;
-export const CHIPS_AT = 3;
-export const CHIP_EVERY = 0.5;
-export const SMASH_AT = 7;
+const STAMP_AT = 1;
+/** GIT CITY's letters land this many beats apart. */
+const LETTER_EVERY = 0.07;
+/** Where the stamp's dust flies: [right, down] per bit. */
+const DUST: [number, number][] = [
+  [1, -0.6],
+  [0.6, -1],
+  [-0.2, -1],
+  [1, 0.4],
+  [0.4, 1],
+  [-0.4, 0.9],
+];
+const TOWNS_AT = 3;
+const SOON_AT = 5;
 
-const CHIPS = ["Drive", "Drift", "Smash"];
-const COLS = 5;
-const ROWS = 11;
+/** Stage units: the card is 100 wide and 56.25 tall, y down from the top. */
+const W = 100;
+const H = 56.25;
+/** Where the car stops: its nose against the Y (x, % of the width), wheels on the baseline of GIT CITY (% of the height). */
+const STOP_X = 73.5;
+const BASE_Y = 53;
+const CAR_LEN = 10;
 
-const clamp = (v: number) => Math.min(1, Math.max(0, v));
-const easeOutBack = (u: number) => 1 + 2.7 * (u - 1) ** 3 + 1.7 * (u - 1) ** 2;
-const rgba = (hex: string, a: number) => {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
-};
+/**
+ * The game's own car, side on, rolling in from the right along the baseline
+ * of TOWNS and into the S. Like a friend's building in the game, the letter
+ * doesn't break: the car bounces off it, rocks, and honks.
+ */
+function CarBump({ beat }: { beat: () => number }) {
+  const car = useRef<THREE.Group>(null);
+  const wheels = useRef<(THREE.Object3D | null)[]>([]);
+  const spin = useRef(0);
+  useFrame((three, dt) => {
+    // The orthographic camera counts in pixels: zoom it so the card is W units wide.
+    const cam = three.camera as THREE.OrthographicCamera;
+    const zoom = three.size.width / W;
+    if (cam.zoom !== zoom) {
+      cam.zoom = zoom;
+      cam.updateProjectionMatrix();
+    }
+    const g = car.current;
+    if (!g) return;
+    const u = beat() - BUTTON_AT;
+    g.visible = u >= 0;
+    if (u < 0) return;
+    const t = u * BEAT;
+    const tHit = BUMP * BEAT;
+    // In at speed, braking into the letter; a bounce back off it, then still.
+    const x0 = 118;
+    const stop = STOP_X + CAR_LEN / 2;
+    let x: number;
+    let speed: number;
+    if (t < tHit) {
+      const k = t / tHit;
+      x = x0 - (x0 - stop) * (1 - (1 - k) ** 1.6);
+      speed = (1.6 * (x0 - stop) * (1 - k) ** 0.6) / tHit;
+    } else {
+      const k = t - tHit;
+      x = stop + 1.8 * Math.sin(Math.min(k / 0.18, 1) * Math.PI * 0.5) * Math.exp(-k * 4);
+      speed = 0;
+    }
+    // The body: nose dips on the hit, then a little hop on each honk.
+    const since = t - tHit;
+    const pitch = since > 0 ? -0.12 * Math.exp(-since * 7) * Math.cos(since * 30) : 0;
+    const honk =
+      since > 0.16 && since < 0.4 ? Math.abs(Math.sin((since - 0.16) * Math.PI * 8)) * 0.35 : 0;
+    g.position.set(x - W / 2, -(BASE_Y / 100) * H + H / 2 + honk, 0);
+    g.rotation.set(0, -Math.PI / 2 + 0.28, pitch);
+    spin.current += (speed * dt) / (WHEEL.radius * M_TO_UNIT * CAR_SCALE);
+    WHEELS.forEach((w, i) => {
+      const o = wheels.current[i];
+      if (!o) return;
+      o.position.set(
+        w.x * M_TO_UNIT,
+        (WHEEL.connectionY - WHEEL.restLength) * M_TO_UNIT,
+        w.z * M_TO_UNIT,
+      );
+      _q.setFromAxisAngle(_y, w.x < 0 ? Math.PI : 0);
+      _s.setFromAxisAngle(_x, spin.current * (w.x < 0 ? -1 : 1));
+      o.quaternion.copy(_q).multiply(_s);
+    });
+  });
+  return (
+    <group ref={car} scale={CAR_SCALE} visible={false}>
+      <Suspense fallback={null}>
+        <CarModel color={ORANGE} wheelRefs={wheels} />
+      </Suspense>
+    </group>
+  );
+}
 
-export default function EndCard({ beat }: { beat: () => number }) {
+/** The model is ~11 city units long; this makes it CAR_LEN stage units. */
+const CAR_SCALE = CAR_LEN / 11;
+const _q = new THREE.Quaternion();
+const _s = new THREE.Quaternion();
+const _x = new THREE.Vector3(1, 0, 0);
+const _y = new THREE.Vector3(0, 1, 0);
+
+export default function EndCard({ beat, active }: { beat: () => number; active: boolean }) {
   const [b, setB] = useState(beat());
   useEffect(() => {
+    if (!active) return;
     let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
@@ -51,196 +134,121 @@ export default function EndCard({ beat }: { beat: () => number }) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [beat]);
+  }, [beat, active]);
 
-  const hit = b >= 0 && b < 0.6 ? Math.exp(-b * 5) : 0;
-  const smashed = b > SMASH_AT ? Math.min(ROWS, Math.floor((b - SMASH_AT) / 0.1)) : 0;
-  const shake = b > SMASH_AT ? Math.exp(-(b - SMASH_AT) * 2.5) : 0;
-  const jx = Math.sin(b * 90) * (shake * 0.7 + hit * 0.4);
-  const jy = Math.cos(b * 70) * (shake * 0.5 + hit * 0.3);
-  const rise = easeOutBack(clamp((b - RISE_AT) / 0.6));
-  const footer = clamp(b / 0.25);
-  // Rows light from the bottom up after the rise.
-  const litRows = Math.floor(clamp((b - RISE_AT - 0.4) / 1.2) * ROWS);
+  const shown = active && b >= STAMP_AT && b < 10;
+  const flash = shown && b - STAMP_AT < 0.05;
+  // TOWNS lands like a rubber stamp: big and faint for a frame, then down hard.
+  const stampIn = b - TOWNS_AT;
+  const stampScale = stampIn < 0.06 ? 1.9 : 1;
+  const stampJolt = stampIn >= 0 && stampIn < 0.12 ? 0.12 : 0;
+  // The button: the Y takes the hit and wobbles back upright (it doesn't break).
+  const since = (b - BUTTON_AT - BUMP) * BEAT;
+  const wobble = since > 0 ? -6 * Math.exp(-since * 6) * Math.cos(since * 28) : 0;
+  const jolt = (since > 0 && since < 0.06 ? 0.12 : 0) + stampJolt;
 
   return (
     <div
-      className="absolute inset-0 overflow-hidden"
-      style={{ background: OG.bg, transform: `translate(${jx}cqw, ${jy}cqw)` }}
+      className="absolute inset-0 overflow-hidden bg-black"
+      style={{ visibility: active ? "visible" : "hidden" }}
     >
-      {/* The hero backdrop: accent tint and the pixel grid. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `linear-gradient(135deg, ${rgba(OG.accent, 0.1)} 0%, ${rgba(OG.accent, 0.03)} 40%, rgba(0,0,0,0) 100%)`,
-        }}
-      />
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(to bottom, rgba(255,255,255,0.035) 0.17cqw, rgba(255,255,255,0) 0.17cqw), linear-gradient(to right, rgba(255,255,255,0.035) 0.17cqw, rgba(255,255,255,0) 0.17cqw)",
-          backgroundSize: "1.34cqw 1.34cqw",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ border: `0.5cqw solid ${OG.border}` }}
-      />
-
-      {/* A second, unlit building behind, as on the card. */}
-      <div
-        className="absolute flex flex-col gap-[0.85cqw] overflow-hidden pl-[1cqw] pt-[1.3cqw]"
-        style={{
-          right: "27.5%",
-          bottom: "11.5%",
-          width: "6cqw",
-          height: `${22 * rise}cqw`,
-          background: OG.cardBg,
-          borderTop: `0.35cqw solid ${OG.borderLight}`,
-        }}
-      >
-        {Array.from({ length: 7 }, (_, r) => (
-          <div key={r} className="flex gap-[0.85cqw]">
-            {[0, 1].map((c) => (
-              <div
-                key={c}
-                className="size-[2cqw]"
-                style={{ background: (r + c) % 3 ? "#3a3a44" : "#24242a" }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {/* The building, rising from the footer line; the smash takes its floors from the bottom. */}
-      <div
-        className="absolute overflow-hidden"
-        style={{ right: "7%", bottom: "11.5%", width: "21cqw", height: `${34 * rise}cqw` }}
-      >
+      {shown && (
         <div
-          className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-[0.85cqw] pt-[1.3cqw]"
-          style={{
-            height: `${34 * (1 - smashed / ROWS)}cqw`,
-            background: OG.cardBg,
-            borderTop: smashed < ROWS ? `0.5cqw solid ${OG.accent}` : undefined,
-            borderLeft: `0.25cqw solid ${rgba(OG.accent, 0.31)}`,
-            borderRight: `0.25cqw solid ${rgba(OG.accent, 0.31)}`,
-          }}
+          className="absolute inset-0 flex flex-col items-center justify-center"
+          style={{ transform: `translate(${jolt}cqw, ${jolt}cqw)` }}
         >
-          {Array.from({ length: ROWS - smashed }, (_, r) => {
-            const fromBottom = ROWS - 1 - r;
-            return (
-              <div key={r} className="flex gap-[0.85cqw]">
-                {Array.from({ length: COLS }, (_, c) => {
-                  const on = (r * 5 + c * 3) % 7 > 1 && fromBottom < litRows;
+          <div className="relative flex items-end gap-[3.2cqw] text-[10.5cqw] leading-none">
+            {/* GIT CITY stamps in letter by letter, stepped: each one a frame big, then set. */}
+            {[
+              ["GIT", CREAM, 0],
+              ["CITY", LIME, 3],
+            ].map(([word, color, first]) => (
+              <p key={word as string} className="flex" style={{ color: color as string }}>
+                {[...(word as string)].map((ch, j) => {
+                  const k = (first as number) + j;
+                  const at = STAMP_AT + k * LETTER_EVERY;
+                  if (b < at)
+                    return (
+                      <span key={j} className="inline-block opacity-0">
+                        {ch}
+                      </span>
+                    );
+                  const big = b - at < 0.07;
+                  const isY = k === 6;
                   return (
-                    <div
-                      key={c}
-                      className="size-[2cqw]"
-                      style={{ background: on ? OG.accent : rgba(OG.accent, 0.09) }}
-                    />
+                    <span
+                      key={j}
+                      className="inline-block"
+                      style={{
+                        transform: `${big ? "scale(1.25)" : ""} ${isY && wobble !== 0 ? `rotate(${wobble}deg)` : ""}`,
+                        transformOrigin: isY && wobble !== 0 ? "left bottom" : "center",
+                      }}
+                    >
+                      {ch}
+                    </span>
                   );
                 })}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {/* Dust where the floors come off. */}
-      {smashed > 0 && smashed < ROWS + 3 && (
-        <div
-          className="absolute flex justify-around"
-          style={{ right: "5%", width: "25cqw", bottom: "11.5%", height: "4cqw" }}
-        >
-          {Array.from({ length: 8 }, (_, i) => (
-            <div
-              key={i}
-              className="size-[1.4cqw]"
-              style={{
-                background: i % 2 ? OG.borderLight : OG.muted,
-                transform: `translateY(${-((b * 13 + i * 7) % 3) - 0.5}cqw)`,
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* TOWNS, the «SOON» chip, and the three verbs. */}
-      <div className="absolute left-[6.5%] top-[31%] flex flex-col gap-[2.4cqw]">
-        <div className="flex items-end gap-[2cqw]">
-          <p
-            className="flex text-[9cqw] leading-none"
-            style={{ color: OG.cream, textShadow: "0.4cqw 0.4cqw 0 #000" }}
-          >
-            {[..."TOWNS"].map((ch, i) => {
-              const u = clamp((b - NAME_AT - i * 0.1) / 0.3);
-              return (
-                <span
-                  key={i}
-                  style={{
-                    opacity: u > 0 ? 1 : 0,
-                    transform: `translateY(${(1 - easeOutBack(u)) * -30}cqw)`,
-                  }}
-                >
-                  {ch}
-                </span>
-              );
-            })}
-          </p>
-          {b >= SOON_AT && (
-            <p
-              className="mb-[1.1cqw] text-[2.6cqw] leading-none"
-              style={{
-                color: OG.accent,
-                transform: `scale(${1 + 0.4 * Math.exp(-(b - SOON_AT) * 8)})`,
-                transformOrigin: "left bottom",
-              }}
-            >
-              «SOON»
-            </p>
-          )}
-        </div>
-        <div className="flex gap-[1.2cqw]">
-          {CHIPS.map((text, i) => {
-            const at = CHIPS_AT + i * CHIP_EVERY;
-            if (b < at) return null;
-            return (
+              </p>
+            ))}
+            {stampIn >= 0 && (
               <div
-                key={text}
-                className="flex items-center gap-[0.8cqw] px-[1.2cqw] py-[0.6cqw] text-[1.7cqw] uppercase leading-none"
+                className="absolute -right-[5.5cqw] -top-[2.6cqw] border-[0.35cqw] px-[1cqw] py-[0.45cqw] text-[2.8cqw] leading-none"
                 style={{
-                  color: OG.muted,
-                  border: `0.2cqw solid ${OG.borderLight}`,
-                  background: rgba(OG.bg, 0.5),
-                  transform: `scale(${1 + 0.3 * Math.exp(-(b - at) * 10)})`,
+                  color: ORANGE,
+                  borderColor: ORANGE,
+                  background: "#000",
+                  transform: `rotate(8deg) scale(${stampScale})`,
+                  opacity: stampIn < 0.06 ? 0.35 : 1,
                 }}
               >
-                <span className="size-[0.7cqw]" style={{ background: OG.accent }} />
-                {text}
+                TOWNS
               </div>
-            );
-          })}
+            )}
+            {/* Dust off the stamp. */}
+            {stampIn > 0.06 &&
+              stampIn < 0.7 &&
+              DUST.map(([dx, dy], i) => (
+                <span
+                  key={i}
+                  className="absolute size-[0.6cqw]"
+                  style={{
+                    right: `${-1 - dx * stampIn * 6}cqw`,
+                    top: `${-0.5 + dy * stampIn * 5}cqw`,
+                    background: ORANGE,
+                    opacity: 1 - stampIn / 0.7,
+                  }}
+                />
+              ))}
+          </div>
+          {/* COMING SOON types on, one letter a step; the padding balances the tracking. */}
+          <p
+            className="mt-[3cqw] pl-[0.5em] text-[1.6cqw] leading-none tracking-[0.5em]"
+            style={{ color: CREAM }}
+          >
+            {[..."COMING SOON"].map((ch, i) => (
+              <span key={i} style={{ opacity: b >= SOON_AT + i * 0.06 ? 0.85 : 0 }}>
+                {ch}
+              </span>
+            ))}
+          </p>
         </div>
-      </div>
-
-      {/* The footer bar. */}
+      )}
       <div
-        className="absolute inset-x-0 bottom-0 flex h-[11.5%] items-center justify-between px-[5.5%]"
-        style={{
-          background: OG.raised,
-          borderTop: `0.35cqw solid ${OG.accent}`,
-          transform: `translateY(${(1 - footer) * 100}%)`,
-        }}
+        className="pointer-events-none absolute inset-0"
+        style={{ visibility: shown ? "visible" : "hidden" }}
       >
-        <p className="text-[2.4cqw] leading-none">
-          <span style={{ color: OG.cream }}>GIT </span>
-          <span style={{ color: OG.accent }}>CITY</span>
-        </p>
-        <p className="text-[1.6cqw] leading-none" style={{ color: OG.cream }}>
-          THEGITCITY.COM
-        </p>
+        <Canvas
+          orthographic
+          camera={{ near: -200, far: 200, position: [0, 6, 50] }}
+          gl={{ alpha: true }}
+          dpr={2}
+        >
+          <ambientLight intensity={1.4} />
+          <directionalLight position={[20, 30, 40]} intensity={1.6} />
+          <CarBump beat={beat} />
+        </Canvas>
       </div>
+      {flash && <div className="absolute inset-0 bg-white" />}
     </div>
   );
 }
