@@ -954,6 +954,7 @@ export default function LeagueClient({
             <div><span className="text-cream">Drag</span> move</div>
             <div><span className="text-cream">Scroll</span> zoom</div>
             <div><span className="text-cream">Right-drag</span> rotate</div>
+            <div><span className="text-cream">2-finger swipe</span> rotate</div>
             <div><span className="text-cream">Double-click</span> zoom in</div>
             {focused ? (
               <div><span className="text-lime">ESC</span> close</div>

@@ -20,6 +20,7 @@ import { approachRoads } from "@/lib/league-city/starter";
 import { APPROACH_LOTS } from "@/lib/league-city/identity-geometry";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { mapNav, type MapCameraStore } from "@/lib/map-nav";
+import { attachTrackpadOrbit } from "@/lib/trackpad-orbit";
 import IdentityLayer from "./identity/IdentityLayer";
 import RubbleFlags from "./RubbleFlags";
 import TownIntro, { type IntroHandoff } from "./identity/TownIntro";
@@ -307,10 +308,12 @@ function LeagueCamera({
       else if (cmd.type === "north") start(c.target.clone(), null, 0);
       else if (cmd.type === "flyTo") start(new THREE.Vector3(cmd.x, 0, cmd.z), cmd.distance ?? null, null);
     });
+    const detachTrackpad = attachTrackpadOrbit(el, () => controls.current);
     el.addEventListener("dblclick", onDbl);
     window.addEventListener("keydown", onKey);
     return () => {
       unsub();
+      detachTrackpad();
       el.removeEventListener("dblclick", onDbl);
       window.removeEventListener("keydown", onKey);
     };
@@ -366,7 +369,8 @@ function LeagueCamera({
     // The main city's explore controls (CityCanvas), Google Maps / Earth
     // style: left-drag pans the ground, right-drag (or Shift/Ctrl + left)
     // rotates and tilts, the wheel zooms toward the cursor, arrows pan; one
-    // finger pans, two pinch and rotate. Discover's hero keeps the plain orbit.
+    // finger pans, two pinch and rotate; on a trackpad a two-finger swipe
+    // rotates and tilts, pinch zooms. Discover's hero keeps the plain orbit.
     <OrbitControls
       ref={controls}
       makeDefault
