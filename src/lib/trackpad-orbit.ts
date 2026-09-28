@@ -12,7 +12,8 @@ export function attachTrackpadOrbit(el: HTMLElement, getControls: () => OrbitCon
   // Turn by dTheta and tilt by dPhi (radians) around the target, moving the
   // camera directly: the controls' own rotate state is private in three-stdlib.
   const orbit = (c: OrbitControls, dTheta: number, dPhi: number) => {
-    c.dispatchEvent({ type: "start" });
+    // three-stdlib types the event with a target that dispatchEvent fills in itself.
+    c.dispatchEvent({ type: "start" } as Parameters<typeof c.dispatchEvent>[0]);
     offset.copy(c.object.position).sub(c.target);
     sph.setFromVector3(offset);
     sph.theta += dTheta;
@@ -20,7 +21,7 @@ export function attachTrackpadOrbit(el: HTMLElement, getControls: () => OrbitCon
     c.object.position.setFromSpherical(sph).add(c.target);
     c.object.lookAt(c.target);
     c.update();
-    c.dispatchEvent({ type: "end" });
+    c.dispatchEvent({ type: "end" } as Parameters<typeof c.dispatchEvent>[0]);
   };
 
   let lastWheelAt = 0;
