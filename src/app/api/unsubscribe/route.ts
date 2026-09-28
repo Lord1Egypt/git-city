@@ -2,26 +2,12 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { verifyHmacToken } from "@/lib/notifications";
 import { escapeHtml } from "@/lib/email/components";
+import { TOPIC_KEYS, topicLabel } from "@/lib/email/topics";
+import { recordConsent } from "@/lib/consent";
 
-const VALID_CATEGORIES = [
-  "transactional", "social", "digest", "marketing", "streak_reminders",
-  "jobs_applications", "jobs_performance", "jobs_digest", "jobs_updates", "leagues",
-  "all",
-];
+// Topics players can switch off, plus categories older emails still link to
+const VALID_CATEGORIES = [...TOPIC_KEYS, "transactional", "jobs_applications", "jobs_performance", "all"];
 
-const CATEGORY_LABELS: Record<string, string> = {
-  all: "all emails",
-  social: "social notifications",
-  digest: "digest emails",
-  marketing: "marketing emails",
-  streak_reminders: "streak reminders",
-  transactional: "transactional emails",
-  jobs_applications: "job application notifications",
-  jobs_performance: "job performance reports",
-  jobs_digest: "the weekly job digest",
-  jobs_updates: "job status updates",
-  leagues: "town emails",
-};
 
 function parseParams(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -70,6 +56,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsubscribe failed" }, { status: 500 });
   }
 
+  await recordConsent({ developerId: devId, topic: category, action: "unsubscribed", source: fromPage ? "preference_page" : "one_click" });
+
   if (fromPage) return NextResponse.redirect(`${origin}/unsubscribe?success=true&cat=${category}`, 303);
   return NextResponse.json({ ok: true, category });
 }
@@ -86,7 +74,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${url.origin}/unsubscribe?error=${params.error}`);
   }
 
-  const label = CATEGORY_LABELS[params.category] ?? "these emails";
+  const label = topicLabel(params.category);
   const action = `${url.pathname}${url.search}`;
 
   const html = `<!doctype html>

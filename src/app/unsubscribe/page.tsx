@@ -1,3 +1,5 @@
+import { topicLabel } from "@/lib/email/topics";
+
 export default async function UnsubscribePage({
   searchParams,
 }: {
@@ -8,19 +10,7 @@ export default async function UnsubscribePage({
   const category = params.cat ?? "all";
   const error = params.error;
 
-  const categoryLabels: Record<string, string> = {
-    all: "all emails",
-    social: "social notifications",
-    digest: "digest emails",
-    marketing: "marketing emails",
-    streak_reminders: "streak reminders",
-    transactional: "transactional emails",
-    jobs_applications: "job application notifications",
-    jobs_performance: "job performance reports",
-    jobs_digest: "weekly job digest",
-    jobs_updates: "job status updates",
-    leagues: "town emails",
-  };
+
 
   return (
     <div
@@ -76,7 +66,7 @@ export default async function UnsubscribePage({
             <p style={{ fontSize: 18 }}>
               You&apos;ve been unsubscribed from{" "}
               <strong style={{ color: "#c8e64a" }}>
-                {categoryLabels[category] ?? category}
+                {topicLabel(category)}
               </strong>
               .
             </p>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { Webhook } from "svix";
+import { recordConsent } from "@/lib/consent";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,13 @@ export async function POST(request: Request) {
             ),
         )
       : Promise.resolve();
+  // Complaints and hard bounces stop all non-transactional email (via the
+  // suppression list); record why in the player's consent history.
+  const logConsent = async (source: "complaint" | "bounce") => {
+    if (!emailId) return;
+    const { data } = await sb.from("notification_log").select("developer_id").eq("provider_id", emailId).maybeSingle();
+    if (data?.developer_id) await recordConsent({ developerId: data.developer_id, topic: "all", action: "unsubscribed", source });
+  };
   const updateLog = (fields: Record<string, unknown>) =>
     emailId ? run(sb.from("notification_log").update(fields).eq("provider_id", emailId)) : Promise.resolve();
 
@@ -75,6 +83,7 @@ export async function POST(request: Request) {
         if (bounce?.type === "Permanent") {
           await suppress("bounce");
           await updateLog({ status: "bounced", failed_at: now, failure_reason: reason });
+          await logConsent("bounce");
         } else {
           console.warn(`[webhook:resend] Soft bounce for ${emailId}: ${reason}`);
           await updateLog({ status: "soft_bounced", failure_reason: reason });
@@ -85,6 +94,7 @@ export async function POST(request: Request) {
       case "email.complained": {
         await suppress("complaint");
         await updateLog({ status: "complained", failed_at: now, failure_reason: "spam_complaint" });
+        await logConsent("complaint");
         break;
       }
 

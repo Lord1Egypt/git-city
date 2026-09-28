@@ -1,4 +1,5 @@
 import { ADS_PREVIEWS } from "./ads";
+import { CAMPAIGN_PREVIEWS } from "./campaigns";
 import { GAME_PREVIEWS } from "./game";
 import { JOBS_PREVIEWS } from "./jobs";
 import { TOWNS_PREVIEWS } from "./towns";
@@ -9,4 +10,5 @@ export const EMAIL_PREVIEWS: EmailPreviews = {
   ...TOWNS_PREVIEWS,
   ...JOBS_PREVIEWS,
   ...ADS_PREVIEWS,
+  ...CAMPAIGN_PREVIEWS,
 };
