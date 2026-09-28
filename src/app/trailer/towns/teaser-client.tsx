@@ -299,7 +299,8 @@ export default function TeaserClient({
       else if (k === "KeyL") to(now + 1 / BEAT);
       else if (k === "Home") to(a);
       else if (k === "End") to(b);
-      else if (/^Digit[1-7]$/.test(k)) pick(Number(k.slice(5)) - 1);
+      else if (/^Digit[1-9]$/.test(k) && Number(k.slice(5)) <= SCENES.length)
+        pick(Number(k.slice(5)) - 1);
       else if (k === "Digit0") pick(null);
       else if (k === "BracketLeft")
         changeRate(RATES[Math.min(RATES.length - 1, RATES.indexOf(rate) + 1)]);
@@ -467,10 +468,34 @@ export default function TeaserClient({
                 className="teaser-tag-letter"
                 style={{ animationDelay: `${0.06 + i * 0.035}s` }}
               >
-                {ch}
+                {ch === " " ? "\u00a0" : ch}
               </span>
             ))}
           </p>
+        </div>
+      )}
+      {cue("big") && (
+        <div className="absolute inset-x-0 top-[9%] flex justify-center">
+          <div key={`${cue("big")!.text}-${cue("big")!.start}`} className="teaser-tag relative">
+            <div
+              className="teaser-tag-bar absolute inset-0 -mx-[1.2cqw]"
+              style={{ background: cue("big")!.color }}
+            />
+            <p
+              className="relative px-[1.6cqw] py-[0.6cqw] text-[6.4cqw] whitespace-nowrap leading-none text-[#0d0d0f]"
+              style={{ textShadow: "0.35cqw 0.35cqw 0 rgba(255,255,255,0.35)" }}
+            >
+              {[...cue("big")!.text].map((ch, i) => (
+                <span
+                  key={i}
+                  className="teaser-tag-letter"
+                  style={{ animationDelay: `${0.06 + i * 0.035}s` }}
+                >
+                  {ch === " " ? "\u00a0" : ch}
+                </span>
+              ))}
+            </p>
+          </div>
         </div>
       )}
       {cue("center") && (
@@ -601,7 +626,7 @@ export default function TeaserClient({
               ["Shift ← →", "One beat"],
               ["J  L", "One second"],
               ["Home  End", "Scene start / end"],
-              ["1–7", "Pick a scene"],
+              ["1–9", "Pick a scene"],
               ["0", "Whole film"],
               ["[  ]", "Slower / faster"],
               ["Shift R", "Record"],

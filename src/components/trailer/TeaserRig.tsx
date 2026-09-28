@@ -12,10 +12,12 @@ import { RAMP_BIG } from "@/lib/league-city/ramp";
 import type { SmashStore } from "@/lib/league-city/smash";
 import {
   BEAT,
+  BOOST_HIT,
   DRIFT_ARC,
   DRIFT_IN,
   REV_LAUNCH,
   MISSILE_HIT,
+  momentOf,
   BLASTS,
   COLLAPSE,
   LOT,
@@ -89,13 +91,17 @@ const RAMP_Z = -11 * LOT;
 const JUMP_SPEED = 95;
 const JUMP_FOOT = 0.45;
 const JUMP_G = 55;
+/** Boost take: the pad on Codex's avenue (world z), cruising speed and the kick (units/s, units/s²). */
+const BOOST_PAD_Z = -6 * LOT;
+const BOOST_CRUISE = 45;
+const BOOST_KICK = 90;
 /** Missile take: both cars' speed, and the flip (launch speed, gravity, time in the air). */
 const MISSILE_SPEED = 48;
 const FLIP_UP = 30;
 const FLIP_G = 70;
 const FLIP_AIR = 0.85;
 /** Implosion: one floor off every column this often (s). */
-const FLOOR_EVERY = 0.045;
+const FLOOR_EVERY = 0.07;
 
 const _pos = new THREE.Vector3();
 const _look = new THREE.Vector3();
@@ -427,6 +433,46 @@ export default function TeaserRig({
       _look.set(0, 12 + y * 0.6, lip - 12 - (lip - z) * 0.6);
       lens = 34;
       st.current.amp = 0.3;
+    } else if (shot.kind === "boost") {
+      // Over a boost pad on the avenue: the car kicks from cruising to full
+      // boost with a flame out the back, the lens opens and the camera
+      // falls back, then catches up.
+      const hit = BOOST_HIT * BEAT;
+      const zAt = (tt: number) =>
+        tt < hit
+          ? BOOST_PAD_Z + BOOST_CRUISE * (hit - tt)
+          : BOOST_PAD_Z - BOOST_CRUISE * (tt - hit) - 0.5 * BOOST_KICK * (tt - hit) ** 2;
+      const z = zAt(t);
+      const u = Math.max(0, t - hit);
+      const speed = t < hit ? BOOST_CRUISE : BOOST_CRUISE + BOOST_KICK * u;
+      pose(
+        home.current,
+        homeWheels.current,
+        0,
+        z,
+        speed,
+        dt,
+        speed,
+        0,
+        t >= hit ? -0.05 * Math.exp(-u * 6) : 0,
+      );
+      if (t >= hit) {
+        fx?.burst(0, 1.2, z + 5, {
+          count: 3,
+          speed: 4,
+          colors: [TURBO.colors[1], "#ffffff", TURBO.colors[3]],
+          size: 1,
+          life: 0.3,
+          gravity: 0,
+        });
+        if (crossed(momentOf(shot, BOOST_HIT))) st.current.shake = 0.7;
+      }
+      // The camera trails at its own speed: it falls back on the kick, then closes in.
+      const lag = t < hit ? 0 : 18 * (1 - Math.exp(-u * 5)) * Math.exp(-u * 1.2);
+      _pos.set(4, 4.5, z + 17 + lag);
+      _look.set(0, 3.5, z - 30);
+      lens = 50 + 26 * (t < hit ? 0 : Math.exp(-u * 1.5) * (1 - Math.exp(-u * 12)));
+      st.current.amp = 0.5;
     } else if (shot.kind === "missile") {
       // The blue car fires on the orange one up the street: a missile with a
       // smoke tail, a fireball on the hit, and the orange car flips through
@@ -477,7 +523,7 @@ export default function TeaserRig({
           const spin = Math.min(u, FLIP_AIR) / FLIP_AIR;
           rival.current.rotation.set(-Math.PI * spin, Math.PI + 0.6 * spin, 0.9 * spin);
         }
-        if (crossed(shot.start + MISSILE_HIT)) {
+        if (crossed(momentOf(shot, MISSILE_HIT))) {
           fx?.burst(xo, 2, zHit, {
             count: 70,
             speed: 40,
@@ -575,7 +621,7 @@ export default function TeaserRig({
           store.hitColumns(tower, cols, 1, Date.now(), attacker);
           taken++;
           fx?.burst(target.x, 2, target.z, {
-            count: 10,
+            count: 16,
             speed: 30,
             colors: DEBRIS,
             size: 2.4,
@@ -584,10 +630,13 @@ export default function TeaserRig({
         }
         st.current.shake = Math.max(st.current.shake, 0.4);
       }
-      // Low on the street, looking up at the tower; creeps in.
-      const push = smooth(Math.min(1, t / 2.4));
-      _pos.set(run.x + side * (150 - 30 * push), 7, tz + 190 - 50 * push);
-      _look.set(run.x, 70 - 30 * push, tz);
+      // Square on to the tower from across the avenue, nothing in between,
+      // low and looking up: the top sinks into frame as the floors go. It
+      // creeps in.
+      const push = smooth(Math.min(1, t / 3.2));
+      _pos.set(run.x + side * (114 - 14 * push), 6, tz + 14);
+      _look.set(run.x, 52, tz);
+      lens = 50;
     } else return;
 
     const k = st.current.shake;
