@@ -121,13 +121,4 @@ export const GAME_PREVIEWS: EmailPreviews = {
       ],
       PREVIEW_LINKS,
     ),
-  "digest-jobs-filled": () =>
-    renderDigestEmail(
-      "job_filled",
-      [
-        { listing: "Senior Frontend Engineer", company: "Northwind" },
-        { listing: "Founding Engineer", company: "Globex" },
-      ],
-      PREVIEW_LINKS,
-    ),
 };

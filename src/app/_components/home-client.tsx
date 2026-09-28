@@ -865,9 +865,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
   const [skyAds, setSkyAds] = useState<import("@/lib/skyAds").SkyAd[]>(DEFAULT_SKY_ADS);
   const [starCount, setStarCount] = useState<number | null>(null);
   const [discordMembers, setDiscordMembers] = useState<number | null>(null);
-  const [jobCount, setJobCount] = useState<number | null>(null);
-  const [jobPanelOpen, setJobPanelOpen] = useState(false);
-  const [jobPreview, setJobPreview] = useState<Array<{ id: string; title: string; salary_min: number; salary_max: number; salary_currency: string; tier: string; seniority: string; role_type: string; company: { name: string } | null }>>([]);
   const [pillModalOpen, setPillModalOpen] = useState(false);
   const [founderMessageOpen, setFounderMessageOpen] = useState(false);
   const [eArcadeOpen, setEArcadeOpen] = useState(false);
@@ -926,13 +923,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
     fetch("https://discord.com/api/v9/invites/2bTjFAkny7?with_counts=true")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d?.approximate_member_count != null) setDiscordMembers(d.approximate_member_count); })
-      .catch(() => { });
-    fetch("/api/jobs?preview=true")
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => {
-        if (d?.total != null) setJobCount(d.total);
-        if (Array.isArray(d?.listings)) setJobPreview(d.listings);
-      })
       .catch(() => { });
     const pkHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST;
     if (pkHost) {
@@ -3554,22 +3544,12 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
       {/* ─── GitHub + Discord (top-left) ─── */}
       {!flyMode && !introMode && !rabbitCinematic && (
         <div className={`pointer-events-auto fixed top-3 left-3 z-30 items-center gap-1.5 sm:gap-2 sm:top-4 sm:left-4 ${exploreMode ? "hidden" : "flex"}`}>
-          {/* Mobile: Live + Jobs */}
+          {/* Mobile: Live */}
           <div className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm sm:hidden">
             <span className="live-dot h-1.5 w-1.5 shrink-0 rounded-full bg-[#ef4444]" />
             <span className="text-cream">{liveUsers.toLocaleString()}</span>
             <span className="text-muted">live</span>
           </div>
-          {jobCount != null && jobCount > 0 && (
-            <Link
-              href="/jobs"
-              className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light sm:hidden"
-            >
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#fbbf24]" />
-              <span className="text-cream">{jobCount}</span>
-              <span className="text-muted">{jobCount === 1 ? "job" : "jobs"}</span>
-            </Link>
-          )}
           {/* Desktop: GitHub + Discord */}
           {starCount != null && (
             <a
@@ -3596,7 +3576,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
         </div>
       )}
 
-      {/* ─── Live + Coding + Jobs (top-right) ─── */}
+      {/* ─── Live + Coding (top-right) ─── */}
       {!flyMode && !introMode && !rabbitCinematic && (
         <div className={`pointer-events-auto fixed top-3 right-3 z-30 items-center gap-1.5 sm:gap-2 sm:top-4 sm:right-4 ${exploreMode ? "hidden" : "hidden sm:flex"}`}>
           {/* Wallet chip — Pixel balance, links to the shop (where the Bank lives) */}
@@ -3627,7 +3607,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
             return (
               <div className="relative hidden sm:block">
                 <button
-                  onClick={() => { setCodingPanelOpen((v) => !v); setJobPanelOpen(false); }}
+                  onClick={() => setCodingPanelOpen((v) => !v)}
                   className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
                 >
                   <span className={`${energyDotAnim} h-1.5 w-1.5 flex-shrink-0 rounded-full ${energyDotColor}`} />
@@ -3826,88 +3806,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
               </div>
             );
           })()}
-          {/* Jobs — dropdown preview */}
-          {jobCount != null && jobCount > 0 && (
-            <div className="relative">
-              <button
-                onClick={() => { setJobPanelOpen((v) => !v); setCodingPanelOpen(false); }}
-                className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
-              >
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#fbbf24]" />
-                <span className="text-cream">{jobCount}</span>
-                <span className="text-muted">{jobCount === 1 ? "job" : "jobs"}</span>
-              </button>
-              {jobPanelOpen && (
-                <div className="absolute right-0 top-full mt-1 w-80 border-[3px] border-border bg-bg/95 backdrop-blur-sm">
-                  <div className="border-b border-border px-5 py-3">
-                    <p className="text-xs text-cream">Jobs in the city</p>
-                    <p className="mt-0.5 text-[10px] normal-case text-muted">
-                      Real jobs from verified companies, exclusive to Git City developers.
-                    </p>
-                  </div>
-                  <div>
-                    {jobPreview.map((job) => (
-                      <Link
-                        key={job.id}
-                        href={`/jobs/${job.id}`}
-                        onClick={() => setJobPanelOpen(false)}
-                        className="flex w-full items-start justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            {job.tier === "premium" && (
-                              <span className="shrink-0 text-[8px] text-[#fbbf24]">★</span>
-                            )}
-                            {job.tier === "featured" && (
-                              <span className="shrink-0 text-[8px] text-[#c8e64a]">★</span>
-                            )}
-                            <span className="truncate text-[11px] text-cream">{job.title}</span>
-                          </div>
-                          <p className="truncate text-[10px] normal-case text-muted">
-                            {job.company?.name ?? "Company"} · {job.seniority} · {job.role_type}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-[10px] text-[#c8e64a]">
-                          {job.salary_currency} {job.salary_min.toLocaleString()}–{job.salary_max.toLocaleString()}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                  <div className="border-t border-border">
-                    <Link
-                      href="/jobs"
-                      onClick={() => setJobPanelOpen(false)}
-                      className="block px-4 py-2.5 text-center text-[11px] text-muted transition-colors hover:text-cream"
-                    >
-                      {jobCount > 3 ? `View all ${jobCount} jobs` : "Browse all jobs"} &rarr;
-                    </Link>
-                  </div>
-                  {session ? (
-                    <div className="flex border-t border-border">
-                      <Link
-                        href={authLogin ? `/hire/${authLogin}` : "/hire/edit"}
-                        onClick={() => setJobPanelOpen(false)}
-                        className="flex-1 px-4 py-2.5 text-center text-[11px] text-[#c8e64a] transition-colors hover:bg-white/5"
-                      >
-                        My profile
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="border-t border-border px-5 py-3.5 text-center">
-                      <Link
-                        href="/auth"
-                        onClick={() => setJobPanelOpen(false)}
-                        className="btn-press inline-block w-full py-2 text-center text-xs text-bg"
-                        style={{ backgroundColor: "#fbbf24", boxShadow: "2px 2px 0 0 #b45309" }}
-                      >
-                        Sign in to apply
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -4131,26 +4029,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
               <p className="text-[9px] text-muted/50 uppercase tracking-[0.2em]">Opportunities</p>
             </div>
             <div className="divide-y divide-border/40">
-              <Link
-                href="/jobs"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-5 py-3.5 active:bg-white/5"
-              >
-                <span className="flex items-center gap-2 text-sm text-cream">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#fbbf24]" />
-                  Jobs
-                  {jobCount != null && jobCount > 0 && <span className="text-[10px] text-muted">{jobCount} open</span>}
-                </span>
-                <span className="text-xs" style={{ color: theme.accent }}>&#8594;</span>
-              </Link>
-              <Link
-                href="/for-companies"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-5 py-3.5 active:bg-white/5"
-              >
-                <span className="text-sm text-cream">Hire developers</span>
-                <span className="text-xs" style={{ color: theme.accent }}>&#8594;</span>
-              </Link>
               <Link
                 href="/advertise"
                 onClick={() => setMobileMenuOpen(false)}
@@ -6677,9 +6555,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
           onClose={() => setEArcadeOpen(false)}
           onEnter={() => {
             window.location.href = "/arcade";
-          }}
-          onViewJobs={() => {
-            window.location.href = "/jobs";
           }}
           session={session}
           onSignIn={handleSignInWithRef}

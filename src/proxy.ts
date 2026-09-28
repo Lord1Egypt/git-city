@@ -25,11 +25,6 @@ const ROUTE_LIMITS: [string, number, number][] = [
   ["/api/feed", 30, 60_000],
   ["/api/checkout/status", 40, 60_000],
   ["/api/checkout", 6, 60_000],
-  ["/api/jobs/checkout", 5, 60_000],
-  ["/api/jobs/create", 5, 60_000],
-  ["/api/jobs/notify", 5, 60_000],
-  ["/api/jobs", 60, 60_000],
-  ["/api/career-profile", 10, 60_000],
   ["/api/claim", 5, 60_000],
   ["/api/city", 30, 60_000],
   ["/api/dev/", 60, 60_000],
@@ -48,7 +43,6 @@ const AUTH_SKIP_PREFIXES = [
   "/api/sky-ads/track",
   "/api/heartbeats",
   "/dev/",
-  "/hire/",
   "/leaderboard",
   "/live",
 ];
@@ -70,7 +64,7 @@ function getLimitForPath(pathname: string): {
     return { limit: 1000, window: 60_000, group: "webhooks" };
   }
 
-  // Suffix-based limits for dynamic routes like /api/jobs/[id]/apply
+  // Suffix-based limits for dynamic routes
   if (pathname.endsWith("/apply")) {
     return { limit: 5, window: 60_000, group: "/apply" };
   }

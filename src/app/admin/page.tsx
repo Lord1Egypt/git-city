@@ -49,11 +49,6 @@ const SECTIONS: { heading: string; links: AdminLink[] }[] = [
         description: "Merit-honors catalog — create, preview, grant",
       },
       {
-        href: "/admin/jobs",
-        title: "Jobs & Companies",
-        description: "Job board listings and company profiles",
-      },
-      {
         href: "/admin/ads",
         title: "Ads",
         description: "Sponsorship slots, inventory and revenue",

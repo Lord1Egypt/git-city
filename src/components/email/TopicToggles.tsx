@@ -46,7 +46,7 @@ export function TopicToggles({ values, onChange, disabled, hidden = [] }: {
   disabled?: boolean;
   hidden?: string[];
 }) {
-  const groups: TopicGroup[] = ["game", "jobs", "news"];
+  const groups: TopicGroup[] = ["game", "news"];
   return (
     <>
       {groups.map((group) => {

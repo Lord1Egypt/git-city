@@ -12,7 +12,7 @@ import { FROM_NOTIFY } from "@/lib/email/senders";
 const PREVIEW_LINKS = { unsubscribeUrl: "https://thegitcity.com/api/unsubscribe?dev=0&cat=all&token=preview" };
 
 /**
- * GET /api/admin/email-preview?template=job-approved
+ * GET /api/admin/email-preview?template=welcome-sample
  * Returns rendered HTML for email preview. Admin-only.
  * Add &send=1 to email that exact render to your own address, to check it in
  * real mail clients (Gmail, Apple Mail, Outlook) before shipping.
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const template = req.nextUrl.searchParams.get("template") ?? "job-approved";
+  const template = req.nextUrl.searchParams.get("template") ?? "welcome-sample";
 
   const respond = async (email: { subject: string; html: string; text?: string }) => {
     if (req.nextUrl.searchParams.get("send") !== "1") {

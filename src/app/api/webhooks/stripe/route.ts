@@ -7,7 +7,6 @@ import { AD_PACKAGES, isValidPackageId } from "@/lib/adPackages";
 import { sendPurchaseNotification, sendGiftSentNotification } from "@/lib/notification-senders/purchase";
 import { sendGiftReceivedNotification } from "@/lib/notification-senders/gift";
 import type Stripe from "stripe";
-import { sendJobPendingReviewEmail } from "@/lib/notification-senders/job-pending-review";
 import { sendEmail } from "@/lib/resend";
 import { renderAdSaleEmail } from "@/lib/admin-emails";
 import { getPostHogClient } from "@/lib/posthog-server";
@@ -302,63 +301,6 @@ export async function POST(request: Request) {
           }
 
           console.log(`Package ${packageId} activated: ${adIds.length} ads for ${purchaserEmail}`);
-          break;
-        }
-
-        // --- Job listing purchase ---
-        if (session.metadata?.type === "job_listing") {
-          const listingId = session.metadata.listing_id;
-          if (!listingId) {
-            console.error("Missing listing_id in session metadata:", session.id);
-            break;
-          }
-
-          const paymentIntentId =
-            typeof session.payment_intent === "string"
-              ? session.payment_intent
-              : session.payment_intent?.id;
-
-          await sb
-            .from("job_listings")
-            .update({
-              status: "pending_review",
-              tier: session.metadata.tier ?? "standard",
-              stripe_session_id: session.id,
-              stripe_payment_intent: paymentIntentId ?? null,
-            })
-            .eq("id", listingId);
-
-          // Notify admin about new listing for review
-          const { data: paidListing } = await sb
-            .from("job_listings")
-            .select("title, company:job_company_profiles!inner(name)")
-            .eq("id", listingId)
-            .single();
-
-          if (paidListing) {
-            const compName = (paidListing.company as unknown as { name: string }).name;
-            sendJobPendingReviewEmail(
-              paidListing.title,
-              compName,
-              session.metadata.tier ?? "standard",
-              listingId,
-            ).catch((err) => console.error("[job-notify] Failed to send pending review email:", err));
-          }
-
-          const phJob = getPostHogClient();
-          phJob.capture({
-            distinctId: session.customer_details?.email ?? session.id,
-            event: "job_listing_paid",
-            properties: {
-              listing_id: listingId,
-              tier: session.metadata.tier ?? "standard",
-              amount_cents: session.amount_total ?? 0,
-              currency: session.currency ?? "usd",
-            },
-          });
-          await phJob.shutdown();
-
-          console.log(`Job listing ${listingId} moved to pending_review after payment`);
           break;
         }
 
