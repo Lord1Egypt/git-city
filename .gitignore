@@ -47,8 +47,9 @@ docs/plans/
 docs/tiktok/
 docs/cloudflare-setup.md
 
-# claude code local settings
-.claude/
+# claude code local settings (shared skills are tracked)
+.claude/*
+!.claude/skills/
 
 trace/
 docs/

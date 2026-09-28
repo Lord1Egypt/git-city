@@ -161,6 +161,10 @@ Open GitHub and go to `Settings -> Developer settings -> Personal access tokens`
 
 Create a token, copy it once, and place it in `GITHUB_TOKEN` inside `.env.local`.
 
+## Making trailers
+
+Git City's trailers are played live in the engine and screen-recorded: a film is a timeline of takes on the music's beat grid, a studio page plays it, and a recorder captures one clean pass. Music and sound effects are synthesized, no samples. See [`tools/trailer/README.md`](tools/trailer/README.md) for the kit, how to add a take, and the craft notes (story, cutting, end cards) from making the Towns teaser; the worked example runs at `/trailer/towns`.
+
 ## License
 
 [AGPL-3.0](LICENSE) — You can use and modify Git City, but any public deployment must share the source code.
