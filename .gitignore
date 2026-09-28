@@ -96,3 +96,6 @@ scripts/.osm-cache/
 # the unpacked kit folders stay local.
 kenney/
 .env.local
+
+# Trailer song, local only
+/public/trailer/
