@@ -16,6 +16,7 @@ import {
   CORNER_HIT,
   DRIFT_ARC,
   DRIFT_IN,
+  DRIFT_LEAD,
   REV_LAUNCH,
   MISSILE_HIT,
   momentOf,
@@ -118,15 +119,15 @@ const smooth = (u: number) => u * u * (3 - 2 * u);
  * DRIFT_R (dir 1 right, −1 left), then down the cross street. `slip` is how
  * far the tail swings out; `v` is the progress round the corner (0 to 1).
  */
-function driftAt(t: number, x0: number, zTurn: number, dir: number, R = DRIFT_R) {
-  const arcEnd = DRIFT_IN + DRIFT_ARC;
+function driftAt(t: number, x0: number, zTurn: number, dir: number, R = DRIFT_R, lead = DRIFT_IN) {
+  const arcEnd = lead + DRIFT_ARC;
   let x: number, z: number, heading: number;
-  if (t < DRIFT_IN) {
+  if (t < lead) {
     x = x0;
-    z = zTurn + DRIFT_SPEED * (DRIFT_IN - t);
+    z = zTurn + DRIFT_SPEED * (lead - t);
     heading = Math.PI;
   } else if (t < arcEnd) {
-    const phi = ((t - DRIFT_IN) / DRIFT_ARC) * (Math.PI / 2);
+    const phi = ((t - lead) / DRIFT_ARC) * (Math.PI / 2);
     x = x0 + dir * (R - R * Math.cos(phi));
     z = zTurn - R * Math.sin(phi);
     heading = Math.PI - dir * phi;
@@ -135,7 +136,7 @@ function driftAt(t: number, x0: number, zTurn: number, dir: number, R = DRIFT_R)
     z = zTurn - R;
     heading = Math.PI - (dir * Math.PI) / 2;
   }
-  const v = (t - DRIFT_IN) / DRIFT_ARC;
+  const v = (t - lead) / DRIFT_ARC;
   const slip =
     0.75 *
     smooth(Math.min(1, Math.max(0, v / 0.22))) *
@@ -463,7 +464,8 @@ export default function TeaserRig({
       const dir = top ? -1 : 1;
       const zTurn = (top ? -7 : -3) * LOT - 12;
       const x0 = LANE;
-      const p = driftAt(t, x0, zTurn, dir);
+      const lead = top ? DRIFT_IN : DRIFT_LEAD;
+      const p = driftAt(t, x0, zTurn, dir, DRIFT_R, lead);
       const yaw = p.heading - dir * p.slip;
       pose(home.current, homeWheels.current, p.x, p.z, DRIFT_SPEED, dt, DRIFT_SPEED, 0, 0, yaw);
       if (home.current) home.current.rotation.z = -0.05 * dir * p.slip;
@@ -503,12 +505,16 @@ export default function TeaserRig({
         lens = 46;
         st.current.amp = 0.2;
       } else {
-        // Low on the outside of the corner, close in, on a medium lens; it
-        // drifts a little toward the exit and the aim follows the car.
-        const drift = smooth(Math.min(1, t / 1.6));
-        _pos.set(x0 - 6 + 10 * drift, 1.7, zTurn - DRIFT_R - 12 + 4 * drift);
-        _look.set(p.x, 2.8, p.z);
-        lens = 36;
+        // The chase camera, close behind at speed (the way the cars left the
+        // opening), but slow to turn: when the car throws the drift the
+        // camera's heading lags a quarter second, so the car slides sideways
+        // across the lens and shows its flank.
+        const lag = driftAt(Math.max(0, t - 0.28), x0, zTurn, dir, DRIFT_R, lead);
+        const fxz = Math.sin(lag.heading);
+        const fzz = Math.cos(lag.heading);
+        _pos.set(p.x - fxz * 14, 4.2, p.z - fzz * 14);
+        _look.set(p.x + fxz * 10, 2.4, p.z + fzz * 10);
+        lens = 52;
         st.current.amp = 0.4;
       }
     } else if (shot.kind === "jump") {
@@ -665,11 +671,32 @@ export default function TeaserRig({
             gravity: -5,
           });
       }
-      // Low, behind and right of the shooter, moving with both cars.
-      const zCam = zb + 12;
-      _pos.set(xb + 9, 3, zCam);
-      _look.set(1, 2.2, zo + 4);
-      lens = 44;
+      // Three moves: low ahead of the shooter looking back at it while it
+      // locks on; on the launch, riding the missile's tail with the orange
+      // car dead ahead; on the hit, still beside the blast, watching the car
+      // go over.
+      const sx = xb;
+      const sz = zb - 5;
+      if (t < fire) {
+        _pos.set(xb + 6, 1.8, zb - 12);
+        _look.set(xb, 2, zb);
+        lens = 44;
+      } else if (t < hit) {
+        const u = (t - fire) / (hit - fire);
+        const mx = sx + (xo - sx) * u;
+        const mz = sz + (zo - sz) * u;
+        const dx = xo - mx;
+        const dz = zo - mz;
+        const d = Math.max(0.001, Math.hypot(dx, dz));
+        _pos.set(mx - (dx / d) * 7, 4, mz - (dz / d) * 7);
+        _look.set(xo, 1.8, zo);
+        lens = 48;
+      } else {
+        const zHit = z0 - MISSILE_SPEED * hit;
+        _pos.set(xo - 13, 4, zHit + 16);
+        _look.set(xo, 5, zHit - 6);
+        lens = 52;
+      }
       st.current.amp = 0.5;
     } else if (shot.kind === "arrival") {
       const z = gateZ + ARRIVAL_SPEED * (CROSS - t);

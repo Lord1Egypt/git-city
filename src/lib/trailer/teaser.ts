@@ -58,8 +58,8 @@ export type Frame = { kind: "full"; stage: Stage } | { kind: "split" } | { kind:
  */
 const TAKES: [string, Stage | "both", ShotKind, number, number][] = [
   ["Burnout · split", "both", "revback", 4, 0],
-  ["Drift", "claude", "drift", 4, 0.25],
-  ["Missile", "codex", "missile", 4, 0.5],
+  ["Drift", "claude", "drift", 6, 0],
+  ["Missile", "codex", "missile", 4, 0],
   ["Top-down drift", "claude", "topdrift", 3, 0.5],
   ["Corner smash", "codex", "cornersmash", 4, 0.5],
   ["Ramp jump", "claude", "jump", 3, 1],
@@ -109,6 +109,8 @@ const FINALE = SHOTS.find((s) => s.kind === "finale");
 export const COLLAPSE = FINALE ? FINALE.start + 2 : -1;
 /** Drift take: straight in for this long, then round the corner in this long (s). */
 export const DRIFT_IN = 0.3;
+/** The drift take drives up the avenue this long before it turns (s). */
+export const DRIFT_LEAD = 1.0;
 export const DRIFT_ARC = 0.95;
 /** The burnout launches this long into its take (s): the track's hit on beat 4. */
 export const REV_LAUNCH = 1.2;
@@ -140,7 +142,7 @@ export const SOUNDS: SoundCue[] = SHOTS.flatMap((s): SoundCue[] => {
   if (s.kind === "rev")
     return [{ beat: momentOf(s, REV_LAUNCH / BEAT), src: SKID, gain: 0.55, dur: 0.45, rate: 1.15 }];
   if (s.kind === "drift")
-    return [{ beat: momentOf(s, DRIFT_IN / BEAT), src: SKID, gain: 0.9, dur: DRIFT_ARC + 0.2 }];
+    return [{ beat: momentOf(s, DRIFT_LEAD / BEAT), src: SKID, gain: 0.9, dur: DRIFT_ARC + 0.2 }];
   if (s.kind === "topdrift")
     return [{ beat: momentOf(s, DRIFT_IN / BEAT), src: SKID, gain: 0.8, dur: DRIFT_ARC + 0.2 }];
   if (s.kind === "invasion")
@@ -184,7 +186,7 @@ const ORANGE = "#e07a4f";
 const BLUE = "#5b8def";
 /** One word per take, on its moment: [take kind, word, beat into the take, big]. */
 const TAGS: [ShotKind, string, number, boolean][] = [
-  ["drift", "Drift", 0.75, false],
+  ["drift", "Drift", DRIFT_LEAD / BEAT + 0.5, false],
   ["missile", "Fire", MISSILE_HIT, false],
   ["topdrift", "Slide", 0.75, false],
   ["cornersmash", "Smash", CORNER_HIT, false],

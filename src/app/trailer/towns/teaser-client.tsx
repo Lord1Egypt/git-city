@@ -130,9 +130,9 @@ export default function TeaserClient({
   const [gen, setGen] = useState(0);
   const claude = useTown(claudeSide, cityNorms, gen);
   const codex = useTown(codexSide, cityNorms, gen);
-  const [clock] = useState(() => new TeaserTransport(SCENES[0].start));
+  const [clock] = useState(() => new TeaserTransport(0));
 
-  const [scene, setScene] = useState<number | null>(0);
+  const [scene, setScene] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
   const [recording, setRecording] = useState(false);
@@ -142,8 +142,8 @@ export default function TeaserClient({
   const scrub = useRef<HTMLInputElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
-  const range = useRef<[number, number]>([SCENES[0].start, SCENES[0].end]);
-  const [shownRange, setShownRange] = useState<[number, number]>([SCENES[0].start, SCENES[0].end]);
+  const range = useRef<[number, number]>([0, LENGTH]);
+  const [shownRange, setShownRange] = useState<[number, number]>([0, LENGTH]);
   const rec = useRef(false);
 
   // Effects through Web Audio: every file decoded once, each cue its own source.
