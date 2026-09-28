@@ -76,9 +76,27 @@ function Teaser() {
       />
       <figcaption className="flex items-center justify-between gap-3 border-t-[3px] border-border px-4 py-3">
         <span className="text-xs text-muted normal-case">Git City Towns teaser. Recorded in one take, straight from the game.</span>
-        <button type="button" onClick={toggle} className="btn-press shrink-0 text-xs text-lime">
-          {muted ? "Sound on" : "Sound off"}
-        </button>
+        {/* Muted: one clear action. Playing with sound: say so, and offer the way back. */}
+        {muted ? (
+          <button
+            type="button"
+            onClick={toggle}
+            className="btn-press shrink-0 bg-lime px-3 py-2 text-xs tracking-widest text-bg"
+          >
+            &#9654; Play with sound
+          </button>
+        ) : (
+          <span className="flex shrink-0 items-center gap-3 text-xs">
+            <span className="text-lime">&#9834; Sound on</span>
+            <button
+              type="button"
+              onClick={toggle}
+              className="btn-press border-[3px] border-border px-3 py-1.5 text-muted hover:text-cream"
+            >
+              Mute
+            </button>
+          </span>
+        )}
       </figcaption>
     </figure>
   );
