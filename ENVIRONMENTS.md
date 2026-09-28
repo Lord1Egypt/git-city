@@ -114,13 +114,11 @@ Add these scoped to **Preview** only (no branch filter — all branches):
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://jqdvuwlgczhcyzuiwofh.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | staging anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | staging service role key |
-| `STRIPE_SECRET_KEY` | Stripe **test mode** key |
-| `STRIPE_WEBHOOK_SECRET` | test mode webhook secret (or omit) |
 | `NEXT_PUBLIC_COZY_BASE_URL` | prod bucket URL is fine (public, read-only) |
 | `NEXT_PUBLIC_MODELS_BASE_URL` | prod bucket URL is fine (public, read-only) |
 
 Everything not overridden in Preview falls through to the Production value,
-so review anything that writes (payment keys, Resend, etc.) and decide
+so review anything that writes (Resend, etc.) and decide
 whether previews should use a test-mode equivalent or stay unset.
 
 Storage assets: previews can read the prod public buckets (they are public
@@ -138,13 +136,10 @@ files it is gitignored.
 
 ## Known preview limitations
 
-- **Vercel crons don't run on previews** — the 17 crons in `vercel.json`
+- **Vercel crons don't run on previews** — the crons in `vercel.json`
   only fire on the production deployment. To test a cron against staging,
   call its endpoint manually with the `CRON_SECRET` header.
-- **Payment webhooks point at prod** — Stripe/AbacatePay webhook endpoints
-  are registered against the production URL. Test webhooks locally with
-  `stripe listen --forward-to localhost:3001/api/webhooks/stripe`.
 - **`NEXT_PUBLIC_BASE_URL` falls back to the prod URL** when unset, so flows
-  that build absolute URLs (checkout redirects, magic links) will point at
+  that build absolute URLs (magic links, email links) will point at
   prod on previews. Set it manually for a specific branch in Vercel if a
   test needs it.

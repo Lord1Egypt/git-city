@@ -50,7 +50,6 @@ Buildings are rendered with instanced meshes and a LOD (Level of Detail) system 
 - **Framework:** [Next.js](https://nextjs.org) 16 (App Router, Turbopack)
 - **3D Engine:** [Three.js](https://threejs.org) via [@react-three/fiber](https://github.com/pmndrs/react-three-fiber) + [drei](https://github.com/pmndrs/drei)
 - **Database & Auth:** [Supabase](https://supabase.com) (PostgreSQL, GitHub OAuth, Row Level Security)
-- **Payments:** [Stripe](https://stripe.com)
 - **Styling:** [Tailwind CSS](https://tailwindcss.com) v4 with pixel font (Silkscreen)
 - **Hosting:** [Vercel](https://vercel.com)
 

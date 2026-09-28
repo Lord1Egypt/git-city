@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           Privacy <span style={{ color: ACCENT }}>Policy</span>
         </h1>
         <p className="mt-2 text-[10px] text-muted normal-case">
-          Last updated: September 27, 2026
+          Last updated: September 28, 2026
         </p>
         <p className="mt-1 text-[10px] text-muted normal-case">
           {LEGAL_NAME} is operated by {LEGAL_RAZAO_SOCIAL} (CNPJ {LEGAL_CNPJ},{" "}
@@ -58,17 +58,18 @@ export default function PrivacyPage() {
               GitHub data.
             </p>
             <p className="mt-2">
-              When you pay with the GITC token on Base, we also store your
-              wallet address (a public blockchain address) and the transaction
-              hash. These are linked to your Git City account so we can verify
-              the payment, support customer service, and keep an audit trail.
+              When you burn the GITC token on Base for Pixels, we also store
+              your wallet address (a public blockchain address) and the
+              transaction hash. These are linked to your Git City account so we
+              can verify the burn, support customer service, and keep an audit
+              trail.
               Wallet addresses are pseudonymous but publicly observable on the
               blockchain.
             </p>
             <p className="mt-2">
               We collect your IP address transiently for rate limiting, fraud
-              prevention, and country detection (to show local payment methods
-              like PIX). IP addresses are not stored long-term in user-facing
+              prevention, and country detection (for example, the country
+              shown on drift leaderboards). IP addresses are not stored long-term in user-facing
               tables; they appear only in transient logs and security records.
             </p>
           </Section>
@@ -78,7 +79,7 @@ export default function PrivacyPage() {
               <Li>Generate your 3D building in the city</Li>
               <Li>Display your profile on the leaderboard</Li>
               <Li>Email you about your own activity (raids, towns, reminders, weekly recap) and, occasionally, about big Git City launches. Every email except receipts and sign-in links can be turned off from its footer or Settings</Li>
-              <Li>Process purchases through our payment providers</Li>
+              <Li>Credit the Pixels you earn and the items you unlock</Li>
               <Li>Improve the service and fix bugs</Li>
               <Li>Detect and prevent abuse (rate limiting, fraud)</Li>
             </ul>
@@ -92,7 +93,7 @@ export default function PrivacyPage() {
             <ul className="mt-1 flex flex-col gap-1">
               <Li>
                 <span style={{ color: ACCENT }}>Contract</span> - Account
-                creation, payment processing, and providing the service you
+                creation and providing the service you
                 signed up for.
               </Li>
               <Li>
@@ -129,14 +130,6 @@ export default function PrivacyPage() {
                 serverless functions, analytics (US-hosted)
               </Li>
               <Li>
-                <span style={{ color: ACCENT }}>Stripe</span> - Card payment
-                processing
-              </Li>
-              <Li>
-                <span style={{ color: ACCENT }}>AbacatePay</span> - PIX payment
-                processing (Brazil)
-              </Li>
-              <Li>
                 <span style={{ color: ACCENT }}>GitHub</span> - OAuth
                 authentication and public API data
               </Li>
@@ -146,7 +139,7 @@ export default function PrivacyPage() {
               </Li>
               <Li>
                 <span style={{ color: ACCENT }}>Reown (WalletConnect)</span> -
-                Wallet connection sessions for crypto payments
+                Wallet connection sessions for GITC burns
               </Li>
               <Li>
                 <span style={{ color: ACCENT }}>Alchemy / Ankr</span> - Base
@@ -215,22 +208,21 @@ export default function PrivacyPage() {
 
           <Section n={7} title="Sponsored Content & Advertising">
             <p>
-              Git City features sponsored landmark buildings and sky advertisements
-              from third-party brands. We track aggregate impressions (when the
-              sponsored content is visible on screen) and clicks (when you interact
-              with it) to provide performance reports to sponsors. We do not share
-              any personally identifiable information with sponsors. All reports
-              contain only aggregate, anonymized data (total impressions, total
-              clicks, geographic breakdown by country). Outbound links to sponsor
-              websites include UTM parameters for their own analytics.
+              Git City shows landmark buildings and sky ads for brands that
+              sponsored it in the past and for its own projects. It does not
+              sell advertising space. We track aggregate impressions (when the
+              content is visible on screen) and clicks (when you interact with
+              it). We do not share any personally identifiable information with
+              sponsors. Outbound links to sponsor websites include UTM
+              parameters for their own analytics.
             </p>
           </Section>
 
-          <Section n={8} title="Crypto Payments (GITC) — Important Disclaimers">
+          <Section n={8} title="GITC for Pixels — Important Disclaimers">
             <p>
-              Paying with the GITC token on the Base blockchain is{" "}
-              <strong>optional</strong>. Card and PIX remain available for all
-              purchases.
+              Getting Pixels by burning the GITC token on the Base blockchain
+              is <strong>optional</strong>. Every item can be earned by
+              playing.
             </p>
             <p className="mt-2">
               <strong>What happens technically:</strong>
@@ -244,12 +236,12 @@ export default function PrivacyPage() {
               <Li>
                 Your wallet address and the transaction hash are stored on our
                 servers and linked to your account for the lifetime of the
-                purchase record (audit trail).
+                Pixel record (audit trail).
               </Li>
               <Li>
-                Payments are sent to a public Git City treasury address on Base.
-                Anyone can view received payments on a block explorer such as
-                BaseScan.
+                The GITC you pay is sent to the burn address on Base and
+                destroyed. Nobody receives it, including Git City. Anyone can
+                view burns on a block explorer such as BaseScan.
               </Li>
               <Li>
                 We use Alchemy or Ankr as read-only RPC providers to verify
@@ -257,8 +249,8 @@ export default function PrivacyPage() {
                 token price quotes.
               </Li>
               <Li>
-                We do NOT track your wallet activity outside of payments to
-                Git City. We do NOT sell or share wallet addresses with third
+                We do NOT track your wallet activity outside of GITC burns for
+                Pixels. We do NOT sell or share wallet addresses with third
                 parties.
               </Li>
             </ul>
@@ -277,7 +269,7 @@ export default function PrivacyPage() {
               <Li>
                 We do NOT issue, mint, or operate the GITC token. GITC is a
                 third-party community token that Git City did not create.
-                Accepting GITC as a payment method does not imply any
+                Accepting GITC for Pixels does not imply any
                 endorsement, partnership, or financial relationship between
                 Git City and the token, its issuer, or its holders.
               </Li>
@@ -288,7 +280,7 @@ export default function PrivacyPage() {
               </Li>
             </ul>
             <p className="mt-3">
-              <strong>Risks you accept by paying with crypto:</strong>
+              <strong>Risks you accept by burning GITC:</strong>
             </p>
             <ul className="mt-1 flex flex-col gap-1">
               <Li>
@@ -303,18 +295,18 @@ export default function PrivacyPage() {
               </Li>
               <Li>
                 Token prices are volatile. The amount of GITC required for a
-                purchase can change between when you receive a quote and when
+                Pixel pack can change between when you receive a quote and when
                 you sign — within a short window we account for slippage, but
                 the price risk is yours.
               </Li>
               <Li>
-                Network congestion or RPC issues may delay payment confirmation.
-                If verification fails after you've paid, contact us — most
+                Network congestion or RPC issues may delay confirmation. If
+                verification fails after you&apos;ve burned, contact us — most
                 cases can be reconciled manually.
               </Li>
             </ul>
             <p className="mt-3">
-              By choosing to pay with GITC, you acknowledge these risks and
+              By choosing to burn GITC, you acknowledge these risks and
               accept full responsibility for the security of your wallet and
               the transactions you sign.
             </p>
@@ -325,7 +317,7 @@ export default function PrivacyPage() {
               We do not subject you to decisions based solely on automated
               processing that produce legal or similarly significant effects
               about you. Some operational decisions (rate limiting, fraud
-              flags, content moderation of ad text) are partially automated
+              flags, content moderation) are partially automated
               but reviewed by a human before any irreversible action is taken.
             </p>
           </Section>
@@ -339,15 +331,16 @@ export default function PrivacyPage() {
               months of inactivity.
             </p>
             <p className="mt-1">
-              Payment records: retained for at least 5 years to comply with
-              tax and accounting obligations.
+              Records of past payments (Git City no longer takes payments):
+              retained for at least 5 years to comply with tax and accounting
+              obligations.
             </p>
             <p className="mt-1">
-              Expired/abandoned checkout sessions and unused crypto quotes:
+              Unused GITC quotes:
               automatically deleted within 30 days.
             </p>
             <p className="mt-1">
-              On-chain GITC payment transactions cannot be erased from the Base
+              On-chain GITC burns cannot be erased from the Base
               blockchain — only the link between your wallet address and your
               Git City account in our database can be removed.
             </p>
