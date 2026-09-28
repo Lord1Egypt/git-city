@@ -2,11 +2,10 @@ import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { provisionDeveloperOnLogin } from "@/lib/auth-provision";
 import { githubLoginFromIdentity } from "@/lib/auth-identity";
 import { fetchUserOrgs, syncOrgVerifications } from "@/lib/leagues/verification";
 
-// Extend timeout for GitHub API calls during login
+// Extend timeout for the org lookup that runs after the redirect
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
@@ -32,12 +31,11 @@ export async function GET(request: Request) {
   // From the GitHub identity GoTrue wrote, never user_metadata (user-editable).
   const githubLogin = githubLoginFromIdentity(data.user);
 
-  // Create/claim the building + XP + rank + feed + achievements + referral.
-  // Shared with the local dev-login route (src/app/api/dev/login).
-  // ?ref= from the login URL, else the gc_ref cookie set by the proxy on any page.
+  // The building is built on /auth/setup, which streams each step so the
+  // player sees progress instead of a frozen page. ?ref= from the login URL,
+  // else the gc_ref cookie set by the proxy on any page.
   const cookieStore = await cookies();
   const ref = searchParams.get("ref") ?? cookieStore.get("gc_ref")?.value ?? null;
-  await provisionDeveloperOnLogin(githubLogin, data.user.id, ref);
   cookieStore.delete("gc_ref");
 
   // Company leagues: provider_token only exists right now. When it carries
@@ -45,7 +43,9 @@ export async function GET(request: Request) {
   // keeps granted scopes), list the orgs and renew. Joining and creating
   // happen only from the Company tab's button. Never stored, and a failure
   // here never breaks login.
-  // Runs after the redirect so the GitHub API calls never hold the login.
+  // Runs after the redirect so the GitHub API calls never hold the login. On a
+  // very first login the building doesn't exist yet (/auth/setup builds it),
+  // so this skips; the next login syncs.
   const providerToken = data.session?.provider_token;
   if (providerToken && githubLogin) after(async () => {
     try {
@@ -66,32 +66,10 @@ export async function GET(request: Request) {
     }
   });
 
-  // Support ?next= param for post-login redirect
+  const setup = new URLSearchParams();
   const next = searchParams.get("next");
-  if (next && githubLogin) {
-    // Special case: /shop redirects to /shop/{username}
-    if (next === "/shop") {
-      const admin = getSupabaseAdmin();
-      const { data: dev } = await admin
-        .from("developers")
-        .select("github_login")
-        .eq("github_login", githubLogin)
-        .single();
-
-      if (!dev) {
-        return NextResponse.redirect(`${origin}/?user=${encodeURIComponent(githubLogin)}`);
-      }
-
-      return NextResponse.redirect(`${origin}/shop/${encodeURIComponent(githubLogin)}`);
-    }
-
-    // General redirect: only allow relative paths.
-    // Reject protocol-relative ("//evil.com") and backslash ("/\evil.com")
-    // forms, which browsers treat as off-site open redirects.
-    if (next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")) {
-      return NextResponse.redirect(`${origin}${next}`);
-    }
-  }
-
-  return NextResponse.redirect(`${origin}/?user=${encodeURIComponent(githubLogin)}`);
+  if (next) setup.set("next", next);
+  if (ref) setup.set("ref", ref);
+  const query = setup.toString();
+  return NextResponse.redirect(`${origin}/auth/setup${query ? `?${query}` : ""}`);
 }

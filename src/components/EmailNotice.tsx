@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase";
 
 const ANSWERED_KEY = "gc-email-notice-answered";
-const HIDDEN_ON = ["/email-preferences", "/unsubscribe", "/settings", "/admin"];
+const HIDDEN_ON = ["/email-preferences", "/unsubscribe", "/settings", "/admin", "/auth"];
 
 /**
  * One-time card telling signed-in players we email product news, with a

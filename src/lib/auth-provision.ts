@@ -11,6 +11,22 @@ import { earnPixels } from "@/lib/pixels";
 import { activateOnClaim } from "@/lib/leagues/joined";
 
 /**
+ * What the login screen shows while provisioning runs. Each step reports
+ * "start" when it begins and "done" (or "fail") when it ends.
+ */
+export type ProvisionStep = "github" | "building" | "claim" | "lot" | "town";
+export type ProvisionEvent =
+  | { type: "start"; step: ProvisionStep }
+  | { type: "done"; step: ProvisionStep; repos?: number; contributions?: number; joined?: number }
+  | { type: "fail"; step: ProvisionStep };
+
+/** The NDJSON stream /api/auth/provision sends to the /auth/setup screen. */
+export type SetupEvent =
+  | { type: "session"; login: string }
+  | ProvisionEvent
+  | { type: "ready"; redirect: string };
+
+/**
  * Provisions / claims the developer building for a freshly authenticated user.
  *
  * Shared by the real GitHub OAuth callback (`/auth/callback`) and the local
@@ -27,6 +43,7 @@ export async function provisionDeveloperOnLogin(
   githubLogin: string,
   authUserId: string,
   ref: string | null,
+  onStep: (event: ProvisionEvent) => void = () => {},
 ): Promise<void> {
   if (!githubLogin) return;
 
@@ -44,8 +61,19 @@ export async function provisionDeveloperOnLogin(
 
   if (!existingDev) {
     // ─── New dev: create building from GitHub data on login ───
+    let step: ProvisionStep = "github";
     try {
+      onStep({ type: "start", step });
       const ghData = await fetchGitHubDeveloperData(githubLogin, { allowEmpty: true });
+      onStep({
+        type: "done",
+        step,
+        repos: ghData.public_repos,
+        contributions: ghData.contributions_total ?? ghData.contributions,
+      });
+
+      step = "building";
+      onStep({ type: "start", step });
 
       const { data: created, error: createErr } = await admin
         .from("developers")
@@ -89,12 +117,17 @@ export async function provisionDeveloperOnLogin(
         cacheEmailFromAuth(created.id, authUserId).catch(() => {});
         ensurePreferences(created.id).catch(() => {});
         sendWelcomeNotification(created.id, githubLogin);
+        onStep({ type: "done", step });
+      } else {
+        onStep({ type: "fail", step });
       }
     } catch (err) {
       console.error("Failed to create dev on login:", err);
+      onStep({ type: "fail", step });
     }
   } else if (!existingDev.claimed) {
     // ─── Legacy dev: claim existing unclaimed building ───
+    onStep({ type: "start", step: "claim" });
     await admin
       .from("developers")
       .update({
@@ -115,6 +148,7 @@ export async function provisionDeveloperOnLogin(
     cacheEmailFromAuth(existingDev.id, authUserId).catch(() => {});
     ensurePreferences(existingDev.id).catch(() => {});
     sendWelcomeNotification(existingDev.id, githubLogin);
+    onStep({ type: "done", step: "claim" });
   }
 
   // Fetch dev record for achievement check + referral processing.
@@ -132,11 +166,18 @@ export async function provisionDeveloperOnLogin(
       touchLastActive(dev.id);
 
       // A building needs a lot. Idempotent: a player who has one keeps it.
-      await assignCityLot(admin, dev.id);
+      if (claimedNow) onStep({ type: "start", step: "lot" });
+      const lot = await assignCityLot(admin, dev.id);
+      if (claimedNow) onStep({ type: lot ? "done" : "fail", step: "lot" });
 
       // Leagues: an invited member becomes active on their first claim.
       if (claimedNow) {
-        await activateOnClaim(dev.id, githubLogin).catch((err) => console.error("Town join on claim failed:", err));
+        onStep({ type: "start", step: "town" });
+        const joined = await activateOnClaim(dev.id, githubLogin).catch((err) => {
+          console.error("Town join on claim failed:", err);
+          return 0;
+        });
+        onStep({ type: "done", step: "town", joined });
       }
 
       // Referral credit and emblems don't change what the player lands on, so
