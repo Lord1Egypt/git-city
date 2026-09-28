@@ -1,0 +1,166 @@
+# Trailer kit
+
+Make your web game's trailer inside the game itself. A film is data (takes on the music's beat grid), a studio page plays it live in your engine, and a screen recorder captures one clean pass. No video editor.
+
+It came out of making the [Git City](https://thegitcity.com) Towns teaser, and it ships inside the `game-trailer` Claude skill, so Claude can set it up in your project and build the film with you. MIT licensed (see `LICENSE`).
+
+## Install
+
+```bash
+npx skills add srizzon/git-city --skill game-trailer
+```
+
+Then ask Claude for a teaser. The skill has it copy this kit into your project and start from the template film.
+
+To set it up by hand, copy `src/` into your app (for example `src/trailer-kit/`), copy `tools/` anywhere, and mount `src/examples/MinimalFilm.tsx` on a page. It needs React 18+ and nothing else: no Tailwind, no three.js (your pictures can use them). In Next.js App Router the components are client components already.
+
+## What's here
+
+| File | What it is |
+|---|---|
+| `src/clock.ts` | The clock every shot reads, in beats from the first frame. Never frame deltas: that's what keeps cuts on the beat. |
+| `src/film.ts` | The film as data: takes, shots, moments, scenes, sounds, titles, flashes. Pure, no React. |
+| `src/film.test.ts` | Its tests (vitest). |
+| `src/Studio.tsx` | The editor. Plays any `Film`; the pictures come from its children. |
+| `src/Titles.tsx` | Kinetic titles: a word on a slanted bar, plates over a split. |
+| `src/EndCard.tsx` | The end card: the name stamped on, a stamp after it, a line, and a slot for your game's button gag. |
+| `src/examples/MinimalFilm.tsx` | The smallest film, in plain HTML. The template for your own. |
+| `tools/music.mjs` | A tiny synthesizer that writes the film's music at its BPM. |
+| `tools/sfx.mjs` | Synthesized effects: explosion, whoosh, crumble, key click, horn. |
+| `tools/capture.sh` | macOS: opens a clean browser window to record. |
+
+**Styling.** The studio carries its own CSS. To match your game, give it a `className` that sets the variables: `--tk-font`, `--tk-bg`, `--tk-panel`, `--tk-line`, `--tk-line-hi`, `--tk-text`, `--tk-muted`, `--tk-accent`, `--tk-rec`.
+
+## The studio
+
+A 16:9 stage, the scenes on the right (a picked scene loops), play, scrub, slow motion. Keys:
+
+| Key | Does |
+|---|---|
+| Space | Play / pause |
+| ← → | One frame (Shift: one beat) |
+| J L | One second |
+| Home End | Scene start / end |
+| 1–9, 0 | Pick a scene, the whole film |
+| [ ] | Slower / faster (1×, 0.5×, 0.25×) |
+| Shift R | Record: full window, no cursor, 1s of black, the whole film once |
+| Esc | Stop recording |
+
+## How a film is built
+
+**A take** is `[name, stage, kind, beats, trim, freeze?]`.
+- `stage` is which world it happens in; `"both"` is a split screen, with each half showing the middle of its own world.
+- `kind` picks the shot recipe that draws it.
+- `trim` opens the take that many beats into its own action. `freeze` holds the picture from a beat of the action on.
+- A take's moments (the hit, the launch) are counted in beats from its **untrimmed** start. `momentOf(shot, beats)` puts them on the timeline, so trimming a take never moves a hit off its beat.
+
+**A shot recipe** gets `t`, the seconds into its action, and places things as functions of `t`. That's what makes scrubbing, looping and slow motion show the same picture. Anything with memory (particles, destruction) only advances while the clock moves, or a paused frame fills up with smoke. Events that fire when a beat is crossed fire while playing forward, not when you scrub past them.
+
+Anything a take breaks lives in state the studio resets through `onReset`: when a take is picked, when it loops, when you seek backwards, and when recording starts.
+
+**Sound only plays at 1×.** At 0.5× and 0.25× the studio is silent: music and effects are synced to real time. Record at 1×.
+
+**Stages stay mounted.** Each world is its own element (or canvas) that never remounts: a cut only changes which one is visible. A WebGL canvas that's mounted and dropped loses its context after a few loops. The end card's `button` slot follows the same rule.
+
+### A film of your own
+
+Copy `src/examples/MinimalFilm.tsx` and change four things:
+1. **The BPM and the takes.** Pick the BPM your music will use, then write the takes on that beat grid.
+2. **The stages.** One per world or scene; a `"both"` take shows them side by side.
+3. **The pictures.** Replace `DemoStage` with your own: DOM, a canvas, your game's scene. Each frame it reads `shotFor(SHOTS, stage, beatOf(clock), BEAT)` and draws the shot at time `t`.
+4. **The film object.** Its scenes, sounds, titles, flashes, and `song` if you have music (a file in `public/`).
+
+**To add a take:**
+1. Add its `kind`, and write its recipe.
+2. Add a line to `TAKES`.
+3. Put its sounds and title on its moments, with `momentOf`.
+4. Pick it in the studio, step through it beat by beat at 0.25×, and fix what the frames show.
+
+### Examples in Git City
+
+The kit lives in Git City's repo, and Git City plays three films with it (all under `src/app/trailer/`):
+- `/trailer/minimal`: `src/examples/MinimalFilm.tsx`, straight from this kit.
+- `/trailer/demo`: a 3D street made in code (day and night), the game's car, a burnout on a split screen, a drift, a jump that freezes mid-air, and the end card with the car as its button. Runs on any fork, no data.
+- `/trailer/towns`: the Towns "coming soon" teaser, in the game's real towns.
+
+## The craft
+
+What we learned making the Towns teaser, mostly from Derek Lieu's trailer writing ([derek-lieu.com](https://www.derek-lieu.com/blog)) and from getting it wrong first.
+
+**Story before takes.**
+- A montage of features reads as a list. Sell the feeling, not the feature ([GDC: More Feelings, Fewer Features](https://www.gdcvault.com/play/1025673/More-Feelings-Fewer-Features-Showcasing)).
+- Give the takes cause and effect and someone to root for.
+- Decide first what the viewer should feel at the end. For Towns it was "I want to jump in and play."
+- Structure: hook, then escalation, then climax, then logo, then a button (a short gag after the logo).
+
+**Teaser vs trailer.**
+- A teaser is one idea and withholds. Ours: a split-screen hook, three flashes of play cut at their peak, the car freezing mid-air as the music drops to silence, then the name and "coming soon".
+- A trailer carries a story. Three skeletons that fit a game with two rival sides:
+  - **Invasion:** one protagonist crosses into the rival world, which is the act break. Escalating chaos, an escape, the logo, and a button where the rival shows up in your world.
+  - **Grudge match:** call and response. One side acts, the other answers, the exchanges get shorter, and it ends on a freeze.
+  - **Scoreboard:** a running score replaces the title cards and ticks once more after the logo.
+
+**Text.**
+- One-word cards per take (DRIFT, FIRE…) are feature cards in disguise.
+- Use 3–4 cards that carry the stakes, 2–4 words each, one bar on screen each.
+- A teaser can go with none at all.
+
+**Cutting.**
+- Each take is 1–2.4s and opens in the action (`trim`). The action lands on a beat of the music.
+- Keep screen direction across a cut: if the cars leave going away from the camera, the next take shouldn't come at it.
+- When a take is too short, rethink how it opens. Don't just let it run longer at the end.
+- Show a mechanic twice, three times at most.
+- Before calling a shot done, check that nothing sits between the camera and the subject.
+
+**The end card.**
+- Cut hard to black on the last hit.
+- Then the name alone in the middle, with nothing around it.
+- The sub-title arrives after it, small, like a stamp (the way a sequel's "2" lands on its logo).
+- One small spaced line ("coming soon").
+- A button: in Git City the game's car bumps into the Y, which wobbles and stays up, and it honks.
+- No footers, chips, frames or URLs: the post carries the link. A social card is not a film ending; use it for its colors and type, not its layout.
+- Motion is stepped (pixel art has no easing), and every move lands on a beat and a sound.
+
+**Cameras that worked** (Git City's `TownsRig` and `DemoRig`):
+
+| Shot | Camera |
+|---|---|
+| Burnout | Low and close behind each car, split screen, then the launch |
+| Drift | Chase camera whose heading lags a quarter second, so the car slides across the lens and shows its flank |
+| Missile | Low behind and to the side of the shooter, moving with both cars |
+| Smash | Chase camera through a building's corner, with the chunks scaled down so they don't fill the frame |
+| Jump | Low beside the ramp's lip, the car crossing the frame, the lens closing in as it leaves the ramp |
+| Top-down | High and a little behind, turning with the car |
+
+**Pitfalls that cost us time.**
+- Screenshot a shot beat by beat before showing it, and look at every frame: a take once silently lost its code, and only the capture showed the empty street.
+- A custom shader that fails can draw nothing with no error. Check that the thing is on screen, not just that the page loads.
+- In a timeline file, a constant used before it's declared breaks the page at runtime, not at build time.
+- A raw `<script>` in a Next.js root layout trips React 19 in dev.
+- Remotion's `Freeze` clamps to the composition's length (we started with Remotion and dropped it for live recording).
+
+## Recording
+
+Any screen recorder works: the studio's Record plays the film full window with no cursor. The rest is the macOS setup we used.
+
+1. `BROWSER="Brave Browser" tools/capture.sh http://localhost:3000/your-film` opens a clean window: its own profile, no address bar, a 1280×720 page. The default browser is Chrome.
+   - It sizes the window through System Events, so your terminal needs macOS Accessibility permission.
+   - It moves every window of that browser whose title doesn't end the way your everyday windows do (" - Google Chrome", " - Brave"). Close other app-mode windows of that browser first.
+2. In OBS:
+   - **Source:** macOS Screen Capture → Window → that window, with "Show cursor" off. Crop 16 px left and right, 74 px top and 10 px bottom, which gives 2560×1440 at 2×.
+   - **Video:** 2560×1440 (or 1920×1080), 60 FPS.
+   - **Output:** MOV, Apple VT HEVC hardware, 60–80 Mbps, keyframe every 1s.
+   - **Sound:** add an application audio capture of the browser if you want the music and effects in the file.
+3. Start recording in OBS, press Shift R in the studio, and stop when the card goes black.
+
+## Music and sound effects
+
+- `node tools/music.mjs public/trailer/song.wav [full|soon|demo]`. A tiny synthesizer: kick, snare, hats, a detuned saw bass, pad, arpeggio and lead, with sidechain ducking and an echo.
+- Arrangements are functions of beats, so a new BPM retimes everything. The film has to use the same BPM.
+- `soon` and `demo` are teaser cuts: a bar of intro, the drop until the freeze, a hard gate to silence, then the end card's hits (stamp, thud, stab) on its beats. They're written for Git City's two films (`CUTS` at the top); for yours, set the freeze and card beats to your film's.
+- `node tools/sfx.mjs public/trailer/sfx` writes the effects. Use your game's own sounds for the rest.
+- Nothing here needs samples or a license: the output is yours.
+
+## License
+
+MIT, for everything in this folder (the rest of Git City is AGPL-3.0). Git City's films use the game's own assets, which aren't part of the kit: Kenney's car and sounds (CC0).

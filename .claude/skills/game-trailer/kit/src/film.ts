@@ -1,6 +1,6 @@
 // ─── Film ───────────────────────────────────────────────────
 // A trailer as data: a list of takes, each a few beats long, laid end to end
-// on the music's beat grid. The studio (components/trailer/Studio) plays a
+// on the music's beat grid. The studio (./Studio) plays a
 // Film; a film only says what happens when. Pure, no React.
 //
 // A take can be "trimmed" (it opens that many beats into its own action, so
@@ -55,7 +55,7 @@ export interface SoundCue {
   rate?: number;
 }
 
-/** A title over the picture (components/trailer/Titles draws them). */
+/** A title over the picture (./Titles draws them). */
 export interface TitleCue {
   start: number;
   end: number;

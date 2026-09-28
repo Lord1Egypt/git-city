@@ -1,7 +1,7 @@
 // ─── Towns teaser ───────────────────────────────────────────
-// The Git City Towns "coming soon" teaser, as a Film (lib/trailer/film) the
+// The Git City Towns "coming soon" teaser, as a Film (@trailer-kit/film) the
 // studio plays in the engine, so the whole film is one screen recording. It
-// is also the worked example of the trailer kit (tools/trailer/README.md):
+// is also the worked example of the trailer kit (.claude/skills/game-trailer/kit/README.md):
 // the takes, their moments, and the sounds on those moments.
 //
 // The film: a split screen burnout hooks, three flashes of play cut at their
@@ -23,9 +23,9 @@ import {
   type SoundCue,
   type Take,
   type TitleCue,
-} from "../film";
+} from "@trailer-kit/film";
 
-/** The teaser track (tools/trailer/music.mjs, "soon"): 150 BPM, a beat is 0.4s, a bar 1.6s. */
+/** The teaser track (the kit's tools/music.mjs, "soon"): 150 BPM, a beat is 0.4s, a bar 1.6s. */
 export const BPM = 150;
 /** Seconds per beat. */
 export const BEAT = 60 / BPM;
@@ -50,7 +50,7 @@ export type ShotKind =
 
 export type Shot = FilmShot<Stage, ShotKind>;
 
-/** The takes: [name, stage, kind, beats long, trim, freeze] (see lib/trailer/film). */
+/** The takes: [name, stage, kind, beats long, trim, freeze] (see @trailer-kit/film). */
 const TAKES: Take<Stage, ShotKind>[] = [
   ["Burnout · split", "both", "revback", 4, 0],
   ["Drift", "claude", "drift", 3, 2.1],

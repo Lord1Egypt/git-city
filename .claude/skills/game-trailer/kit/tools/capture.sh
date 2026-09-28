@@ -3,11 +3,11 @@
 # profile (no extensions, no bookmarks bar), app mode (no address bar), sized
 # so a 1280×720 page sits inside the title bar and a small margin. Crop the
 # recorder's capture to the page: 16 px left and right, 74 px top, 10 px
-# bottom at 2× (see tools/trailer/README.md).
+# bottom at 2× (see the kit README, "Recording").
 #
-# Usage: tools/trailer/capture.sh [url]
-#   BROWSER="Brave Browser" tools/trailer/capture.sh   (default: Google Chrome)
-URL="${1:-http://localhost:3001/trailer/towns}"
+# Usage: capture.sh [url]
+#   BROWSER="Brave Browser" capture.sh   (default: Google Chrome)
+URL="${1:-http://localhost:3000}"
 BROWSER="${BROWSER:-Google Chrome}"
 # Your everyday windows of the same browser end with this in their title; the capture window doesn't.
 case "$BROWSER" in

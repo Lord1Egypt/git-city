@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import DemoFilm from "./demo-film";
 
-// The trailer kit's smallest film (tools/trailer/README.md): runs on any fork, no data needed.
+// The trailer kit's demo film (.claude/skills/game-trailer/kit/README.md): a short teaser in a
+// world made in code, so it runs on any fork with no data. Not linked from
+// anywhere.
 
 export const metadata: Metadata = {
   title: "Trailer demo - Git City",

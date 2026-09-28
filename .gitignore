@@ -56,6 +56,8 @@ docs/
 
 *.mp4
 *.mov
+# The trailer kit page's teaser, compressed for the web (~3 MB).
+!public/trailer-kit/*.mp4
 
 .vscode
 

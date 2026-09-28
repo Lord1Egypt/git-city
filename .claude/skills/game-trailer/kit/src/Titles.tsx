@@ -1,8 +1,9 @@
 "use client";
 
-import type { TitleCue } from "@/lib/trailer/film";
+import type { CSSProperties } from "react";
+import type { TitleCue } from "./film";
 
-// Kinetic titles over a film (lib/trailer/film TitleCue), in the stage's
+// Kinetic titles over a film (./film TitleCue), in the stage's
 // container units (cqw) so they scale with it. The styles are in TITLE_CSS,
 // which the studio mounts once.
 //   tag     a word on a slanted bar, lower left: the bar wipes in, the letters pop, a small hit
@@ -19,7 +20,10 @@ export const TITLE_CSS = `
 .film-tag-bar { animation: film-bar 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .film-tag-letter { display: inline-block; animation: film-letter 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .film-slam { animation: film-slam 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.film-ink { color: #0d0d0f; line-height: 1; white-space: nowrap; }
 `;
+
+const abs = (s: CSSProperties): CSSProperties => ({ position: "absolute", ...s });
 
 function Letters({ text }: { text: string }) {
   return (
@@ -39,14 +43,20 @@ function Letters({ text }: { text: string }) {
 
 function Tag({ cue, size }: { cue: TitleCue; size: string }) {
   return (
-    <div key={`${cue.text}-${cue.start}`} className="film-tag relative">
+    <div key={`${cue.text}-${cue.start}`} className="film-tag" style={{ position: "relative" }}>
       <div
-        className="film-tag-bar absolute inset-0 -mx-[1.2cqw]"
-        style={{ background: cue.color ?? "#e8dcc8" }}
+        className="film-tag-bar"
+        style={abs({ inset: "0 -1.2cqw", background: cue.color ?? "#e8dcc8" })}
       />
       <p
-        className="relative whitespace-nowrap px-[1.6cqw] py-[0.6cqw] leading-none text-[#0d0d0f]"
-        style={{ fontSize: size, textShadow: "0.35cqw 0.35cqw 0 rgba(255,255,255,0.35)" }}
+        className="film-ink"
+        style={{
+          position: "relative",
+          margin: 0,
+          padding: "0.6cqw 1.6cqw",
+          fontSize: size,
+          textShadow: "0.35cqw 0.35cqw 0 rgba(255,255,255,0.35)",
+        }}
       >
         <Letters text={cue.text} />
       </p>
@@ -67,12 +77,23 @@ export default function Titles({ cues }: { cues: TitleCue[] }) {
         return (
           <div
             key={place}
-            className="film-slam absolute bottom-[9%] flex justify-center"
-            style={{ left: place === "left" ? 0 : "50%", width: "50%" }}
+            className="film-slam"
+            style={abs({
+              bottom: "9%",
+              left: place === "left" ? 0 : "50%",
+              width: "50%",
+              display: "flex",
+              justifyContent: "center",
+            })}
           >
             <span
-              className="px-[1.6cqw] py-[1cqw] text-[4.2cqw] leading-none text-[#0d0d0f]"
-              style={{ background: c.color, boxShadow: "0.5cqw 0.5cqw 0 #0d0d0f" }}
+              className="film-ink"
+              style={{
+                padding: "1cqw 1.6cqw",
+                fontSize: "4.2cqw",
+                background: c.color,
+                boxShadow: "0.5cqw 0.5cqw 0 #0d0d0f",
+              }}
             >
               {c.text}
             </span>
@@ -80,20 +101,28 @@ export default function Titles({ cues }: { cues: TitleCue[] }) {
         );
       })}
       {tag && (
-        <div className="absolute bottom-[11%] left-[6%]">
+        <div style={abs({ bottom: "11%", left: "6%" })}>
           <Tag cue={tag} size="7cqw" />
         </div>
       )}
       {big && (
-        <div className="absolute inset-x-0 top-[9%] flex justify-center">
+        <div style={abs({ left: 0, right: 0, top: "9%", display: "flex", justifyContent: "center" })}>
           <Tag cue={big} size="6.4cqw" />
         </div>
       )}
       {center && (
-        <div className="film-slam absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <div style={abs({ left: "50%", top: "50%", transform: "translate(-50%, -50%)" })}>
           <span
-            className="block bg-[#0d0d0f] px-[1.4cqw] py-[1cqw] text-[6cqw] leading-none text-cream"
-            style={{ boxShadow: "0 0 0 0.35cqw #e8dcc8" }}
+            className="film-slam"
+            style={{
+              display: "block",
+              padding: "1cqw 1.4cqw",
+              fontSize: "6cqw",
+              lineHeight: 1,
+              background: "#0d0d0f",
+              color: "#e8dcc8",
+              boxShadow: "0 0 0 0.35cqw #e8dcc8",
+            }}
           >
             {center.text}
           </span>
