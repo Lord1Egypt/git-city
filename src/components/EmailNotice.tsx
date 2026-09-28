@@ -29,7 +29,7 @@ export default function EmailNotice() {
     // Only ask the server when there's a session (no network call for visitors)
     createBrowserSupabase()
       .auth.getSession()
-      .then(({ data }) => (data.session ? fetch("/api/email-notice").then((r) => r.json()) : { show: false }))
+      .then(({ data }: { data: { session: unknown } }) => (data.session ? fetch("/api/email-notice").then((r) => r.json()) : { show: false }))
       .then((res: { show?: boolean }) => {
         if (!cancelled && res.show) setShow(true);
       })
