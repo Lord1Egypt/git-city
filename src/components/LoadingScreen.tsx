@@ -1,6 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, type TransitionEvent } from "react";
+import {
+  TERMINAL_KEYFRAMES,
+  TERMINAL_LIME as LIME,
+  TERMINAL_TEXT_CLASS,
+  TERMINAL_TEXT_STYLE,
+  TerminalBackdrop,
+  TerminalCursor as Cursor,
+} from "@/components/Terminal";
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -31,8 +39,6 @@ interface TermLine {
 }
 
 // ─── Constants ─────────────────────────────────────────────────
-
-const LIME = "#c8e64a";
 
 // Static facts about the baked Bay Area map (public/maps/bay.json). The map
 // file only changes when scripts/bake-bay-map.mjs reruns, so these are constants.
@@ -301,21 +307,10 @@ export default function LoadingScreen({
       style={fading ? { transitionDelay: `${READY_HOLD_MS + FLASH_LEAD_MS}ms` } : undefined}
       onTransitionEnd={handleTransitionEnd}
     >
-      <style>{`
-        @keyframes gc-cursor { 50% { opacity: 0; } }
-        @keyframes gc-flicker { 0%, 97%, 99%, 100% { opacity: 1; } 98% { opacity: 0.92; } }
-        @keyframes gc-flash { 0% { opacity: 0; } 15% { opacity: 0.9; } 100% { opacity: 0; } }
-      `}</style>
+      <style>{TERMINAL_KEYFRAMES}</style>
 
       <div className="flex h-full items-center justify-center p-6">
-        <div
-          className="w-full max-w-2xl overflow-hidden font-pixel text-[11px] leading-[1.9] tracking-wide sm:text-xs"
-          style={{
-            fontVariantNumeric: "tabular-nums",
-            textShadow: `0 0 6px ${LIME}40`,
-            animation: "gc-flicker 4s infinite",
-          }}
-        >
+        <div className={TERMINAL_TEXT_CLASS} style={TERMINAL_TEXT_STYLE}>
           {lines.map((l) => (
             <div key={l.id} className="min-h-[1.9em] whitespace-pre-wrap break-all">
               {l.cls === "cmd" && (
@@ -366,19 +361,7 @@ export default function LoadingScreen({
       </div>
 
       {/* CRT scanlines + vignette */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)",
-        }}
-      />
+      <TerminalBackdrop />
 
       {/* Exit flash */}
       {flashing && (
@@ -388,14 +371,5 @@ export default function LoadingScreen({
         />
       )}
     </div>
-  );
-}
-
-function Cursor() {
-  return (
-    <span
-      className="inline-block h-[1.1em] w-2 align-text-bottom"
-      style={{ backgroundColor: LIME, animation: "gc-cursor 1s steps(1) infinite" }}
-    />
   );
 }
