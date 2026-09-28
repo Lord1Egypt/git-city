@@ -6158,8 +6158,8 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
         </div>
       )}
 
-      {/* ─── Level Up Toast ─── */}
-      {levelUpLevel !== null && (
+      {/* ─── Level Up Toast ─── (held while a first login picks a district) */}
+      {levelUpLevel !== null && !districtChooserOpen && (
         <LevelUpToast level={levelUpLevel} onDone={() => setLevelUpLevel(null)} />
       )}
 
