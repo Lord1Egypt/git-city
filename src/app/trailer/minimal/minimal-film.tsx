@@ -108,7 +108,7 @@ function DemoStage({
   );
 }
 
-export default function DemoFilm() {
+export default function MinimalFilm() {
   const [clock] = useState(() => new Transport(BEAT));
   return (
     <Studio film={FILM} clock={clock} onReset={() => {}}>
