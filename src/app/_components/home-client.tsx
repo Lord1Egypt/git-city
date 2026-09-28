@@ -79,7 +79,6 @@ import {
 import posthog from "posthog-js";
 import { SHOW_TOWNS, TOWNS_LAUNCH_LABEL } from "@/lib/towns/visibility";
 import TownMonument, { MONUMENT_VARIANT } from "@/components/towns/TownMonument";
-import RivalryCta from "@/components/towns/RivalryCta";
 import type { TownOfWeek } from "@/lib/towns/weekly";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
@@ -154,8 +153,7 @@ const DistrictChooser = dynamic(() => import("@/components/DistrictChooser"), { 
 const LevelUpToast = dynamic(() => import("@/components/LevelUpToast"), { ssr: false });
 
 // Feature flags — flip to switch milestone banner
-// "rivalry" = the Claude Code vs Codex pick-a-side strip (towns are URL-only until launch, except the rivalry)
-const MILESTONE_MODE: "stars" | "devs" | "rivalry" = "rivalry"; // "stars" = GitHub stars road to 1K, "devs" = total developers
+const MILESTONE_MODE: "stars" | "devs" = "devs"; // "stars" = GitHub stars road to 1K, "devs" = total developers
 
 const THEMES = [
   { name: "Emerald", accent: "#f0c060", shadow: "#806020" },
@@ -4285,11 +4283,9 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
               </p>
             </div>
 
-            {/* Milestone progress banner — hidden on mobile to reduce clutter, except the rivalry strip */}
+            {/* Milestone progress banner — hidden on mobile to reduce clutter */}
             {/* During live boss event, the BossInvasionCard takes over this slot */}
-            <div
-              className={`${MILESTONE_MODE === "rivalry" && bossPreview?.mode !== "live" ? "flex justify-center" : "hidden sm:flex sm:justify-center"} w-full`}
-            >
+            <div className="hidden sm:flex sm:justify-center w-full">
               {bossPreview?.mode === "live" ? (
                 <BossInvasionCard
                   accentColor={theme.accent}
@@ -4305,8 +4301,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
                     setFlyElapsedSec(0);
                   }}
                 />
-              ) : MILESTONE_MODE === "rivalry" ? (
-                <RivalryCta from="home" accent={theme.accent} />
               ) : MILESTONE_MODE === "stars" ? (
                 // ── GitHub Stars mode ──
                 (() => {
