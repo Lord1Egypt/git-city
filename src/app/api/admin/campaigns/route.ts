@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendEmail } from "@/lib/resend";
 import { FROM_MAIL } from "@/lib/email/senders";
 import { LEGAL_EMAIL, LEGAL_POSTAL_ADDRESS } from "@/lib/legal";
-import { buildAudience, buildConfirmUrl, campaignStats, getCampaignDefinition, sunsetUnconfirmed, type CampaignRow } from "@/lib/campaigns";
+import { CAMPAIGNS, buildAudience, buildConfirmUrl, campaignStats, getCampaignDefinition, sunsetUnconfirmed, type CampaignRow } from "@/lib/campaigns";
 
 export const maxDuration = 300;
 
@@ -19,12 +19,13 @@ async function authorize(req: NextRequest): Promise<{ testTo: string } | null> {
   return null;
 }
 
-/** GET /api/admin/campaigns → every campaign with its stats. */
+/** GET /api/admin/campaigns → { templates, campaigns } with each campaign's stats. */
 export async function GET(req: NextRequest) {
   if (!(await authorize(req))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { data: campaigns } = await getSupabaseAdmin().from("campaigns").select("*").order("id", { ascending: false });
   const withStats = await Promise.all((campaigns ?? []).map(async (c) => ({ ...c, stats: await campaignStats(c.id) })));
-  return NextResponse.json(withStats);
+  const templates = Object.values(CAMPAIGNS).map((c) => ({ slug: c.slug, topic: c.topic, schedule: c.schedule }));
+  return NextResponse.json({ templates, campaigns: withStats });
 }
 
 /**
