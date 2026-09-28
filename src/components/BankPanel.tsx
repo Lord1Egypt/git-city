@@ -452,7 +452,10 @@ function AddPixels({ packages, packagesLoading, isAuthenticated, gitcEnabled, ma
 
   return (
     <div>
-      <p className="mb-3 text-[11px] leading-relaxed text-muted">Pick a pack and pay with GITC. The GITC you pay is burned. Or earn Pixels by coding and playing, no crypto needed.</p>
+      <p className="mb-3 text-[11px] leading-relaxed text-muted">
+        Every item can be earned by coding and playing.{" "}
+        <a href="/pixels" className="text-cream underline hover:text-lime">See how to earn Pixels</a>. Or pick a pack and pay with GITC. The GITC you pay is burned.
+      </p>
       <div className="flex flex-col gap-2">
         {packagesLoading && packages.length === 0 ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -484,7 +487,7 @@ function AddPixels({ packages, packagesLoading, isAuthenticated, gitcEnabled, ma
                 {BADGES[p.id] && <span className="font-pixel text-[8px]" style={{ color: GOLD }}>{BADGES[p.id]}</span>}
                 {bonusPct > 0 && <span className="text-[9px] text-[#39d353]">+{bonusPct}%</span>}
               </span>
-              <span className="font-pixel text-[11px] text-warm">${(p.price_usd_cents / 100).toFixed(2)}</span>
+              <span className="font-pixel text-[11px] text-warm">${(p.price_usd_cents / 100).toFixed(2)} <span className="text-[9px] text-muted">in GITC</span></span>
             </button>
           );
           })

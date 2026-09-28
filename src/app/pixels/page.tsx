@@ -102,17 +102,52 @@ export default async function PixelsPage() {
           </div>
         )}
 
-        {/* Package cards */}
-        <PixelsStoreClient
-          packages={packages ?? []}
-          balance={balance}
-          isAuthenticated={!!devId}
-          githubLogin={githubLogin}
-        />
+        {/* Not signed in */}
+        {!devId && (
+          <div className="mb-10 border-[3px] border-border bg-bg-raised p-6 text-center">
+            <p className="text-base text-cream mb-2">Sign in to earn Pixels</p>
+            <p className="text-sm text-muted normal-case mb-4">
+              You need a claimed building in Git City to hold Pixels.
+            </p>
+            <Link
+              href="/"
+              className="btn-press inline-block px-6 py-2.5 text-sm text-bg"
+              style={{ backgroundColor: "#c8e64a", boxShadow: "2px 2px 0 0 #5a7a00" }}
+            >
+              Go to City & Sign In
+            </Link>
+          </div>
+        )}
+
+        {/* Earn section */}
+        <div className="mb-12 border-[3px] border-border bg-bg-raised p-6">
+          <h2 className="text-xl text-cream mb-2 text-center">
+            Earn Pixels
+          </h2>
+          <p className="text-sm text-muted normal-case text-center mb-6">
+            Every item in the shop can be earned by coding and playing
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {EARN_WAYS.map((way) => (
+              <div key={way.name} className="p-4 border-2 border-border bg-bg/50">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm text-cream">{way.name}</p>
+                  <p className="text-sm text-lime font-bold">{way.px}</p>
+                </div>
+                <p className="text-xs text-muted normal-case">{way.how}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-dim normal-case text-center mt-5">
+            An active day pays about 40 PX, a full week about 330 PX.
+          </p>
+        </div>
 
         {/* What you can buy */}
         {featuredItems && featuredItems.length > 0 && (
-          <div className="mt-12">
+          <div className="mb-12">
             <h2 className="text-xl text-cream mb-2 text-center">
               What Can You Buy?
             </h2>
@@ -154,31 +189,13 @@ export default async function PixelsPage() {
           </div>
         )}
 
-        {/* Earn section */}
-        <div className="mt-12 border-[3px] border-border bg-bg-raised p-6">
-          <h2 className="text-xl text-cream mb-2 text-center">
-            Earn Pixels
-          </h2>
-          <p className="text-sm text-muted normal-case text-center mb-6">
-            Every item in the shop can be earned by coding and playing
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {EARN_WAYS.map((way) => (
-              <div key={way.name} className="p-4 border-2 border-border bg-bg/50">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm text-cream">{way.name}</p>
-                  <p className="text-sm text-lime font-bold">{way.px}</p>
-                </div>
-                <p className="text-xs text-muted normal-case">{way.how}</p>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-xs text-dim normal-case text-center mt-5">
-            An active day pays about 40 PX, a full week about 330 PX.
-          </p>
-        </div>
+        {/* Package cards */}
+        <PixelsStoreClient
+          packages={packages ?? []}
+          balance={balance}
+          isAuthenticated={!!devId}
+          githubLogin={githubLogin}
+        />
       </div>
     </main>
   );

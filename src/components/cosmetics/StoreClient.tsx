@@ -43,7 +43,6 @@ export default function StoreClient({
   sets,
   ownedLookCosmetics,
   onBalanceDelta,
-  onTopUp,
 }: {
   viewer: ViewerContext | null;
   initialItems: Cosmetic[];
@@ -52,8 +51,6 @@ export default function StoreClient({
   ownedLookCosmetics: Cosmetic[];
   /** Notify the parent (wallet pill) when PX is spent here. */
   onBalanceDelta?: (delta: number) => void;
-  /** Open the in-place wallet/bank to top up PX. */
-  onTopUp?: () => void;
 }) {
   const [section, setSection] = useState<ShopSection>("building");
   const [items, setItems] = useState<Cosmetic[]>(initialItems);
@@ -236,7 +233,7 @@ export default function StoreClient({
             // Functional items have no 3D preview — info-rich cards with inline buy.
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {visible.map((it) => (
-                <BoostCard key={it.id} item={it} owned={owned.has(it.id)} viewer={viewer} busy={busy} onBuyPixels={buyWithPixels} onTopUp={onTopUp} />
+                <BoostCard key={it.id} item={it} owned={owned.has(it.id)} viewer={viewer} busy={busy} onBuyPixels={buyWithPixels} />
               ))}
             </div>
           ) : (
@@ -292,7 +289,7 @@ export default function StoreClient({
                   ) : selected.price_pixels != null ? (
                     viewer.pxBalance < selected.price_pixels ? (
                       <div className="space-y-2">
-                        <button onClick={() => onTopUp?.()} className="block w-full px-4 py-2.5 text-center text-[10px] uppercase tracking-widest text-bg btn-press" style={{ backgroundColor: ACCENT, boxShadow: "3px 3px 0 0 #5a7a00" }}>Get Pixels to unlock</button>
+                        <Link href="/pixels" className="block w-full px-4 py-2.5 text-center text-[10px] uppercase tracking-widest text-bg btn-press" style={{ backgroundColor: ACCENT, boxShadow: "3px 3px 0 0 #5a7a00" }}>Earn Pixels to unlock</Link>
                         <BalanceLine price={selected.price_pixels} balance={viewer.pxBalance} />
                       </div>
                     ) : (
@@ -363,13 +360,12 @@ function BalanceLine({ price, balance }: { price: number; balance: number }) {
 const MULTI_BUY = new Set(["streak_freeze", "billboard"]);
 
 // Functional item: no 3D, so the card itself carries effect + price + buy.
-function BoostCard({ item, owned, viewer, busy, onBuyPixels, onTopUp }: {
+function BoostCard({ item, owned, viewer, busy, onBuyPixels }: {
   item: Cosmetic;
   owned: boolean;
   viewer: ViewerContext | null;
   busy: boolean;
   onBuyPixels: (item: Cosmetic) => void;
-  onTopUp?: () => void;
 }) {
   const [confirm, setConfirm] = useState(false);
   const rc = rarityHex(item.rarity);
@@ -406,7 +402,7 @@ function BoostCard({ item, owned, viewer, busy, onBuyPixels, onTopUp }: {
           <span className="text-[9px] uppercase text-muted">claim to buy</span>
         ) : item.price_pixels != null ? (
           short ? (
-            <button onClick={() => onTopUp?.()} className="px-3 py-1.5 text-[9px] uppercase tracking-wide text-bg btn-press" style={buyStyle}>Get PX</button>
+            <Link href="/pixels" className="px-3 py-1.5 text-[9px] uppercase tracking-wide text-bg btn-press" style={buyStyle}>Earn PX</Link>
           ) : confirm ? (
             <button onClick={() => { onBuyPixels(item); setConfirm(false); }} disabled={busy} className="border-2 border-lime bg-lime/15 px-3 py-1.5 text-[9px] uppercase tracking-wide text-lime disabled:opacity-40">Confirm?</button>
           ) : (

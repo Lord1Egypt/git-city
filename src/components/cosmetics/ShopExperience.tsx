@@ -73,7 +73,6 @@ export default function ShopExperience({
         sets={sets}
         ownedLookCosmetics={ownedLookCosmetics}
         onBalanceDelta={(d) => setBalance((b) => b + d)}
-        onTopUp={() => setBankOpen(true)}
       />
 
       {viewer && bankOpen && (

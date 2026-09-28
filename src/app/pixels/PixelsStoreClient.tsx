@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { GitcPayButton } from "@/components/GitcPayButton";
 import { usePixelCheckout, type PixelPackage } from "@/components/pixels/usePixelCheckout";
 import { isGitcEnabled } from "@/lib/gitc";
@@ -59,6 +58,8 @@ export default function PixelsStoreClient({
   const highlightId = "popular";
   const checkoutPkg = checkoutPkgId ? packages.find((p) => p.id === checkoutPkgId) : null;
 
+  if (!gitcEnabled && !successPkg) return null;
+
   return (
     <div>
       {/* Success banner (post-GITC redirect) */}
@@ -71,23 +72,6 @@ export default function PixelsStoreClient({
         </div>
       )}
 
-      {/* Not authenticated */}
-      {!isAuthenticated && (
-        <div className="mb-6 border-[3px] border-border bg-bg-raised p-6 text-center">
-          <p className="text-base text-cream mb-2">Sign in to get Pixels</p>
-          <p className="text-sm text-muted normal-case mb-4">
-            You need a claimed building in Git City to hold Pixels.
-          </p>
-          <Link
-            href="/"
-            className="btn-press inline-block px-6 py-2.5 text-sm text-bg"
-            style={{ backgroundColor: "#c8e64a", boxShadow: "2px 2px 0 0 #5a7a00" }}
-          >
-            Go to City & Sign In
-          </Link>
-        </div>
-      )}
-
       {error && (
         <div className="mb-4 border-2 border-red-500/40 bg-red-500/10 p-3 text-center">
           <p className="text-sm text-red-400 normal-case">{error}</p>
@@ -95,6 +79,10 @@ export default function PixelsStoreClient({
       )}
 
       {/* Package grid — 1 col mobile, 2 col desktop */}
+      <h2 className="text-xl text-cream mb-2 text-center">Trade GITC for Pixels</h2>
+      <p className="text-sm text-muted normal-case text-center mb-6">
+        Optional, for players who hold the GITC token. The GITC you pay is burned.
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {packages.map((pkg) => {
           const total = pkg.pixels + pkg.bonus_pixels;
@@ -130,6 +118,7 @@ export default function PixelsStoreClient({
                 <p className="text-base text-muted">{pkg.name}</p>
                 <p className="text-base text-cream font-bold">
                   ${(pkg.price_usd_cents / 100).toFixed(2)}
+                  <span className="text-xs text-muted font-normal"> in GITC</span>
                 </p>
               </div>
 
@@ -159,7 +148,7 @@ export default function PixelsStoreClient({
                   setError(null);
                   setCheckoutPkgId(pkg.id);
                 }}
-                disabled={!isAuthenticated || !gitcEnabled}
+                disabled={!isAuthenticated}
                 className="btn-press w-full py-3.5 text-sm font-bold text-bg disabled:opacity-40 transition-all cursor-pointer"
                 style={{
                   backgroundColor: "#c8e64a",
