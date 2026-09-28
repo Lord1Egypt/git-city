@@ -2,15 +2,14 @@
 // The teaser as a timeline the trailer studio plays in the engine, so the
 // film is one screen recording: short gameplay takes, one after another.
 // Everything counts in beats from the first frame, so cuts land on the
-// music without drift. The song isn't made yet: BPM is a placeholder until
-// it is. Pure: the studio reads it, tests can too.
+// music without drift. Pure: the studio reads it, tests can too.
 
 import type { CityBuilding } from "@/lib/github";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import type { CityObject } from "@/lib/league-city/types";
 
-/** Placeholder until the new song: 120 BPM, half a second a beat. */
-export const BPM = 120;
+/** The teaser track (music/make.mjs in the video folder): 150 BPM, a beat is 0.4s, a bar 1.6s. */
+export const BPM = 150;
 /** Seconds per beat. */
 export const BEAT = 60 / BPM;
 /** Where the film starts in the song. */
