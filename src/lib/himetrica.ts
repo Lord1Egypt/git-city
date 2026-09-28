@@ -56,22 +56,6 @@ export function trackFreeItemClaimed() {
 
 // ─── Shop Funnel ─────────────────────────────────────────────
 
-export function trackShopPageView(source?: string, ref?: string) {
-  hm()?.track("page_view_shop", { source, ref });
-}
-
-export function trackShopItemViewed(item_id: string, zone: string, price_cents: number) {
-  hm()?.track("shop_item_viewed", { item_id, zone, price: price_cents / 100 });
-}
-
-export function trackCheckoutStarted(item_id: string, provider: string, price_cents: number, is_gift: boolean) {
-  hm()?.track("checkout_started", { item_id, provider, price: price_cents / 100, is_gift });
-}
-
-export function trackPurchaseCompleted(item_id: string, price_cents: number, provider: string) {
-  hm()?.track("purchase_completed", { item_id, price: price_cents / 100, provider });
-}
-
 export function trackGiftSent(item_id: string, receiver: string) {
   hm()?.track("gift_sent", { item_id, receiver });
 }
@@ -110,10 +94,6 @@ export function trackProfileViewed(target_login: string) {
 
 export function trackLeaderboardViewed(tab: string) {
   hm()?.track("leaderboard_viewed", { tab });
-}
-
-export function trackItemEquipped(item_id: string, zone: string) {
-  hm()?.track("item_equipped", { item_id, zone });
 }
 
 // ─── Referral ───────────────────────────────────────────────
