@@ -184,7 +184,7 @@ export default function TermsPage() {
             </p>
             <p className="mt-2">
               Pixels and items have no cash value. They cannot be bought with
-              money, withdrawn, sold, or exchanged for money or crypto. We may
+              money, withdrawn, sold, or turned back into money or crypto. We may
               change how many Pixels an action pays, item prices, and daily
               limits at any time, and may remove Pixels or items obtained
               through bugs, automation, or other abuse.
