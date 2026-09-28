@@ -3,9 +3,11 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import TrophyIcon from "./TrophyIcon";
-import { TOWNS_LAUNCH_LABEL } from "@/lib/towns/visibility";
+import Link from "next/link";
+import posthog from "posthog-js";
+import { BATTLE_START_LABEL } from "@/lib/towns/rivalry";
 
-/** What the plaza gate says when clicked before launch. */
+/** What the plaza gate says when clicked before launch: the rivalry's sides are already open. */
 export default function TownsTeaserCard({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     // Capture first, so Esc closes the card and not explore mode behind it.
@@ -38,16 +40,15 @@ export default function TownsTeaserCard({ onClose }: { onClose: () => void }) {
         </button>
         <TrophyIcon size={36} className="mx-auto text-lime" />
         <h2 className="mt-4 text-xl leading-tight text-cream">Git City Towns</h2>
-        <p className="mt-3 text-sm text-cream normal-case">Something new is coming to the center of Git City.</p>
-        <p className="mt-4 inline-block border-2 border-border px-3 py-1.5 text-xs text-lime">Opens {TOWNS_LAUNCH_LABEL}</p>
-        <a
-          href="https://x.com/samuelrizzondev"
-          target="_blank"
-          rel="noopener noreferrer"
+        <p className="mt-3 text-sm text-cream normal-case">Claude Code vs Codex. Which side codes more?</p>
+        <p className="mt-4 inline-block border-2 border-border px-3 py-1.5 text-xs text-lime">Starts {BATTLE_START_LABEL}</p>
+        <Link
+          href="/towns"
+          onClick={() => posthog.capture("rivalry_cta_clicked", { from: "plaza_gate" })}
           className="btn-press mt-5 flex h-11 items-center justify-center bg-lime text-xs tracking-widest text-bg"
         >
-          Follow the launch on X
-        </a>
+          Pick your side
+        </Link>
       </section>
     </div>
   );
