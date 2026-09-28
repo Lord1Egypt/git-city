@@ -52,8 +52,8 @@ export const EMAIL_CATALOG: CatalogEmail[] = [
   { name: "Race challenge", area: "towns", trigger: "Someone challenges you on the track", audience: "Town members", category: "leagues", sender: "mail", types: ["race_challenge"], previews: ["race-challenge"], source: "notification-senders/race.ts" },
 
   // Shop
-  { name: "Purchase receipt", area: "shop", trigger: "A shop purchase (card, PIX, crypto, pixels)", audience: "Buyers", category: "transactional", sender: "notify", types: ["purchase_confirmation"], previews: ["purchase-card", "purchase-pix", "purchase-pixels-freeze"], source: "notification-senders/purchase.ts" },
-  { name: "Gift sent", area: "shop", trigger: "You buy a gift for someone", audience: "Buyers", category: "transactional", sender: "notify", types: ["gift_sent"], previews: ["gift-sent"], source: "notification-senders/purchase.ts" },
+  { name: "Purchase receipt", area: "shop", trigger: "A shop purchase with pixels", audience: "Buyers", category: "transactional", sender: "notify", types: ["purchase_confirmation"], previews: ["purchase-cosmetic", "purchase-pixels-freeze", "purchase-raid-item"], source: "notification-senders/purchase.ts" },
+  { name: "Gift sent", area: "shop", trigger: "You buy a gift for someone with pixels", audience: "Buyers", category: "transactional", sender: "notify", types: ["gift_sent"], previews: ["gift-sent"], source: "notification-senders/purchase.ts" },
   { name: "Gift received", area: "shop", trigger: "Someone gifts you an item", audience: "Players", category: "social", sender: "mail", types: ["gift_received"], previews: ["gift-received"], source: "notification-senders/gift.ts" },
 
   // Landmarks (direct sends)
