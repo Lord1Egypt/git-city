@@ -58,8 +58,8 @@ export type Frame = { kind: "full"; stage: Stage } | { kind: "split" } | { kind:
  */
 const TAKES: [string, Stage | "both", ShotKind, number, number][] = [
   ["Burnout · split", "both", "revback", 4, 0],
-  ["Drift", "claude", "drift", 3, 0.5],
-  ["Missile", "codex", "missile", 3, 1],
+  ["Drift", "claude", "drift", 4, 0.25],
+  ["Missile", "codex", "missile", 4, 0.5],
   ["Top-down drift", "claude", "topdrift", 3, 0.5],
   ["Corner smash", "codex", "cornersmash", 4, 0.5],
   ["Ramp jump", "claude", "jump", 3, 1],
