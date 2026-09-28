@@ -4,7 +4,8 @@
 // Usage: node tools/trailer/sfx.mjs <out dir>
 import { mkdirSync, writeFileSync } from "node:fs";
 const SR = 44100;
-mkdirSync(process.argv[2], { recursive: true });
+const OUT = process.argv[2] ?? "public/trailer/sfx";
+mkdirSync(OUT, { recursive: true });
 let seed = 11;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
 
@@ -50,7 +51,7 @@ function wav(path, data) {
     const crackle = x > 0.15 && Math.random() < 0.0025 * Math.exp(-x * 1.5) * 60 ? rnd() * 0.5 : 0;
     d[i] = Math.tanh((sub + body + crackle) * 1.6);
   }
-  wav(`${process.argv[2]}/explosion.wav`, d);
+  wav(`${OUT}/explosion.wav`, d);
 }
 
 // Whoosh: band of noise sweeping up, in and out.
@@ -68,7 +69,7 @@ function wav(path, data) {
     hi += k * 0.35 * (nz - hi);
     d[i] = (lo - hi) * Math.sin(Math.PI * u) ** 1.5;
   }
-  wav(`${process.argv[2]}/whoosh.wav`, d);
+  wav(`${OUT}/whoosh.wav`, d);
 }
 // Crumble: a building settling into rubble. A soft thud, a low rumble that
 // swells and fades, and debris clattering, thinning out.
@@ -100,7 +101,7 @@ function wav(path, data) {
     }
     d[i] = Math.tanh((thud + rumble + clack) * 1.3);
   }
-  wav(`${process.argv[2]}/crumble.wav`, d);
+  wav(`${OUT}/crumble.wav`, d);
 }
 
 // Key: one mechanical keyboard click.
@@ -116,7 +117,7 @@ function wav(path, data) {
     d[i] =
       hp * Math.exp(-x * 140) * 0.8 + Math.sin(2 * Math.PI * 1900 * x) * Math.exp(-x * 90) * 0.35;
   }
-  wav(`${process.argv[2]}/key.wav`, d);
+  wav(`${OUT}/key.wav`, d);
 }
 // Horn: a little two-tone beep-beep, square and bright.
 {
@@ -129,6 +130,6 @@ function wav(path, data) {
     const v = ((x * 440) % 1 < 0.5 ? 1 : -1) * 0.5 + ((x * 554) % 1 < 0.5 ? 1 : -1) * 0.4;
     d[i] = v * e * 0.6;
   }
-  wav(`${process.argv[2]}/horn.wav`, d);
+  wav(`${OUT}/horn.wav`, d);
 }
 console.log("ok");

@@ -2,7 +2,7 @@
 // arcade racing synthwave at 150 BPM. Two cuts:
 //   full  16 bars for a ~25s launch trailer
 //   soon  the Towns teaser: 1 bar intro, 3 bars of drop, silence on the
-//         freeze, then the end card's hits (see lib/trailer/towns-teaser)
+//         freeze, then the end card's hits (see lib/trailer/towns/teaser)
 // Everything is a function of beats, so changing BPM retimes it all; the
 // film's timeline must use the same BPM. Tweak the arrangement at the bottom.
 // Bar 1: the burnout (engine rev rising, a hit on beat 4 when the cars launch).

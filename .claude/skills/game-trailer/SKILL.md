@@ -1,6 +1,6 @@
 ---
 name: game-trailer
-description: Make a game trailer or teaser played live in the engine and screen-recorded, from story to end card. Use when someone asks for a trailer, teaser, launch video, "coming soon" clip, gameplay montage, end card or logo reveal for Git City (or a similar web game), or wants to add or fix a take in the trailer studio at /trailer.
+description: Make a game trailer or teaser played live in the engine and screen-recorded, from story to end card. Use when someone asks for a trailer, teaser, launch video, "coming soon" clip, gameplay montage, end card or logo reveal for Git City (or a similar web game), or wants to add or fix a take in the trailer studio (/trailer/demo, /trailer/towns).
 ---
 
 # Game trailer
@@ -24,7 +24,7 @@ Save the scripts that aren't used for the next launch.
 
 ## 3. Build scene by scene, with the owner watching
 
-Keep a dev server running and build one take at a time in the studio (`/trailer/<film>`). Before handing any take over, step through it beat by beat at 0.25× (Home, Shift+→) and look at every screenshot. Fix what they show, and say what you fixed.
+Keep a dev server running and build one take at a time in the studio (a new film starts as a copy of `/trailer/demo`). Before handing any take over, step through it beat by beat at 0.25× (Home, Shift+→) and look at every screenshot. Fix what they show, and say what you fixed.
 
 **Why:** the owner can't see anything until it's on screen. Several "done" takes were broken (a lost branch, an empty street, a car hidden behind a wall) and only the frames showed it.
 
@@ -64,4 +64,5 @@ Walk the owner through `tools/trailer/capture.sh`, OBS (window capture, no curso
 - **Anything with a canvas stays mounted the whole film.** Remounting drops the WebGL context within a few loops.
 - **Shot recipes are pure functions of `t`**, and particles only emit while the clock moves, so a paused frame stays clean.
 - **Declare timeline constants before use.** Lists built at module load (sounds, flashes) fail at runtime, not at build.
-- **Reset what a take breaks on every loop and seek** (`onReset`).
+- **Reset what a take breaks** through `onReset` (the studio calls it on pick, loop, seek back and record).
+- **Record at 1×.** Sound only plays at 1×, and a few effects run on real time.
