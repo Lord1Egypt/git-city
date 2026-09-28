@@ -8,7 +8,7 @@ import { Bursts, type VoxelBursts } from "@/components/league/drive/Voxels";
 import { M_TO_UNIT, TURBO, WHEEL } from "@/lib/league-city/drive/tuning";
 import { WHEELS } from "@/lib/league-city/drive/vehicle";
 import { RAMP_BIG } from "@/lib/league-city/ramp";
-import { beatOf, type FilmClock } from "@/lib/trailer/clock";
+import { beatOf, type FilmClock } from "@trailer-kit/clock";
 import { BEAT, DRIFT_IN, LAUNCH, TAKEOFF, shotFor, type Stage } from "@/lib/trailer/demo/film";
 import { JUMP_Z, LANE, PARK_Z, RAMP_Z, TURN_Z } from "@/lib/trailer/demo/world";
 

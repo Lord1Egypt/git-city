@@ -13,10 +13,10 @@ import type { CityObject } from "@/lib/league-city/types";
 import { LOT } from "@/lib/league-city/grid";
 import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
 import { smashStoreFor } from "@/lib/league-city/smash";
-import { Transport } from "@/lib/trailer/clock";
-import type { Frame } from "@/lib/trailer/film";
+import { Transport } from "@trailer-kit/clock";
+import type { Frame } from "@trailer-kit/film";
 import { FILM, smashRun, type Stage } from "@/lib/trailer/towns/teaser";
-import Studio from "@/components/trailer/Studio";
+import Studio from "@trailer-kit/Studio";
 import TownsRig from "@/components/trailer/towns/TownsRig";
 import EndCard from "@/components/trailer/towns/EndCard";
 

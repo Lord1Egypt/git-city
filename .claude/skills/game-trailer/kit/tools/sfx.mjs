@@ -1,7 +1,7 @@
 // Trailer sound effects the game doesn't ship, synthesized: an explosion, a
 // whoosh, a crumble, a keyboard click and a two-tone horn. The game's own
 // skid and impact (public/sounds/drive) cover the rest.
-// Usage: node tools/trailer/sfx.mjs <out dir>
+// Usage: node sfx.mjs <out dir>
 import { mkdirSync, writeFileSync } from "node:fs";
 const SR = 44100;
 const OUT = process.argv[2] ?? "public/trailer/sfx";

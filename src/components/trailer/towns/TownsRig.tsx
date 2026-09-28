@@ -27,7 +27,7 @@ import {
   type SmashRun,
   type Stage,
 } from "@/lib/trailer/towns/teaser";
-import { beatOf, type FilmClock } from "@/lib/trailer/clock";
+import { beatOf, type FilmClock } from "@trailer-kit/clock";
 
 // One town's camera and car for the Towns teaser (lib/trailer/towns/teaser): it reads the
 // shared clock every frame and plays whichever of this town's shots is under

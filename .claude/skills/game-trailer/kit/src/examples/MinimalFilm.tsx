@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { beatOf, Transport, type FilmClock } from "@/lib/trailer/clock";
+import { beatOf, Transport, type FilmClock } from "../clock";
 import {
   buildShots,
   frameOf,
@@ -11,11 +11,11 @@ import {
   type Film,
   type Frame,
   type Take,
-} from "@/lib/trailer/film";
-import Studio from "@/components/trailer/Studio";
+} from "../film";
+import Studio from "../Studio";
 
 // The smallest film the trailer kit can play, and the template for your own
-// (tools/trailer/README.md, "A film of your own"). No game, no data: two
+// (the kit README, "A film of your own"). No game, no data: two
 // stages drawn in plain HTML, a block that slides and jumps. It shows every
 // piece: takes on a beat grid, a split take, a trimmed and a frozen take, a
 // moment with a title, a flash and a sound on it, and pictures that are pure

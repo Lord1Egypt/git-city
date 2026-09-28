@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Transport } from "@/lib/trailer/clock";
-import type { Frame } from "@/lib/trailer/film";
+import { Transport } from "@trailer-kit/clock";
+import type { Frame } from "@trailer-kit/film";
 import { BUMP, BUTTON_AT, CARD, FILM, LENGTH, LINE_AT, NAME_AT, STAMP_AT, type Stage } from "@/lib/trailer/demo/film";
-import Studio from "@/components/trailer/Studio";
-import EndCard from "@/components/trailer/EndCard";
+import Studio from "@trailer-kit/Studio";
+import EndCard from "@trailer-kit/EndCard";
+import CarBump from "@/components/trailer/CarBump";
 import DemoWorld from "@/components/trailer/demo/DemoWorld";
 import DemoRig from "@/components/trailer/demo/DemoRig";
 
@@ -14,7 +15,8 @@ import DemoRig from "@/components/trailer/demo/DemoRig";
 // canvas that stays mounted the whole film: a cut only changes which one
 // shows, and a split shows the middle half of each side by side (a remount
 // would drop its WebGL context). The shots are DemoRig's, the world
-// DemoWorld's, the end card the kit's EndCard. Everything reads one clock.
+// DemoWorld's, the end card the kit's EndCard with the game's car as its
+// button. Everything reads one clock.
 
 const CAR: Record<Stage, string> = { day: "#ff8f45", night: "#8cc4ff" };
 
@@ -66,8 +68,17 @@ export default function DemoFilm() {
             ]}
             stamp={{ text: "KIT", color: "#5b8def" }}
             line="MAKE YOUR OWN"
-            car={{ color: CAR.day, stopX: 73.5 }}
-            at={{ name: NAME_AT, stamp: STAMP_AT, line: LINE_AT, button: BUTTON_AT, bump: BUMP }}
+            at={{ name: NAME_AT, stamp: STAMP_AT, line: LINE_AT, button: BUTTON_AT, hit: BUTTON_AT + BUMP }}
+            button={
+              <CarBump
+                clock={clock}
+                beat={FILM.beat}
+                from={CARD + BUTTON_AT}
+                bump={BUMP}
+                color={CAR.day}
+                stopX={73.5}
+              />
+            }
           />
         </>
       )}

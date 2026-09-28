@@ -3,10 +3,13 @@ import path from "node:path";
 
 export default defineConfig({
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+      "@trailer-kit": path.resolve(__dirname, ".claude/skills/game-trailer/kit/src"),
+    },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", ".claude/skills/game-trailer/kit/src/**/*.test.ts"],
     environment: "node",
   },
 });

@@ -2,13 +2,13 @@
 // arcade racing synthwave at 150 BPM. Two cuts:
 //   full  16 bars for a ~25s launch trailer
 //   soon  the Towns teaser: 1 bar intro, 3 bars of drop, silence on the
-//         freeze, then the end card's hits (see lib/trailer/towns/teaser)
-//   demo  the kit's demo film, the same shape a bar shorter (lib/trailer/demo/film)
+//         freeze, then the end card's hits (Git City: src/lib/trailer/towns/teaser)
+//   demo  the kit's demo film, the same shape a bar shorter (Git City: src/lib/trailer/demo/film)
 // Everything is a function of beats, so changing BPM retimes it all; the
 // film's timeline must use the same BPM. Tweak the arrangement at the bottom.
 // Bar 1: the burnout (engine rev rising, a hit on beat 4 when the cars launch).
 // Bars 2-9: the drop. 10-13: lead melody. 14-15: build. 16: final hit.
-// Usage: node tools/trailer/music.mjs <out.wav> [full|soon|demo]
+// Usage: node music.mjs <out.wav> [full|soon|demo]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 

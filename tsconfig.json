@@ -20,7 +20,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@trailer-kit/*": ["./.claude/skills/game-trailer/kit/src/*"]
     }
   },
   "include": [

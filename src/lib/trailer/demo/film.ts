@@ -1,5 +1,5 @@
 // ─── Demo film ──────────────────────────────────────────────
-// The trailer kit's complete example (tools/trailer/README.md): a ~10s
+// The trailer kit's complete example (.claude/skills/game-trailer/kit/README.md): a ~10s
 // teaser that needs no data, so it runs on any fork. A procedural street in
 // two worlds (day and night), the game's car, and the classic teaser shape:
 //
@@ -12,9 +12,9 @@
 // them (in beats from each take's untrimmed start), then what lands on those
 // moments. The shots are drawn by components/trailer/demo/DemoRig.
 
-import { buildShots, frameOf, momentOf, scenesOf, shotFor as filmShotFor, type Film, type Shot as FilmShot, type Take } from "../film";
+import { buildShots, frameOf, momentOf, scenesOf, shotFor as filmShotFor, type Film, type Shot as FilmShot, type Take } from "@trailer-kit/film";
 
-/** The demo track (tools/trailer/music.mjs, "demo"): 150 BPM, a beat is 0.4s. */
+/** The demo track (the kit's tools/music.mjs, "demo"): 150 BPM, a beat is 0.4s. */
 export const BPM = 150;
 export const BEAT = 60 / BPM;
 
