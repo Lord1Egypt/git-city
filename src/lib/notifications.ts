@@ -19,10 +19,6 @@ export type NotificationCategory =
   | "marketing"
   | "product_news"
   | "streak_reminders"
-  | "jobs_applications"
-  | "jobs_performance"
-  | "jobs_digest"
-  | "jobs_updates"
   | "leagues";
 
 export type Priority = "high" | "normal" | "low";
@@ -409,9 +405,9 @@ function buildDigestFromBatch(
 
   return {
     type: `${batch.notification_type}_digest`,
-    // Same category as the events it bundles, so the raid/jobs toggles (not
-    // the weekly recap one) control it and the recap sunset doesn't stop it.
-    category: batch.notification_type === "job_filled" ? "jobs_updates" : "social",
+    // Same category as the events it bundles, so the raid toggle (not the
+    // weekly recap one) controls it and the recap sunset doesn't stop it.
+    category: "social",
     developerId: batch.developer_id,
     dedupKey: `digest:${batch.id}`,
     title: subject,
@@ -473,16 +469,6 @@ function digestContent(type: string, events: Record<string, unknown>[]) {
     };
   }
 
-  if (type === "job_filled") {
-    return {
-      subject: count === 1 ? "A role you applied to was filled" : `${count} roles you applied to were filled`,
-      preheader: `${count === 1 ? "It's" : "They're"} no longer open. There are more roles on the job board.`,
-      title: ["", plural(count, "role"), ` you applied to ${count === 1 ? "was" : "were"} filled`] as [string, string, string],
-      rows: events.map((e) => ({ lead: str(e.listing) || str(e.title), text: str(e.company) ? `at ${str(e.company)}.` : "" })),
-      cta: { text: "Browse jobs", url: `${BASE_URL}/jobs` },
-    };
-  }
-
   return {
     subject: `${plural(count, "new notification")}`,
     preheader: "Here's what happened in Git City.",
@@ -492,7 +478,7 @@ function digestContent(type: string, events: Record<string, unknown>[]) {
   };
 }
 
-/** Batched raid / emblem / job digest in the email layout. */
+/** Batched raid / emblem digest in the email layout. */
 export function renderDigestEmail(type: string, events: Record<string, unknown>[], links: EmailLinks) {
   const { subject, preheader, title, rows, cta } = digestContent(type, events);
   const url = trackedUrl(cta.url, `${type}_digest`);
@@ -715,10 +701,6 @@ interface NotificationPrefs {
   marketing: boolean;
   product_news: boolean;
   streak_reminders: boolean;
-  jobs_applications: boolean;
-  jobs_performance: boolean;
-  jobs_digest: boolean;
-  jobs_updates: boolean;
   leagues: boolean;
   digest_frequency: "realtime" | "hourly" | "daily" | "weekly";
   quiet_hours_start: number | null;
@@ -735,10 +717,6 @@ const DEFAULT_PREFS: NotificationPrefs = {
   marketing: false,
   product_news: true,
   streak_reminders: true,
-  jobs_applications: true,
-  jobs_performance: true,
-  jobs_digest: true,
-  jobs_updates: true,
   leagues: true,
   digest_frequency: "realtime",
   quiet_hours_start: null,
@@ -765,10 +743,6 @@ async function getPreferences(devId: number): Promise<NotificationPrefs> {
     marketing: data.marketing ?? false,
     product_news: data.product_news ?? true,
     streak_reminders: data.streak_reminders ?? true,
-    jobs_applications: data.jobs_applications ?? true,
-    jobs_performance: data.jobs_performance ?? true,
-    jobs_digest: data.jobs_digest ?? true,
-    jobs_updates: data.jobs_updates ?? true,
     leagues: data.leagues ?? true,
     digest_frequency: data.digest_frequency ?? "realtime",
     quiet_hours_start: data.quiet_hours_start ?? null,

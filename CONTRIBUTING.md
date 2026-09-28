@@ -20,7 +20,6 @@ The app runs on [http://localhost:3001](http://localhost:3001).
 - Node.js 18+
 - A Supabase project (free tier works)
 - A GitHub personal access token (for API calls)
-- Stripe test keys (only if working on payments)
 
 ## Environment Variables
 
@@ -33,15 +32,11 @@ Copy `.env.example` to `.env.local` and fill in the values. Here is a summary of
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side only, keep secret) |
 | `GITHUB_TOKEN` | Yes | GitHub personal access token for API calls |
-| `STRIPE_SECRET_KEY` | Optional | Stripe secret key — only needed for payment features |
-| `STRIPE_WEBHOOK_SECRET` | Optional | Stripe webhook secret — only needed for payment features |
-| `ABACATEPAY_API_KEY` | Optional | AbacatePay key — only needed for BRL payment support |
-| `ABACATEPAY_WEBHOOK_SECRET` | Optional | AbacatePay webhook secret |
 | `NEXT_PUBLIC_HIMETRICA_API_KEY` | Optional | Himetrica analytics key |
-| `RESEND_API_KEY` | Optional | Resend email key — used for ad expiry notification emails |
+| `RESEND_API_KEY` | Optional | Resend email key — used for notification emails |
 | `CRON_SECRET` | Optional | Secret token to authenticate Vercel cron job requests |
 
-> **Tip:** For local development you only need the Supabase, GitHub token, and base URL variables. Stripe, AbacatePay, Resend, and Himetrica keys are only required if you are actively working on those features.
+> **Tip:** For local development you only need the Supabase, GitHub token, and base URL variables. Resend and Himetrica keys are only required if you are actively working on those features.
 
 ## Code Style
 

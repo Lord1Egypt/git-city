@@ -2,24 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { GitcPayButton } from "@/components/GitcPayButton";
-import { PaymentMethodTabs, type PaymentMethodOption } from "@/components/PaymentMethodTabs";
-import { PixModal } from "@/components/pixels/PixModal";
-import {
-  usePixelCheckout,
-  type PayMethod,
-  type PixelPackage,
-} from "@/components/pixels/usePixelCheckout";
+import { usePixelCheckout, type PixelPackage } from "@/components/pixels/usePixelCheckout";
 import { isGitcEnabled } from "@/lib/gitc";
-import { isBrazilClient } from "@/lib/geo";
 
 interface Props {
   packages: PixelPackage[];
   balance: number;
   isAuthenticated: boolean;
   githubLogin: string;
-  serverCountry?: string | null;
 }
 
 const BADGES: Record<string, { label: string; color: string }> = {
@@ -32,13 +23,10 @@ export default function PixelsStoreClient({
   packages,
   balance,
   isAuthenticated,
-  serverCountry,
 }: Props) {
   const [successPkg, setSuccessPkg] = useState<string | null>(null);
   const [, setCurrentBalance] = useState(balance);
   const [checkoutPkgId, setCheckoutPkgId] = useState<string | null>(null);
-  const [payMethod, setPayMethod] = useState<PayMethod>("card");
-  const [isBR, setIsBR] = useState(false);
   const router = useRouter();
 
   /** Refresh the server-rendered balance + re-fetch any in-flight purchase state. */
@@ -50,26 +38,9 @@ export default function PixelsStoreClient({
     router.refresh();
   }, [router]);
 
-  const {
-    buying,
-    error,
-    setError,
-    pixModal,
-    handleStripeBuy,
-    handlePixBuy,
-    handlePixClose,
-    buildGitcCallbacks,
-  } = usePixelCheckout({ packages, isAuthenticated, onPurchased: refreshBalance });
+  const { error, setError, buildGitcCallbacks } = usePixelCheckout();
 
-  // BR detection: server header (Vercel) → timezone → language fallback.
-  useEffect(() => {
-    if (isBrazilClient(serverCountry)) {
-      setIsBR(true);
-      setPayMethod("pix");
-    }
-  }, [serverCountry]);
-
-  // Check for Stripe success redirect
+  // Check for the success redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const purchased = params.get("pixels_purchased");
@@ -87,35 +58,17 @@ export default function PixelsStoreClient({
   const highlightId = "popular";
   const checkoutPkg = checkoutPkgId ? packages.find((p) => p.id === checkoutPkgId) : null;
 
+  if (!gitcEnabled && !successPkg) return null;
+
   return (
     <div>
-      {/* PIX Modal */}
-      {pixModal && <PixModal data={pixModal} onClose={handlePixClose} />}
-
-      {/* Success banner (post-Stripe redirect) */}
+      {/* Success banner (post-GITC redirect) */}
       {successPkg && (
         <div className="mb-6 border-[3px] border-lime/40 bg-lime/10 p-4 text-center">
           <p className="text-base text-lime font-bold mb-1">Purchase confirmed!</p>
           <p className="text-sm text-muted normal-case">
             Your Pixels have been added to your balance.
           </p>
-        </div>
-      )}
-
-      {/* Not authenticated */}
-      {!isAuthenticated && (
-        <div className="mb-6 border-[3px] border-border bg-bg-raised p-6 text-center">
-          <p className="text-base text-cream mb-2">Sign in to buy Pixels</p>
-          <p className="text-sm text-muted normal-case mb-4">
-            You need a claimed building in Git City to purchase Pixels.
-          </p>
-          <Link
-            href="/"
-            className="btn-press inline-block px-6 py-2.5 text-sm text-bg"
-            style={{ backgroundColor: "#c8e64a", boxShadow: "2px 2px 0 0 #5a7a00" }}
-          >
-            Go to City & Sign In
-          </Link>
         </div>
       )}
 
@@ -126,12 +79,15 @@ export default function PixelsStoreClient({
       )}
 
       {/* Package grid — 1 col mobile, 2 col desktop */}
+      <h2 className="text-xl text-cream mb-2 text-center">Trade GITC for Pixels</h2>
+      <p className="text-sm text-muted normal-case text-center mb-6">
+        Optional, for players who hold the GITC token. The GITC you pay is burned.
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {packages.map((pkg) => {
           const total = pkg.pixels + pkg.bonus_pixels;
           const isHighlight = pkg.id === highlightId;
           const badge = BADGES[pkg.id];
-          const isBuying = buying === pkg.id;
           const bonusPercent =
             pkg.bonus_pixels > 0
               ? Math.round((pkg.bonus_pixels / pkg.pixels) * 100)
@@ -162,6 +118,7 @@ export default function PixelsStoreClient({
                 <p className="text-base text-muted">{pkg.name}</p>
                 <p className="text-base text-cream font-bold">
                   ${(pkg.price_usd_cents / 100).toFixed(2)}
+                  <span className="text-xs text-muted font-normal"> in GITC</span>
                 </p>
               </div>
 
@@ -191,14 +148,14 @@ export default function PixelsStoreClient({
                   setError(null);
                   setCheckoutPkgId(pkg.id);
                 }}
-                disabled={!!buying || !isAuthenticated}
+                disabled={!isAuthenticated}
                 className="btn-press w-full py-3.5 text-sm font-bold text-bg disabled:opacity-40 transition-all cursor-pointer"
                 style={{
                   backgroundColor: "#c8e64a",
                   boxShadow: "2px 2px 0 0 #5a7a00",
                 }}
               >
-                {isBuying ? "Processing..." : "Buy"}
+                Buy with GITC
               </button>
             </div>
           );
@@ -210,7 +167,7 @@ export default function PixelsStoreClient({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
           onClick={(e) => {
-            if (e.target === e.currentTarget && !buying) {
+            if (e.target === e.currentTarget) {
               setCheckoutPkgId(null);
               // Defensive: if the user closes the modal mid-verification,
               // refresh in case the backend completed the credit anyway.
@@ -228,7 +185,6 @@ export default function PixelsStoreClient({
               </h3>
               <button
                 onClick={() => {
-                  if (buying) return;
                   setCheckoutPkgId(null);
                   refreshBalance();
                 }}
@@ -239,10 +195,7 @@ export default function PixelsStoreClient({
             </div>
 
             <p className="mt-2 text-[10px] text-dim normal-case">
-              ${(checkoutPkg.price_usd_cents / 100).toFixed(2)}
-              {checkoutPkg.price_brl_cents && (
-                <> · R${(checkoutPkg.price_brl_cents / 100).toFixed(2)} via PIX</>
-              )}
+              ${(checkoutPkg.price_usd_cents / 100).toFixed(2)} in GITC, sent on Base
             </p>
 
             {error && (
@@ -252,78 +205,21 @@ export default function PixelsStoreClient({
             )}
 
             <div className="mt-4">
-              {(() => {
-                const methods: PaymentMethodOption<PayMethod>[] = [
-                  { id: "card", label: "Card" },
-                  { id: "pix", label: "PIX", visible: isBR && !!checkoutPkg.price_brl_cents },
-                  { id: "gitc", label: "GITC", visible: gitcEnabled },
-                ];
-                const visibleIds = methods.filter((m) => m.visible !== false).map((m) => m.id);
-                const safeSelected = visibleIds.includes(payMethod) ? payMethod : visibleIds[0];
-
-                return (
-                  <PaymentMethodTabs<PayMethod>
-                    methods={methods}
-                    selected={safeSelected}
-                    onChange={setPayMethod}
-                  >
-                    {safeSelected === "card" && (
-                      <button
-                        onClick={() => handleStripeBuy(checkoutPkg.id)}
-                        disabled={!!buying || !isAuthenticated}
-                        className="btn-press w-full py-3 text-sm text-bg disabled:opacity-40 transition-all cursor-pointer"
-                        style={{
-                          backgroundColor: "#c8e64a",
-                          boxShadow: "2px 2px 0 0 #5a7a00",
-                        }}
-                      >
-                        {buying === checkoutPkg.id
-                          ? "Redirecting..."
-                          : `Pay $${(checkoutPkg.price_usd_cents / 100).toFixed(2)} with card`}
-                      </button>
-                    )}
-
-                    {safeSelected === "pix" && checkoutPkg.price_brl_cents && (
-                      <button
-                        onClick={() => handlePixBuy(checkoutPkg.id)}
-                        disabled={!!buying || !isAuthenticated}
-                        className="btn-press w-full py-3 text-sm transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-                        style={{
-                          backgroundColor: "transparent",
-                          border: "2px solid #c8e64a",
-                          color: "#c8e64a",
-                          boxShadow: "2px 2px 0 0 #5a7a00",
-                        }}
-                      >
-                        {buying === checkoutPkg.id
-                          ? "Generating PIX..."
-                          : `Pay R$${(checkoutPkg.price_brl_cents / 100).toFixed(2)} with PIX`}
-                      </button>
-                    )}
-
-                    {safeSelected === "gitc" && (
-                      <GitcPayButton
-                        disabled={!!buying}
-                        onError={(msg) => setError(msg)}
-                        {...buildGitcCallbacks(checkoutPkg, {
-                          redirectUrl: `/pixels?pixels_purchased=${encodeURIComponent(checkoutPkg.id)}`,
-                          onConfirmed: () => {
-                            setSuccessPkg(checkoutPkg.id);
-                            setCheckoutPkgId(null);
-                            refreshBalance();
-                          },
-                        })}
-                      />
-                    )}
-                  </PaymentMethodTabs>
-                );
-              })()}
+              <GitcPayButton
+                onError={(msg) => setError(msg)}
+                {...buildGitcCallbacks(checkoutPkg, {
+                  redirectUrl: `/pixels?pixels_purchased=${encodeURIComponent(checkoutPkg.id)}`,
+                  onConfirmed: () => {
+                    setSuccessPkg(checkoutPkg.id);
+                    setCheckoutPkgId(null);
+                    refreshBalance();
+                  },
+                })}
+              />
             </div>
 
             <p className="mt-3 text-center text-[9px] text-muted normal-case">
-              {payMethod === "card" && "One-time payment via Stripe."}
-              {payMethod === "pix" && "Brazilian PIX via AbacatePay."}
-              {payMethod === "gitc" && "GITC sent on Base."}
+              The GITC you pay is burned. Burns can&apos;t be refunded.
             </p>
           </div>
         </div>

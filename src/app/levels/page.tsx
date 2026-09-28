@@ -58,10 +58,7 @@ const EARN_SOURCES: EarnSource[] = [
     note: "Bronze +10, Silver +25, Gold +50, Diamond +100.",
     capped: false,
   },
-  { action: "Add a portfolio project", xp: "+10", note: "Build out your developer profile.", capped: false },
   { action: "Complete a survey", xp: "varies", note: "Reward depends on the survey.", capped: false },
-  { action: "Get hired", xp: "+500", note: "Land a job through Git City.", capped: false },
-  { action: "Refer a hire", xp: "+1,000", note: "Someone you referred gets hired.", capped: false },
 ];
 
 /* ─── page ─── */

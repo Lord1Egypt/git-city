@@ -1,14 +1,12 @@
-import { ADS_PREVIEWS } from "./ads";
 import { CAMPAIGN_PREVIEWS } from "./campaigns";
 import { GAME_PREVIEWS } from "./game";
-import { JOBS_PREVIEWS } from "./jobs";
+import { LANDMARK_PREVIEWS } from "./landmarks";
 import { TOWNS_PREVIEWS } from "./towns";
 import type { EmailPreviews } from "./types";
 
 export const EMAIL_PREVIEWS: EmailPreviews = {
   ...GAME_PREVIEWS,
   ...TOWNS_PREVIEWS,
-  ...JOBS_PREVIEWS,
-  ...ADS_PREVIEWS,
+  ...LANDMARK_PREVIEWS,
   ...CAMPAIGN_PREVIEWS,
 };

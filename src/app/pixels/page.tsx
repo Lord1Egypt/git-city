@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { CLAIMED_DEVELOPER_LIMIT, pickClaimedDeveloper } from "@/lib/auth-identity";
@@ -8,15 +7,24 @@ import { getBalance } from "@/lib/pixels";
 import PixelsStoreClient from "./PixelsStoreClient";
 
 export const metadata: Metadata = {
-  title: "Buy Pixels - Git City",
+  title: "Pixels - Git City",
   description:
-    "Get Pixels (PX) to unlock cosmetics, upgrades, and more for your building in Git City.",
+    "Earn Pixels (PX) by coding and playing to unlock cosmetics, upgrades and more for your building in Git City.",
 };
 
-export default async function PixelsPage() {
-  const h = await headers();
-  const country = h.get("x-vercel-ip-country") ?? h.get("cf-ipcountry") ?? null;
+// Mirrors the earn rules in supabase/migrations/162_pixel_economy.sql.
+const EARN_WAYS = [
+  { name: "Check In", px: "+5 PX", how: "Open the city once a day" },
+  { name: "Code on GitHub", px: "+10 PX", how: "Contribute on GitHub, paid at your next check-in" },
+  { name: "Daily Missions", px: "+15 PX", how: "Complete all 3 daily missions" },
+  { name: "Play", px: "+5 PX", how: "First drive, flight, raid or arcade game of the day, up to +10 PX" },
+  { name: "Weekly Bonus", px: "+50 PX", how: "Finish the daily missions 7 days in a row" },
+  { name: "Streak Milestones", px: "+3~35 PX", how: "Bonus at 3, 7, 14 and 30 day streaks" },
+  { name: "Invite Devs", px: "+25 PX", how: "Each dev who joins through your link" },
+  { name: "Visit Profiles", px: "+1 PX", how: "Explore other developers' buildings" },
+];
 
+export default async function PixelsPage() {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -79,8 +87,8 @@ export default async function PixelsPage() {
             Pixels
           </h1>
           <p className="text-base sm:text-lg text-muted normal-case max-w-lg mx-auto leading-relaxed">
-            The currency of Git City. Buy Pixels to unlock cosmetics,
-            upgrades, and raid gear for your building.
+            The currency of Git City. Earn Pixels by coding and playing, or
+            trade GITC for them. Spend them on cosmetics, upgrades and raid gear.
           </p>
         </div>
 
@@ -94,18 +102,52 @@ export default async function PixelsPage() {
           </div>
         )}
 
-        {/* Package cards */}
-        <PixelsStoreClient
-          packages={packages ?? []}
-          balance={balance}
-          isAuthenticated={!!devId}
-          githubLogin={githubLogin}
-          serverCountry={country}
-        />
+        {/* Not signed in */}
+        {!devId && (
+          <div className="mb-10 border-[3px] border-border bg-bg-raised p-6 text-center">
+            <p className="text-base text-cream mb-2">Sign in to earn Pixels</p>
+            <p className="text-sm text-muted normal-case mb-4">
+              You need a claimed building in Git City to hold Pixels.
+            </p>
+            <Link
+              href="/"
+              className="btn-press inline-block px-6 py-2.5 text-sm text-bg"
+              style={{ backgroundColor: "#c8e64a", boxShadow: "2px 2px 0 0 #5a7a00" }}
+            >
+              Go to City & Sign In
+            </Link>
+          </div>
+        )}
+
+        {/* Earn section */}
+        <div className="mb-12 border-[3px] border-border bg-bg-raised p-6">
+          <h2 className="text-xl text-cream mb-2 text-center">
+            Earn Pixels
+          </h2>
+          <p className="text-sm text-muted normal-case text-center mb-6">
+            Every item in the shop can be earned by coding and playing
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {EARN_WAYS.map((way) => (
+              <div key={way.name} className="p-4 border-2 border-border bg-bg/50">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm text-cream">{way.name}</p>
+                  <p className="text-sm text-lime font-bold">{way.px}</p>
+                </div>
+                <p className="text-xs text-muted normal-case">{way.how}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-dim normal-case text-center mt-5">
+            An active day pays about 40 PX, a full week about 330 PX.
+          </p>
+        </div>
 
         {/* What you can buy */}
         {featuredItems && featuredItems.length > 0 && (
-          <div className="mt-12">
+          <div className="mb-12">
             <h2 className="text-xl text-cream mb-2 text-center">
               What Can You Buy?
             </h2>
@@ -147,69 +189,13 @@ export default async function PixelsPage() {
           </div>
         )}
 
-        {/* Earn section */}
-        <div className="mt-12 border-[3px] border-border bg-bg-raised p-6">
-          <h2 className="text-xl text-cream mb-2 text-center">
-            Earn Pixels for Free
-          </h2>
-          <p className="text-sm text-muted normal-case text-center mb-6">
-            Play Git City daily to earn Pixels without spending a dime
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-4 border-2 border-border bg-bg/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm text-cream">Daily Missions</p>
-                <p className="text-sm text-lime font-bold">+5 PX</p>
-              </div>
-              <p className="text-xs text-muted normal-case">
-                Complete 3 daily missions
-              </p>
-            </div>
-
-            <div className="p-4 border-2 border-border bg-bg/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm text-cream">Raids</p>
-                <p className="text-sm text-lime font-bold">+2 PX</p>
-              </div>
-              <p className="text-xs text-muted normal-case">
-                Attack other buildings
-              </p>
-            </div>
-
-            <div className="p-4 border-2 border-border bg-bg/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm text-cream">Streak Milestones</p>
-                <p className="text-sm text-lime font-bold">+3~35 PX</p>
-              </div>
-              <p className="text-xs text-muted normal-case">
-                Bonus at 3, 7, 14, and 30 day streaks
-              </p>
-            </div>
-
-            <div className="p-4 border-2 border-border bg-bg/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm text-cream">Visit Profiles</p>
-                <p className="text-sm text-lime font-bold">+1 PX</p>
-              </div>
-              <p className="text-xs text-muted normal-case">
-                Explore other developers&apos; buildings
-              </p>
-            </div>
-          </div>
-
-          <p className="text-xs text-dim normal-case text-center mt-5">
-            Earn up to ~15 PX per day through gameplay. Daily cap: 50 PX.
-          </p>
-        </div>
-
-        {/* Payment methods */}
-        <div className="mt-10 text-center">
-          <p className="text-xs text-dim normal-case">
-            Secure payments via Stripe (credit card) and PIX (Brazil).
-            All purchases are final.
-          </p>
-        </div>
+        {/* Package cards */}
+        <PixelsStoreClient
+          packages={packages ?? []}
+          balance={balance}
+          isAuthenticated={!!devId}
+          githubLogin={githubLogin}
+        />
       </div>
     </main>
   );

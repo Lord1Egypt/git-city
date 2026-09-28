@@ -6,7 +6,7 @@
 
 - **Frontend:** Next.js App Router, Three.js (instanced rendering), TypeScript
 - **Backend:** Supabase (Postgres + Auth + Realtime)
-- **Payments:** Stripe (USD), AbacatePay (BRL/PIX), NOWPayments (crypto)
+- **Payments:** none. Git City takes no money; PX is earned in-game, and GITC burned for PX is the only token flow
 - **Deployment:** Vercel
 
 ## Project structure
@@ -83,5 +83,4 @@ supabase/
 | `src/lib/raid.ts` | Raid system (PvP, scoring, limits) |
 | `src/lib/items.ts` | Shop items, equipping, zones |
 | `src/lib/xp.ts` | XP leveling (25 levels, 6 tiers) |
-| `src/lib/stripe.ts` | Stripe checkout sessions |
-| `src/app/api/webhooks/stripe/route.ts` | Stripe webhook handler |
+| `src/lib/pixels.ts` | PX earning (`earn_pixels` rules) and balances |

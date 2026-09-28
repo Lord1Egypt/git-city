@@ -15,14 +15,10 @@ const MESSAGES: Record<Lang, string[]> = {
   en: [
     "This is a transmission. You're receiving it because you found the antenna, and the antenna only responds to people paying attention.",
     "Behind every building you see, there's a real commit. Behind every lit window, a real dev. I built this to make the invisible visible. One dev, a few weekends, and a signal that reached over two million people in two weeks. Fifty thousand buildings. Zero ads. Just developers finding their city and passing the signal forward.",
-    "Transmitting costs something. Servers, database, API calls. Every building that goes up, the cost goes up with it. Right now, I'm the one keeping this antenna on.",
-    "If this city means something to you, help me keep the signal alive.",
   ],
   pt: [
     "Isso é uma transmissão. Você está recebendo porque encontrou a antena, e a antena só responde para quem está prestando atenção.",
     "Por trás de cada prédio que você vê, existe um commit real. Por trás de cada janela acesa, um dev real. Eu construí isso para tornar o invisível visível. Um dev, alguns fins de semana, e um sinal que chegou em mais de dois milhões de pessoas em duas semanas. Cinquenta mil prédios. Zero ads. Só devs encontrando sua cidade e passando o sinal adiante.",
-    "Transmitir custa. Servidores, banco de dados, API calls. Cada prédio que sobe, o custo sobe junto. Por enquanto, sou eu que mantenho essa antena ligada.",
-    "Se essa cidade significa algo pra você, me ajuda a manter o sinal vivo.",
   ],
 };
 
@@ -372,16 +368,6 @@ export default function FounderMessage({ onClose, session, hasClaimed, onSignIn 
               </a>
             )}
 
-            {/* Tertiary — always visible */}
-            <a
-              href="/support"
-              className="font-pixel text-[9px] uppercase tracking-wider transition-colors"
-              style={{ color: "rgba(0, 255, 65, 0.4)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#00ff41")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(0, 255, 65, 0.4)")}
-            >
-              {lang === "en" ? "Keep the signal alive →" : "Manter o sinal vivo →"}
-            </a>
           </div>
 
           {/* P.S. */}

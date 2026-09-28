@@ -21,14 +21,12 @@ export default function ShopExperience({
   initialCursor,
   sets,
   ownedLookCosmetics,
-  serverCountry,
 }: {
   viewer: ViewerContext | null;
   initialItems: Cosmetic[];
   initialCursor: string | null;
   sets: CosmeticSet[];
   ownedLookCosmetics: Cosmetic[];
-  serverCountry: string | null;
 }) {
   const [balance, setBalance] = useState(viewer?.pxBalance ?? 0);
   const [bankOpen, setBankOpen] = useState(false);
@@ -75,7 +73,6 @@ export default function ShopExperience({
         sets={sets}
         ownedLookCosmetics={ownedLookCosmetics}
         onBalanceDelta={(d) => setBalance((b) => b + d)}
-        onTopUp={() => setBankOpen(true)}
       />
 
       {viewer && bankOpen && (
@@ -86,7 +83,6 @@ export default function ShopExperience({
           githubLogin={viewer.githubLogin}
           initialBalance={balance}
           onBalanceChange={setBalance}
-          serverCountry={serverCountry}
         />
       )}
     </>

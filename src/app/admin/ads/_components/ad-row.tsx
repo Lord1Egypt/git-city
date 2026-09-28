@@ -220,19 +220,9 @@ export function AdRow({
             )}
           </div>
 
-          {/* Footer: tracking link + technical toggle + mobile actions */}
+          {/* Footer: technical toggle + mobile actions */}
           {!reportMode && (
             <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border/50 pt-3">
-              {ad.tracking_token && (
-                <a
-                  href={`/advertise/track/${ad.tracking_token}`}
-                  target="_blank"
-                  className="text-xs text-lime hover:underline"
-                >
-                  Open tracking page
-                </a>
-              )}
-
               <button
                 onClick={() => setShowTechnical(!showTechnical)}
                 className="cursor-pointer text-xs text-dim hover:text-muted transition-colors"

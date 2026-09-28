@@ -3,15 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import CurrencyIcon from "@/components/CurrencyIcon";
-import { PaymentMethodTabs } from "@/components/PaymentMethodTabs";
-import { PixModal } from "@/components/pixels/PixModal";
-import {
-  usePixelCheckout,
-  type PayMethod,
-  type PixelPackage,
-} from "@/components/pixels/usePixelCheckout";
+import { usePixelCheckout, type PixelPackage } from "@/components/pixels/usePixelCheckout";
 import { isGitcEnabled } from "@/lib/gitc";
-import { isBrazilClient } from "@/lib/geo";
 
 // The Exchange screen carries the heavy web3 bundle (wagmi + Reown). Load it
 // lazily so opening the bank (home + Add Pixels + data fetches) never waits on
@@ -27,7 +20,7 @@ const BankSwapTab = dynamic(() => import("@/components/BankSwapTab"), {
   ),
 });
 
-// "Pay with GITC" also needs web3 — lazy too, so card/PIX buyers never load it.
+// "Pay with GITC" also needs web3, lazy too.
 const GitcPayPanel = dynamic(() => import("@/components/GitcPayPanel"), {
   ssr: false,
   loading: () => <div className="h-10 animate-pulse rounded bg-border/50" />,
@@ -37,7 +30,6 @@ const GitcPayPanel = dynamic(() => import("@/components/GitcPayPanel"), {
 const GOLD = "#e6b84d";
 const GOLD_DEEP = "#6f3b05";
 const LIME = "#c8e64a";
-const LIME_DEEP = "#5a7a00";
 
 type BankView = "home" | "add" | "exchange" | "activity";
 
@@ -65,7 +57,6 @@ export interface BankPanelProps {
   initialBalance?: number | null;
   /** Called whenever the PX balance changes so the HUD chip can update. */
   onBalanceChange?: (balance: number) => void;
-  serverCountry?: string | null;
 }
 
 const VIEW_TITLE: Record<BankView, string> = {
@@ -138,20 +129,16 @@ export default function BankPanel({
   githubLogin,
   initialBalance = null,
   onBalanceChange,
-  serverCountry,
 }: BankPanelProps) {
   void githubLogin;
   const [view, setView] = useState<BankView>("home");
   const [showInfo, setShowInfo] = useState(false);
-  // Lets the Exchange "Convert to Pixels →" land on Add Pixels with GITC chosen.
-  const [addInitialMethod, setAddInitialMethod] = useState<PayMethod | undefined>(undefined);
   const [packages, setPackages] = useState<PixelPackage[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [balance, setBalance] = useState<number | null>(initialBalance);
   const [history, setHistory] = useState<WalletTx[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [market, setMarket] = useState<GitcMarket>({ priceUsd: null, change24h: null });
-  const [isBR, setIsBR] = useState(false);
 
   const refreshBalance = useCallback(() => {
     fetch("/api/pixels/balance")
@@ -170,20 +157,10 @@ export default function BankPanel({
       .finally(() => setHistoryLoading(false));
   }, [onBalanceChange]);
 
-  const {
-    buying,
-    error,
-    setError,
-    pixModal,
-    handleStripeBuy,
-    handlePixBuy,
-    handlePixClose,
-    buildGitcCallbacks,
-  } = usePixelCheckout({ packages, isAuthenticated, onPurchased: refreshBalance });
+  const { error, setError, buildGitcCallbacks } = usePixelCheckout();
 
   useEffect(() => {
     if (!open) return;
-    setIsBR(isBrazilClient(serverCountry));
     setPackagesLoading(true);
     fetch("/api/pixels/packages")
       .then((r) => r.json())
@@ -192,7 +169,7 @@ export default function BankPanel({
       .finally(() => setPackagesLoading(false));
     fetch("/api/gitc/price").then((r) => r.json()).then((d: GitcMarket) => setMarket(d)).catch(() => {});
     if (isAuthenticated) refreshBalance();
-  }, [open, isAuthenticated, serverCountry, refreshBalance]);
+  }, [open, isAuthenticated, refreshBalance]);
 
   // Reset to the home view whenever the panel is re-opened.
   useEffect(() => {
@@ -257,20 +234,15 @@ export default function BankPanel({
               history={history}
               gitcEnabled={gitcEnabled}
               isAuthenticated={isAuthenticated}
-              onNavigate={(v) => { if (v === "add") setAddInitialMethod(undefined); setView(v); }}
+              onNavigate={setView}
             />
           ) : view === "add" ? (
             <AddPixels
               packages={packages}
               packagesLoading={packagesLoading}
-              isBR={isBR}
-              buying={buying}
               isAuthenticated={isAuthenticated}
               gitcEnabled={gitcEnabled}
               market={market}
-              initialMethod={addInitialMethod}
-              onStripe={handleStripeBuy}
-              onPix={handlePixBuy}
               buildGitcCallbacks={buildGitcCallbacks}
               onConfirmed={refreshBalance}
               onError={setError}
@@ -281,18 +253,16 @@ export default function BankPanel({
               <BankSwapTab
                 market={market}
                 onConfirmed={refreshBalance}
-                onConvertToPixels={() => { setAddInitialMethod("gitc"); setView("add"); }}
+                onConvertToPixels={() => setView("add")}
               />
             ) : (
-              <p className="py-8 text-center text-[11px] leading-relaxed text-muted">GITC swaps aren’t available right now. You can still add Pixels with card or PIX.</p>
+              <p className="py-8 text-center text-[11px] leading-relaxed text-muted">GITC swaps aren’t available right now. You can still earn Pixels by coding and playing.</p>
             )
           ) : (
             <ActivityView balance={balance} history={history} loading={historyLoading} isAuthenticated={isAuthenticated} />
           )}
         </div>
       </div>
-
-      {pixModal && <PixModal data={pixModal} onClose={handlePixClose} />}
     </div>
   );
 }
@@ -457,41 +427,35 @@ function ActivityView({ balance, history, loading, isAuthenticated }: { balance:
   );
 }
 
-// ─── Add Pixels (pick pack → Card / PIX / GITC) ──────────────
-function AddPixels({ packages, packagesLoading, isBR, buying, isAuthenticated, gitcEnabled, market, initialMethod, onStripe, onPix, buildGitcCallbacks, onConfirmed, onError, onNavigateExchange }: {
+// ─── Add Pixels (pick pack → pay with GITC) ─────────────────
+function AddPixels({ packages, packagesLoading, isAuthenticated, gitcEnabled, market, buildGitcCallbacks, onConfirmed, onError, onNavigateExchange }: {
   packages: PixelPackage[];
   packagesLoading: boolean;
-  isBR: boolean;
-  buying: string | null;
   isAuthenticated: boolean;
   gitcEnabled: boolean;
   market: GitcMarket;
-  initialMethod?: PayMethod;
-  onStripe: (id: string) => void;
-  onPix: (id: string) => void;
   buildGitcCallbacks: ReturnType<typeof usePixelCheckout>["buildGitcCallbacks"];
   onConfirmed: () => void;
   onError: (msg: string) => void;
   onNavigateExchange: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [method, setMethod] = useState<PayMethod>(initialMethod ?? (isBR ? "pix" : "card"));
   const pkg = packages.find((p) => p.id === selected) ?? null;
 
-  // A method whose tab is hidden (e.g. PIX on a pack with no BRL price) must
-  // never stay "selected" or the pay box renders empty. Fall back to the first
-  // visible method without losing the user's stored preference.
-  const methodVisible: Record<PayMethod, boolean> = {
-    card: true,
-    pix: isBR && !!pkg?.price_brl_cents,
-    gitc: gitcEnabled,
-  };
-  const visibleOrder: PayMethod[] = ["card", "pix", "gitc"];
-  const effectiveMethod: PayMethod = methodVisible[method] ? method : visibleOrder.find((m) => methodVisible[m]) ?? "card";
+  if (!gitcEnabled) {
+    return (
+      <p className="py-8 text-center text-[11px] leading-relaxed text-muted">
+        Earn Pixels by committing daily, finishing dailies, keeping streaks and playing.
+      </p>
+    );
+  }
 
   return (
     <div>
-      <p className="mb-3 text-[11px] leading-relaxed text-muted">Pick a pack, then choose how to pay. Card and PIX are instant — no crypto needed.</p>
+      <p className="mb-3 text-[11px] leading-relaxed text-muted">
+        Every item can be earned by coding and playing.{" "}
+        <a href="/pixels" className="text-cream underline hover:text-lime">See how to earn Pixels</a>. Or pick a pack and pay with GITC. The GITC you pay is burned.
+      </p>
       <div className="flex flex-col gap-2">
         {packagesLoading && packages.length === 0 ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -523,56 +487,27 @@ function AddPixels({ packages, packagesLoading, isBR, buying, isAuthenticated, g
                 {BADGES[p.id] && <span className="font-pixel text-[8px]" style={{ color: GOLD }}>{BADGES[p.id]}</span>}
                 {bonusPct > 0 && <span className="text-[9px] text-[#39d353]">+{bonusPct}%</span>}
               </span>
-              <span className="font-pixel text-[11px] text-warm">${(p.price_usd_cents / 100).toFixed(2)}</span>
+              <span className="font-pixel text-[11px] text-warm">${(p.price_usd_cents / 100).toFixed(2)} <span className="text-[9px] text-muted">in GITC</span></span>
             </button>
           );
           })
         )}
       </div>
 
-      {pkg && (
+      {pkg && isAuthenticated && (
         <div className="mt-4 border-2 border-border bg-bg-raised p-3">
-          <PaymentMethodTabs<PayMethod>
-            methods={[
-              { id: "card", label: "Card" },
-              { id: "pix", label: "PIX", visible: methodVisible.pix },
-              { id: "gitc", label: "GITC", visible: methodVisible.gitc },
-            ]}
-            selected={effectiveMethod}
-            onChange={setMethod}
-          >
-            {effectiveMethod === "card" && (
-              <button onClick={() => onStripe(pkg.id)} disabled={!!buying || !isAuthenticated}
-                className="btn-press w-full py-2.5 font-pixel text-[11px] text-bg disabled:opacity-40 cursor-pointer"
-                style={{ backgroundColor: LIME, boxShadow: `2px 2px 0 0 ${LIME_DEEP}` }}>
-                {buying === pkg.id ? "Redirecting…" : `Pay $${(pkg.price_usd_cents / 100).toFixed(2)} with card`}
-              </button>
-            )}
-            {effectiveMethod === "pix" && pkg.price_brl_cents && (
-              <button onClick={() => onPix(pkg.id)} disabled={!!buying || !isAuthenticated}
-                className="btn-press w-full py-2.5 font-pixel text-[11px] disabled:opacity-40 cursor-pointer"
-                style={{ backgroundColor: "transparent", border: `2px solid ${LIME}`, color: LIME, boxShadow: `2px 2px 0 0 ${LIME_DEEP}` }}>
-                {buying === pkg.id ? "Generating PIX…" : `Pay R$${(pkg.price_brl_cents / 100).toFixed(2)} with PIX`}
-              </button>
-            )}
-            {effectiveMethod === "gitc" && (
-              <>
-                {market.priceUsd !== null && (
-                  <p className="mb-2 text-[10px] leading-relaxed text-muted normal-case">
-                    Pay in GITC at the live price ({fmtPrice(market.priceUsd)}). Connect your wallet to see the exact amount.
-                  </p>
-                )}
-                <GitcPayPanel
-                  pkg={pkg}
-                  buying={buying}
-                  buildGitcCallbacks={buildGitcCallbacks}
-                  onConfirmed={onConfirmed}
-                  onError={onError}
-                  onNeedGitc={onNavigateExchange}
-                />
-              </>
-            )}
-          </PaymentMethodTabs>
+          {market.priceUsd !== null && (
+            <p className="mb-2 text-[10px] leading-relaxed text-muted normal-case">
+              Pay in GITC at the live price ({fmtPrice(market.priceUsd)}). Connect your wallet to see the exact amount.
+            </p>
+          )}
+          <GitcPayPanel
+            pkg={pkg}
+            buildGitcCallbacks={buildGitcCallbacks}
+            onConfirmed={onConfirmed}
+            onError={onError}
+            onNeedGitc={onNavigateExchange}
+          />
         </div>
       )}
     </div>
@@ -588,7 +523,7 @@ function InfoBody() {
         <div>
           <p className="font-pixel text-[11px]" style={{ color: LIME }}>Pixel</p>
           <p className="mt-1 text-[12px] leading-relaxed text-warm">
-            The city’s currency. Spend it on cosmetics, upgrades and perks for your building. Earn it by committing daily, keeping streaks and playing — or add it with card or PIX in one tap.
+            The city’s currency. Spend it on cosmetics, upgrades and perks for your building. Earn it by committing daily, keeping streaks and playing.
           </p>
         </div>
       </div>
@@ -597,7 +532,7 @@ function InfoBody() {
         <div>
           <p className="font-pixel text-[11px]" style={{ color: GOLD }}>GITC</p>
           <p className="mt-1 text-[12px] leading-relaxed text-warm">
-            An optional crypto token on Base, for players who already use crypto. Exchange USDC or ETH for GITC here, and pay for Pixels with it. You never need it — card and PIX add Pixels directly.
+            An optional crypto token on Base, for players who already use crypto. Exchange USDC or ETH for GITC here and trade it for Pixels. GITC paid for Pixels is burned. You never need it: every item can be earned by playing.
           </p>
         </div>
       </div>

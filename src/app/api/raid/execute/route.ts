@@ -289,10 +289,9 @@ export async function POST(request: Request) {
       admin.rpc("grant_xp", { p_developer_id: defender.id, p_source: "raid_defend", p_amount: 30 }).then();
     }
 
-    // Earn PX for raid participation
-    import("@/lib/pixels").then(({ earnPixels }) =>
-      earnPixels(attacker.id, "raid_attack", undefined, `raid:${raidId}:${attacker.id}`),
-    ).catch(() => {});
+    // Earn PX for raid participation (a "play" session, capped with the other modes)
+    const { earnPixels } = await import("@/lib/pixels");
+    await earnPixels(attacker.id, "raid_attack", undefined, `raid:${raidId}:${attacker.id}`);
 
     // Activity feed
     await admin.from("activity_feed").insert({

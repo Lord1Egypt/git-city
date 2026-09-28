@@ -129,15 +129,4 @@ export const DEFAULT_SKY_ADS: SkyAd[] = [
     vehicle: "plane",
     priority: 100,
   },
-  {
-    id: "advertise",
-    text: "ADD YOUR AD HERE",
-    brand: "Sky Ads",
-    description: "Want your brand flying over Git City? Planes, blimps, your colors. Get in touch!",
-    color: "#f8d880",
-    bgColor: "#1a1018",
-    link: "https://thegitcity.com/advertise",
-    vehicle: "plane",
-    priority: 10,
-  },
 ];

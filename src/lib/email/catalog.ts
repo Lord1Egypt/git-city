@@ -1,9 +1,9 @@
 // Every email Git City sends, for the admin (/admin/emails). `types` are the
 // notification_log types the engine writes; empty means a direct send
-// (companies, advertisers, internal) that isn't logged there. `previews` are
+// (landmark owners, internal) that isn't logged there. `previews` are
 // keys in src/lib/email/previews.
 
-export type EmailArea = "game" | "towns" | "shop" | "jobs" | "companies" | "ads" | "internal" | "campaigns";
+export type EmailArea = "game" | "towns" | "shop" | "ads" | "campaigns";
 export type EmailSender = "notify" | "mail";
 
 export interface CatalogEmail {
@@ -23,10 +23,7 @@ export const EMAIL_AREAS: { key: EmailArea; label: string }[] = [
   { key: "game", label: "Game" },
   { key: "towns", label: "Towns" },
   { key: "shop", label: "Shop" },
-  { key: "jobs", label: "Jobs" },
-  { key: "companies", label: "Companies" },
-  { key: "ads", label: "Advertisers" },
-  { key: "internal", label: "Internal" },
+  { key: "ads", label: "Landmarks" },
   { key: "campaigns", label: "Campaigns" },
 ];
 
@@ -55,41 +52,12 @@ export const EMAIL_CATALOG: CatalogEmail[] = [
   { name: "Race challenge", area: "towns", trigger: "Someone challenges you on the track", audience: "Town members", category: "leagues", sender: "mail", types: ["race_challenge"], previews: ["race-challenge"], source: "notification-senders/race.ts" },
 
   // Shop
-  { name: "Purchase receipt", area: "shop", trigger: "A shop purchase (card, PIX, crypto, pixels)", audience: "Buyers", category: "transactional", sender: "notify", types: ["purchase_confirmation"], previews: ["purchase-card", "purchase-pix", "purchase-pixels-freeze"], source: "notification-senders/purchase.ts" },
-  { name: "Gift sent", area: "shop", trigger: "You buy a gift for someone", audience: "Buyers", category: "transactional", sender: "notify", types: ["gift_sent"], previews: ["gift-sent"], source: "notification-senders/purchase.ts" },
+  { name: "Purchase receipt", area: "shop", trigger: "A shop purchase with pixels", audience: "Buyers", category: "transactional", sender: "notify", types: ["purchase_confirmation"], previews: ["purchase-cosmetic", "purchase-pixels-freeze", "purchase-raid-item"], source: "notification-senders/purchase.ts" },
+  { name: "Gift sent", area: "shop", trigger: "You buy a gift for someone with pixels", audience: "Buyers", category: "transactional", sender: "notify", types: ["gift_sent"], previews: ["gift-sent"], source: "notification-senders/purchase.ts" },
   { name: "Gift received", area: "shop", trigger: "Someone gifts you an item", audience: "Players", category: "social", sender: "mail", types: ["gift_received"], previews: ["gift-received"], source: "notification-senders/gift.ts" },
 
-  // Jobs (developers)
-  { name: "Application sent", area: "jobs", trigger: "You apply to a job", audience: "Developers", category: "transactional", sender: "notify", types: ["job_application_confirmed"], previews: ["job-application-confirmed"], source: "notification-senders/job-application-confirmed.ts" },
-  { name: "Hired", area: "jobs", trigger: "A company marks you hired", audience: "Developers", category: "transactional", sender: "notify", types: ["job_hired"], previews: ["job-hired"], source: "notification-senders/job-hired.ts" },
-  { name: "Position filled", area: "jobs", trigger: "A job you applied to is filled", audience: "Developers", category: "jobs_updates", sender: "mail", types: ["job_filled", "job_filled_digest"], previews: ["job-filled", "digest-jobs-filled"], source: "notification-senders/job-filled.ts" },
-  { name: "Weekly job matches", area: "jobs", trigger: "Mondays 11:00 UTC", audience: "Developers", category: "jobs_digest", sender: "mail", types: ["job_digest"], previews: ["job-digest"], source: "notification-senders/job-digest.ts" },
-  { name: "Profile nudge", area: "jobs", trigger: "Your 3rd application", audience: "Developers", category: "jobs_updates", sender: "mail", types: ["job_profile_nudge"], previews: ["job-profile-nudge"], source: "notification-senders/job-profile-nudge.ts" },
-  { name: "Referral posted a job", area: "jobs", trigger: "A company you referred goes live", audience: "Developers", category: "jobs_updates", sender: "mail", types: ["job_referral_converted"], previews: ["job-referral-converted"], source: "notification-senders/job-referral-converted.ts" },
-  { name: "Jobs launched", area: "jobs", trigger: "Daily 12:00 UTC, for jobs waitlist signups", audience: "Developers", category: "transactional", sender: "notify", types: ["job_notify_fulfilled"], previews: ["job-notify-signup"], source: "notification-senders/job-notify-signup.ts" },
-
-  // Companies (direct sends)
-  { name: "Company welcome", area: "companies", trigger: "Admin creates a company account", audience: "Companies", category: "transactional", sender: "notify", types: [], previews: ["job-company-welcome"], source: "notification-senders/job-company-welcome.ts" },
-  { name: "Listing approved", area: "companies", trigger: "Admin approves a listing", audience: "Companies", category: "transactional", sender: "notify", types: [], previews: ["job-approved"], source: "notification-senders/job-approved.ts" },
-  { name: "Listing rejected", area: "companies", trigger: "Admin rejects a listing", audience: "Companies", category: "transactional", sender: "notify", types: [], previews: ["job-rejected"], source: "notification-senders/job-rejected.ts" },
-  { name: "Listing paused", area: "companies", trigger: "10 reports auto-pause a listing", audience: "Companies", category: "transactional", sender: "notify", types: [], previews: ["job-reported"], source: "notification-senders/job-reported.ts" },
-  { name: "New candidate", area: "companies", trigger: "Every 15 min, new applications", audience: "Companies", category: "transactional", sender: "notify", types: [], previews: ["job-application-received", "job-applications-batch"], source: "notification-senders/job-application-received.ts" },
-  { name: "Listing ending / ended", area: "companies", trigger: "Daily 09:00 UTC", audience: "Companies", category: "transactional", sender: "notify", types: [], previews: ["job-expiring", "job-expired"], source: "notification-senders/job-expiry.ts" },
-  { name: "Weekly jobs report", area: "companies", trigger: "Mondays 10:00 UTC", audience: "Companies", category: "transactional", sender: "notify", types: [], previews: ["job-weekly-report"], source: "notification-senders/job-performance-report.ts" },
-
-  // Advertisers (direct sends)
-  { name: "Ad ending", area: "ads", trigger: "Every 6h, 2 days before an ad ends", audience: "Advertisers", category: "transactional", sender: "notify", types: [], previews: ["ad-expiring"], source: "ad-emails.ts" },
-  { name: "Ad results", area: "ads", trigger: "When an ad ends", audience: "Advertisers", category: "transactional", sender: "notify", types: [], previews: ["ad-expired"], source: "ad-emails.ts" },
-  { name: "Ad follow-ups", area: "ads", trigger: "7 and 30 days after an ad ends", audience: "Advertisers", category: "marketing", sender: "mail", types: [], previews: ["ad-followup-7d", "ad-followup-30d"], source: "ad-emails.ts" },
-  { name: "Weekly ads report", area: "ads", trigger: "Mondays 10:00 UTC", audience: "Advertisers", category: "transactional", sender: "mail", types: [], previews: ["ad-weekly-report"], source: "notification-senders/ad-report.ts" },
-  { name: "Business sign-in link", area: "ads", trigger: "Sign-in on /business/login", audience: "Advertisers and companies", category: "transactional", sender: "notify", types: [], previews: ["ad-sign-in"], source: "api/ads/auth/send-magic-link" },
+  // Landmarks (direct sends)
   { name: "Landmark welcome", area: "ads", trigger: "Admin sends it from Landmarks", audience: "Landmark owners", category: "transactional", sender: "notify", types: [], previews: ["ad-landmark-welcome"], source: "landmarks/welcome-email.ts" },
-
-  // Internal
-  { name: "Listing to review", area: "internal", trigger: "A company submits a listing", audience: "Admins", category: "transactional", sender: "notify", types: [], previews: ["job-pending-review"], source: "notification-senders/job-pending-review.ts" },
-  { name: "Listing auto-paused", area: "internal", trigger: "10 reports on a listing", audience: "Admins", category: "transactional", sender: "notify", types: [], previews: ["job-reported-admin"], source: "notification-senders/job-reported.ts" },
-  { name: "Ad sale", area: "internal", trigger: "Stripe checkout for ads or landmarks", audience: "Owner", category: "transactional", sender: "notify", types: [], previews: ["admin-ad-sale", "admin-ad-sale-landmark"], source: "admin-emails.ts" },
-  { name: "Landmark / sponsorship inquiry", area: "internal", trigger: "Contact forms on /advertise and /sponsorship", audience: "Owner", category: "transactional", sender: "notify", types: [], previews: ["admin-landmark-inquiry", "admin-sponsorship-inquiry"], source: "admin-emails.ts" },
 
   // Campaigns
   { name: "Towns launch", area: "campaigns", trigger: "Admin campaign, sent in waves", audience: "Players by activity", category: "product_news", sender: "mail", types: ["campaign_towns_launch"], previews: ["campaign-towns-launch", "campaign-towns-launch-repermission"], source: "campaigns/towns-launch.ts" },

@@ -10,6 +10,7 @@ import { minLapMs } from "@/lib/league-city/race/laps";
 import { TRACK_ID, theTrack } from "@/lib/league-city/race/track";
 import { townDisplayName } from "@/lib/towns/names";
 import { sendRacePassedNotification } from "@/lib/notification-senders/race";
+import { earnPixels } from "@/lib/pixels";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   if (!league) return NextResponse.json({ error: "Town not found." }, { status: 404 });
   const saved = await recordRaceLap(league.id, TRACK_ID, viewer.id, r.ms);
   if (!saved) return NextResponse.json({ error: "Couldn't save the lap." }, { status: 500 });
+
+  // The day's first lap or drift run pays a "play" session, capped with the other modes.
+  const today = new Date().toISOString().slice(0, 10);
+  await earnPixels(viewer.id, "play_drive", undefined, `play_drive:${today}:${viewer.id}`);
 
   const ghost = saved.improved ? cleanGhost(body.ghost, r.ms) : null;
   if (ghost) await saveBestGhost(league.id, TRACK_ID, viewer.id, ghost);

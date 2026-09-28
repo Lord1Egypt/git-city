@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import type { Configuration as WebpackConfig } from "webpack";
 import { TOWN_REDIRECTS } from "./src/lib/towns/redirects";
+import { REMOVED_PAGE_REDIRECTS } from "./src/lib/removed-pages";
 
 const securityHeaders = [
   // Prevent clickjacking – block all framing
@@ -61,7 +62,7 @@ const nextConfig: NextConfig = {
   },
   skipTrailingSlashRedirect: true,
   async redirects() {
-    return [...TOWN_REDIRECTS];
+    return [...TOWN_REDIRECTS, ...REMOVED_PAGE_REDIRECTS];
   },
   async rewrites() {
     return [

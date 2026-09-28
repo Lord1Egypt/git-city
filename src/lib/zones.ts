@@ -1,5 +1,5 @@
 // ─── Shared zone & item constants ────────────────────────────
-// Single source of truth — imported by Building3D, ShopClient, loadout API, ShopPreview
+// Single source of truth — imported by Building3D, loadout API, ShopPreview
 
 export const ZONE_ITEMS: Record<string, string[]> = {
   crown: ["flag", "helipad", "spire", "satellite_dish", "crown_item", "github_star", "companion_duck", "duck_combatant", "duck_gold_animated"],

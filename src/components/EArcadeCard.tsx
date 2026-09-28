@@ -12,12 +12,11 @@ const survey = SURVEYS[SURVEY_ID];
 interface EArcadeCardProps {
   onClose: () => void;
   onEnter: () => void;
-  onViewJobs?: () => void;
   session: unknown;
   onSignIn?: () => void;
 }
 
-export default function EArcadeCard({ onClose, onEnter, onViewJobs, session, onSignIn }: EArcadeCardProps) {
+export default function EArcadeCard({ onClose, onEnter, session, onSignIn }: EArcadeCardProps) {
   const [view, setView] = useState<"hub" | "survey">("hub");
   const [step, setStep] = useState(0); // 1..N = questions, N+1 = thanks, -1 = error
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -25,8 +24,6 @@ export default function EArcadeCard({ onClose, onEnter, onViewJobs, session, onS
   const [submitting, setSubmitting] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
-  const [jobCount, setJobCount] = useState<number | null>(null);
-  const [notifyDone, setNotifyDone] = useState(false);
 
   // Fetch live player count from PartyKit
   useEffect(() => {
@@ -37,14 +34,6 @@ export default function EArcadeCard({ onClose, onEnter, onViewJobs, session, onS
       .then((r) => r.json())
       .then((d: { count?: number }) => setOnlineCount(d.count ?? 0))
       .catch(() => {});
-  }, []);
-
-  // Fetch job count
-  useEffect(() => {
-    fetch("/api/jobs?count_only=true")
-      .then((r) => r.json())
-      .then((d: { total?: number }) => setJobCount(d.total ?? 0))
-      .catch(() => setJobCount(0));
   }, []);
 
   // Check if user already answered survey
@@ -89,16 +78,10 @@ export default function EArcadeCard({ onClose, onEnter, onViewJobs, session, onS
     [answers, step],
   );
 
-  const handleNotify = async () => {
-    const res = await fetch("/api/jobs/notify", { method: "POST" });
-    if (res.ok) setNotifyDone(true);
-  };
-
   const currentQuestion: SurveyQuestion | null =
     step >= 1 && step <= survey.questions.length ? survey.questions[step - 1] : null;
 
   const showThanks = step > survey.questions.length;
-  const hasJobs = jobCount !== null && jobCount > 0;
 
   return (
     <>
@@ -153,9 +136,6 @@ export default function EArcadeCard({ onClose, onEnter, onViewJobs, session, onS
                   <span>{onlineCount} online</span>
                 </div>
               )}
-              {jobCount !== null && (
-                <span>{jobCount} open job{jobCount !== 1 ? "s" : ""}</span>
-              )}
             </div>
           </div>
 
@@ -190,63 +170,6 @@ export default function EArcadeCard({ onClose, onEnter, onViewJobs, session, onS
                     {session ? "Enter" : "Sign in to enter"}
                   </span>
                 </div>
-              </div>
-
-              {/* Jobs section */}
-              <div
-                className="border-2 border-border p-3 space-y-2 transition-colors hover:border-border-light cursor-pointer"
-                onClick={() => {
-                  if (!session) { onSignIn?.(); return; }
-                  if (hasJobs) { onViewJobs?.(); return; }
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm" style={{ color: ACCENT }}>$</span>
-                  <span className="text-[11px] text-cream font-bold">Jobs</span>
-                </div>
-                <p className="text-[9px] text-muted leading-relaxed">
-                  Real devs. Real jobs. No robots in between.
-                </p>
-
-                {hasJobs ? (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] text-muted">
-                      {jobCount} open position{jobCount !== 1 ? "s" : ""}
-                    </span>
-                    <span className="text-[9px] font-bold" style={{ color: ACCENT }}>
-                      View
-                    </span>
-                  </div>
-                ) : (
-                  /* Empty state — jobs launching soon */
-                  <div className="space-y-1.5">
-                    <span className="text-[9px] text-dim">Launching soon</span>
-                    <div className="flex flex-col gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!session) { onSignIn?.(); return; }
-                          window.location.href = "/hire/edit";
-                        }}
-                        className="text-left text-[9px] transition-colors hover:text-cream"
-                        style={{ color: ACCENT }}
-                      >
-                        Create Career Profile — be ready
-                      </button>
-                      {!!session && !notifyDone && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleNotify(); }}
-                          className="text-left text-[9px] text-muted transition-colors hover:text-cream"
-                        >
-                          Notify me when jobs drop
-                        </button>
-                      )}
-                      {notifyDone && (
-                        <span className="text-[9px]" style={{ color: ACCENT }}>Subscribed</span>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Survey CTA (if not answered) */}

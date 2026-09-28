@@ -6,7 +6,8 @@ import { TOPIC_KEYS, topicLabel } from "@/lib/email/topics";
 import { recordConsent } from "@/lib/consent";
 
 // Topics players can switch off, plus categories older emails still link to
-const VALID_CATEGORIES = [...TOPIC_KEYS, "transactional", "jobs_applications", "jobs_performance", "all"];
+// The jobs categories are gone, but links in old emails still unsubscribe.
+const VALID_CATEGORIES = [...TOPIC_KEYS, "transactional", "jobs_applications", "jobs_performance", "jobs_digest", "jobs_updates", "all"];
 
 
 function parseParams(request: Request) {

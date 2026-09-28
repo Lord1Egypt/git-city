@@ -11,10 +11,6 @@ interface Prefs {
   marketing: boolean;
   product_news: boolean;
   streak_reminders: boolean;
-  jobs_applications: boolean;
-  jobs_performance: boolean;
-  jobs_digest: boolean;
-  jobs_updates: boolean;
   leagues: boolean;
   digest_frequency: string;
   quiet_hours_start: number | null;
@@ -28,10 +24,6 @@ const DEFAULT_PREFS: Prefs = {
   marketing: false,
   product_news: true,
   streak_reminders: true,
-  jobs_applications: true,
-  jobs_performance: true,
-  jobs_digest: true,
-  jobs_updates: true,
   leagues: true,
   digest_frequency: "realtime",
   quiet_hours_start: null,

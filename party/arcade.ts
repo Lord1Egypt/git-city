@@ -958,7 +958,27 @@ export default class ArcadeServer implements Party.Server {
         rank = match ? parseInt(match[1], 10) + 1 : null;
       }
 
-      // 4. Check milestones (best-effort)
+      // 4. The day's first game pays a "play" session (best-effort, capped
+      // with the other modes by earn_pixels).
+      try {
+        const devRes = await fetch(`${supabaseUrl}/rest/v1/developers?claimed_by=eq.${userId}&claimed=eq.true&order=claimed_at.asc&limit=1&select=id`, { headers });
+        const devRows = (await devRes.json()) as Array<{ id: number }>;
+        if (devRows[0]?.id) {
+          const today = new Date().toISOString().slice(0, 10);
+          await fetch(`${supabaseUrl}/rest/v1/rpc/earn_pixels`, {
+            method: "POST", headers,
+            body: JSON.stringify({
+              p_developer_id: devRows[0].id,
+              p_earn_rule_id: "play_arcade",
+              p_idempotency_key: `play_arcade:${today}:${devRows[0].id}`,
+            }),
+          });
+        }
+      } catch (playErr) {
+        console.error(`[arcade:${this.room.id}] play reward error:`, playErr);
+      }
+
+      // 5. Check milestones (best-effort)
       try {
         const existingRes = await fetch(
           `${supabaseUrl}/rest/v1/arcade_milestones?user_id=eq.${userId}&game=eq.${encodeURIComponent(game)}&select=milestone`,
@@ -986,7 +1006,7 @@ export default class ArcadeServer implements Party.Server {
 
           // Credit PX (best-effort — look up developer_id first)
           if (px_earned > 0) {
-            const devRes = await fetch(`${supabaseUrl}/rest/v1/developers?user_id=eq.${userId}&select=id`, { headers });
+            const devRes = await fetch(`${supabaseUrl}/rest/v1/developers?claimed_by=eq.${userId}&claimed=eq.true&order=claimed_at.asc&limit=1&select=id`, { headers });
             const devRows = (await devRes.json()) as Array<{ id: number }>;
             if (devRows[0]?.id) {
               await fetch(`${supabaseUrl}/rest/v1/rpc/credit_pixels`, {
@@ -1008,7 +1028,7 @@ export default class ArcadeServer implements Party.Server {
         console.error(`[arcade:${this.room.id}] milestone error:`, milestoneErr);
       }
 
-      // 5. Check achievements (best-effort)
+      // 6. Check achievements (best-effort)
       try {
         const achievementRes = await fetch(
           `${supabaseUrl}/rest/v1/achievements?category=eq.arcade&select=id,threshold`,
@@ -1016,7 +1036,7 @@ export default class ArcadeServer implements Party.Server {
         );
         const allAchievements = (await achievementRes.json()) as Array<{ id: string; threshold: number }>;
         if (allAchievements.length > 0) {
-          const devRes = await fetch(`${supabaseUrl}/rest/v1/developers?user_id=eq.${userId}&select=id`, { headers });
+          const devRes = await fetch(`${supabaseUrl}/rest/v1/developers?claimed_by=eq.${userId}&claimed=eq.true&order=claimed_at.asc&limit=1&select=id`, { headers });
           const devRows = (await devRes.json()) as Array<{ id: number }>;
           const developerId = devRows[0]?.id;
 

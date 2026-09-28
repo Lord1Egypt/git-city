@@ -10,10 +10,9 @@ import {
   GITC_MIN_CONFIRMATIONS,
   GITC_SLIPPAGE_BPS,
   GITC_SWAP_DEFAULT_SLIPPAGE_BPS,
-  GITC_TREASURY_ADDRESS,
+  GITC_BURN_ADDRESS,
   NATIVE_ETH_SENTINEL,
   USDC_BASE_ADDRESS,
-  assertTreasuryConfigured,
 } from "./gitc";
 
 let cachedClient: ReturnType<typeof buildClient> | null = null;
@@ -298,7 +297,7 @@ export interface PaymentVerification {
 
 /**
  * Verify that a tx hash represents a valid GITC transfer from the given wallet
- * to the Git City treasury for at least the expected amount, AFTER the quote
+ * to the burn address for at least the expected amount, AFTER the quote
  * was issued (anti-replay).
  */
 export async function verifyGitcPaymentTx(params: {
@@ -308,8 +307,6 @@ export async function verifyGitcPaymentTx(params: {
   /** Block number at quote creation. tx must have been mined at or after this. */
   minBlockNumber: bigint;
 }): Promise<PaymentVerification> {
-  assertTreasuryConfigured();
-
   const client = getBaseClient();
 
   let receipt;
@@ -352,7 +349,7 @@ export async function verifyGitcPaymentTx(params: {
   });
 
   const expectedFrom = getAddress(params.expectedWallet);
-  const expectedTo = getAddress(GITC_TREASURY_ADDRESS);
+  const expectedTo = getAddress(GITC_BURN_ADDRESS);
   const gitcAddress = getAddress(GITC_ADDRESS);
 
   const payment = transferLogs.find((log) => {
@@ -363,7 +360,7 @@ export async function verifyGitcPaymentTx(params: {
   });
 
   if (!payment) {
-    return { ok: false, reason: "No GITC transfer to treasury from the expected wallet" };
+    return { ok: false, reason: "No GITC burn from the expected wallet" };
   }
 
   if (payment.args.value < params.minAmountWei) {

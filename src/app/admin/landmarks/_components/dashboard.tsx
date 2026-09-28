@@ -91,7 +91,7 @@ export function LandmarksDashboard() {
           </div>
           <div className="flex gap-3">
             <a
-              href="/admin/jobs"
+              href="/admin"
               className="cursor-pointer border border-border px-4 py-2 text-xs text-muted transition-colors hover:border-border-light hover:text-cream"
             >
               BACK
