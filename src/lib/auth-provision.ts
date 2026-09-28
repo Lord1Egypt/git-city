@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { evaluateEmblems } from "@/lib/emblems";
 import { cacheEmailFromAuth, touchLastActive, ensurePreferences } from "@/lib/notification-helpers";
@@ -72,12 +73,10 @@ export async function provisionDeveloperOnLogin(
           await admin.from("developers").update({ xp_github: xp }).eq("id", created.id);
         }
 
-        // Rank
+        // Provisional rank. No recalculate_ranks here: it rewrites every row
+        // (16s+ on 60k devs) and its row locks stall the rest of this login.
+        // pg_cron runs it every 4h.
         await admin.rpc("assign_new_dev_rank", { dev_id: created.id });
-        admin.rpc("recalculate_ranks").then(
-          () => console.log("Ranks recalculated for new dev:", githubLogin),
-          (err: unknown) => console.error("Rank recalculation failed:", err),
-        );
 
         // Feed event
         await admin.from("activity_feed").insert({
@@ -140,79 +139,105 @@ export async function provisionDeveloperOnLogin(
         await activateOnClaim(dev.id, githubLogin).catch((err) => console.error("Town join on claim failed:", err));
       }
 
-      // Process referral (from ?ref= param forwarded by client)
-      if (claimedNow && ref && ref !== githubLogin && !dev.referred_by) {
-        const { data: referrer } = await admin
-          .from("developers")
-          .select("id, github_login")
-          .eq("github_login", ref.toLowerCase())
-          .single();
-
-        if (referrer) {
-          await admin
-            .from("developers")
-            .update({ referred_by: referrer.github_login })
-            .eq("id", dev.id);
-
-          await admin.rpc("increment_referral_count", { referrer_dev_id: referrer.id });
-
-          // Referral reward: +25 PX, idempotent per referred dev
-          earnPixels(
-            referrer.id,
-            "referral",
-            dev.id.toString(),
-            `referral:${dev.id}`
-          ).catch(() => {});
-
-          await admin.from("activity_feed").insert({
-            event_type: "referral",
-            actor_id: referrer.id,
-            target_id: dev.id,
-            metadata: { referrer_login: referrer.github_login, referred_login: githubLogin },
-          });
-
-          // Notify referrer that their referral joined
-          sendReferralJoinedNotification(referrer.id, referrer.github_login, githubLogin, dev.id);
-
-          // Check referral achievements for the referrer
-          const { data: referrerFull } = await admin
-            .from("developers")
-            .select("referral_count, kudos_count, contributions, public_repos, total_stars")
-            .eq("id", referrer.id)
-            .single();
-
-          if (referrerFull) {
-            const giftsSent = await countGifts(admin, referrer.id, "sent");
-            const giftsReceived = await countGifts(admin, referrer.id, "received");
-            await evaluateEmblems(referrer.id, {
-              contributions: referrerFull.contributions,
-              public_repos: referrerFull.public_repos,
-              total_stars: referrerFull.total_stars,
-              referral_count: referrerFull.referral_count,
-              kudos_count: referrerFull.kudos_count,
-              gifts_sent: giftsSent,
-              gifts_received: giftsReceived,
-            }, referrer.github_login);
-          }
-        }
-      }
-
-      // Run achievement check for this developer
-      const giftsSent = await countGifts(admin, dev.id, "sent");
-      const giftsReceived = await countGifts(admin, dev.id, "received");
-      await evaluateEmblems(dev.id, {
-        contributions: dev.contributions,
-        public_repos: dev.public_repos,
-        total_stars: dev.total_stars,
-        referral_count: dev.referral_count ?? 0,
-        kudos_count: dev.kudos_count ?? 0,
-        gifts_sent: giftsSent,
-        gifts_received: giftsReceived,
-      }, githubLogin);
+      // Referral credit and emblems don't change what the player lands on, so
+      // they run after the redirect instead of holding the login screen.
+      after(() => rewardAfterLogin(dev, githubLogin, claimedNow, ref));
     }
   } catch {
     // Silently skip v2 features if tables/columns don't exist yet
     console.warn("Login: skipping v2 achievement/referral check (migration may not have run)");
+  }
+}
+
+type ProvisionedDev = {
+  id: number;
+  contributions: number;
+  public_repos: number;
+  total_stars: number;
+  kudos_count: number | null;
+  referral_count: number | null;
+  referred_by: string | null;
+};
+
+async function rewardAfterLogin(
+  dev: ProvisionedDev,
+  githubLogin: string,
+  claimedNow: boolean,
+  ref: string | null,
+): Promise<void> {
+  const admin = getSupabaseAdmin();
+  try {
+    // Process referral (from ?ref= param forwarded by client)
+    if (claimedNow && ref && ref !== githubLogin && !dev.referred_by) {
+      const { data: referrer } = await admin
+        .from("developers")
+        .select("id, github_login")
+        .eq("github_login", ref.toLowerCase())
+        .single();
+
+      if (referrer) {
+        await admin
+          .from("developers")
+          .update({ referred_by: referrer.github_login })
+          .eq("id", dev.id);
+
+        await admin.rpc("increment_referral_count", { referrer_dev_id: referrer.id });
+
+        // Referral reward: +25 PX, idempotent per referred dev
+        earnPixels(
+          referrer.id,
+          "referral",
+          dev.id.toString(),
+          `referral:${dev.id}`
+        ).catch(() => {});
+
+        await admin.from("activity_feed").insert({
+          event_type: "referral",
+          actor_id: referrer.id,
+          target_id: dev.id,
+          metadata: { referrer_login: referrer.github_login, referred_login: githubLogin },
+        });
+
+        // Notify referrer that their referral joined
+        sendReferralJoinedNotification(referrer.id, referrer.github_login, githubLogin, dev.id);
+
+        // Check referral achievements for the referrer
+        const { data: referrerFull } = await admin
+          .from("developers")
+          .select("referral_count, kudos_count, contributions, public_repos, total_stars")
+          .eq("id", referrer.id)
+          .single();
+
+        if (referrerFull) {
+          const giftsSent = await countGifts(admin, referrer.id, "sent");
+          const giftsReceived = await countGifts(admin, referrer.id, "received");
+          await evaluateEmblems(referrer.id, {
+            contributions: referrerFull.contributions,
+            public_repos: referrerFull.public_repos,
+            total_stars: referrerFull.total_stars,
+            referral_count: referrerFull.referral_count,
+            kudos_count: referrerFull.kudos_count,
+            gifts_sent: giftsSent,
+            gifts_received: giftsReceived,
+          }, referrer.github_login);
+        }
+      }
+    }
+
+    // Run achievement check for this developer
+    const giftsSent = await countGifts(admin, dev.id, "sent");
+    const giftsReceived = await countGifts(admin, dev.id, "received");
+    await evaluateEmblems(dev.id, {
+      contributions: dev.contributions,
+      public_repos: dev.public_repos,
+      total_stars: dev.total_stars,
+      referral_count: dev.referral_count ?? 0,
+      kudos_count: dev.kudos_count ?? 0,
+      gifts_sent: giftsSent,
+      gifts_received: giftsReceived,
+    }, githubLogin);
+  } catch (err) {
+    console.error("Login: referral/emblem rewards failed:", err);
   }
 }
 

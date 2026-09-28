@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
@@ -45,8 +45,9 @@ export async function GET(request: Request) {
   // keeps granted scopes), list the orgs and renew. Joining and creating
   // happen only from the Company tab's button. Never stored, and a failure
   // here never breaks login.
+  // Runs after the redirect so the GitHub API calls never hold the login.
   const providerToken = data.session?.provider_token;
-  if (providerToken && githubLogin) {
+  if (providerToken && githubLogin) after(async () => {
     try {
       const orgs = await fetchUserOrgs(providerToken);
       if (orgs) {
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
     } catch (err) {
       console.error("[auth:callback] org verification failed:", err);
     }
-  }
+  });
 
   // Support ?next= param for post-login redirect
   const next = searchParams.get("next");

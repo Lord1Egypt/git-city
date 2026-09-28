@@ -149,8 +149,9 @@ export async function GET(
 
         if (created && !createErr) {
           // Rank + XP
+          // Provisional rank; pg_cron's recalculate_ranks settles it (it
+          // rewrites every row, too slow and lock-heavy to run per request).
           await sb.rpc("assign_new_dev_rank", { dev_id: created.id });
-          sb.rpc("recalculate_ranks").then(() => {}, () => {});
 
           const xp = calculateGithubXp({
             contributions: data.contributions_total ?? data.contributions,
