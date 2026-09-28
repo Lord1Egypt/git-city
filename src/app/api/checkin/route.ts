@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { CLAIMED_DEVELOPER_LIMIT, pickClaimedDeveloper } from "@/lib/auth-identity";
@@ -10,6 +10,7 @@ import { touchLastActive } from "@/lib/notification-helpers";
 import { sendStreakMilestoneNotification } from "@/lib/notification-senders/streak";
 import { sendStreakBrokenNotification } from "@/lib/notification-senders/streak-broken";
 import { trackDailyMission } from "@/lib/dailies";
+import { earnPixels } from "@/lib/pixels";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // A12: Streak reward milestones — {milestone: days, pool: item_ids to pick from}
@@ -79,8 +80,10 @@ async function grantStreakReward(
   return null;
 }
 
-// Lightweight GitHub fetch: only current week contributions
-async function fetchWeeklyContributions(login: string): Promise<number | null> {
+// Lightweight GitHub fetch: current week contributions, and whether the dev
+// contributed yesterday or today (UTC). Yesterday counts so a commit made after
+// the day's check-in still pays at the next one.
+async function fetchRecentContributions(login: string): Promise<{ week: number; codedRecently: boolean } | null> {
   const token = process.env.GITHUB_TOKEN;
   if (!token) return null;
 
@@ -116,15 +119,22 @@ async function fetchWeeklyContributions(login: string): Promise<number | null> {
     isoWeekStart.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
     isoWeekStart.setHours(0, 0, 0, 0);
 
+    const today = now.toISOString().slice(0, 10);
+    const yesterday = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+
     let total = 0;
+    let codedRecently = false;
     for (const week of weeks) {
       for (const day of week.contributionDays ?? []) {
         if (new Date(day.date) >= isoWeekStart) {
           total += day.contributionCount;
         }
+        if ((day.date === today || day.date === yesterday) && day.contributionCount > 0) {
+          codedRecently = true;
+        }
       }
     }
-    return total;
+    return { week: total, codedRecently };
   } catch {
     return null;
   }
@@ -255,13 +265,13 @@ export async function POST() {
       );
     }
 
-    // Earn PX for streak milestones
+    // Earn PX for the check-in and for streak milestones
+    const today = new Date().toISOString().slice(0, 10);
+    await earnPixels(dev.id, "checkin", undefined, `checkin:${today}:${dev.id}`);
     const streakMilestones = [3, 7, 14, 30] as const;
     for (const m of streakMilestones) {
       if (checkinResult.streak === m) {
-        import("@/lib/pixels").then(({ earnPixels }) =>
-          earnPixels(dev.id, `streak_${m}`, undefined, `streak:${m}:${dev.id}:${new Date().toISOString().slice(0, 7)}`),
-        ).catch(() => {});
+        await earnPixels(dev.id, `streak_${m}`, undefined, `streak:${m}:${dev.id}:${today.slice(0, 7)}`);
       }
     }
 
@@ -299,13 +309,16 @@ export async function POST() {
     await phCheckin.shutdown();
   }
 
-  // Refresh weekly contributions from GitHub (fire-and-forget, non-blocking)
-  fetchWeeklyContributions(githubLogin).then((weeklyContribs) => {
-    if (weeklyContribs !== null) {
-      sb.from("developers")
-        .update({ current_week_contributions: weeklyContribs })
-        .eq("id", dev.id)
-        .then();
+  // Refresh weekly contributions from GitHub and pay the daily commit PX,
+  // after the response so the check-in doesn't wait on GitHub.
+  const checkedIn = checkinResult.checked_in;
+  after(async () => {
+    const recent = await fetchRecentContributions(githubLogin);
+    if (!recent) return;
+    await sb.from("developers").update({ current_week_contributions: recent.week }).eq("id", dev.id);
+    if (checkedIn && recent.codedRecently) {
+      const today = new Date().toISOString().slice(0, 10);
+      await earnPixels(dev.id, "daily_commit", undefined, `commit:${today}:${dev.id}`);
     }
   });
 

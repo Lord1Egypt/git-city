@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { getBoard, getDriftCountry, nextAbove, recordRun, setDriftCountry } from "@/lib/drift/board";
 import { courseOf, getLiveSpot } from "@/lib/drift/spots";
 import { validateRun } from "@/lib/drift/validate";
+import { earnPixels } from "@/lib/pixels";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ spot: s
 
   const saved = await recordRun(spot.id, viewer.id, check.score, country, { frames: body.frames as number[], splits: check.splits });
   if (!saved) return NextResponse.json({ error: "Couldn't save the run." }, { status: 500 });
+
+  // The day's first lap or drift run pays a "play" session, capped with the other modes.
+  const today = new Date().toISOString().slice(0, 10);
+  await earnPixels(viewer.id, "play_drive", undefined, `play_drive:${today}:${viewer.id}`);
 
   // The timing tower: the two drivers above your best and the two below.
   const [passed, next, around] = await Promise.all([

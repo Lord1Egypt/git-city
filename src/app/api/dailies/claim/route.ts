@@ -84,10 +84,12 @@ export async function POST() {
   // Grant XP for completing all dailies
   admin.rpc("grant_xp", { p_developer_id: dev.id, p_source: "dailies", p_amount: 25 }).then();
 
-  // Earn PX for completing dailies
-  import("@/lib/pixels").then(({ earnPixels }) =>
-    earnPixels(dev.id, "dailies_complete", undefined, `dailies:${today}:${dev.id}`),
-  ).catch(() => {});
+  // Earn PX for completing dailies, plus the weekly bonus on every 7th day in a row
+  const { earnPixels } = await import("@/lib/pixels");
+  await earnPixels(dev.id, "dailies_complete", undefined, `dailies:${today}:${dev.id}`);
+  if (claimResult.streak > 0 && claimResult.streak % 7 === 0) {
+    await earnPixels(dev.id, "dailies_week", undefined, `dailies_week:${today}:${dev.id}`);
+  }
 
   // Grant streak freeze every 7 completions (cap at 2)
   let freezeGranted = false;

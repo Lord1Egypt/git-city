@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -141,23 +142,21 @@ export default async function DevPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser();
   const isOwner = !!user && dev.claimed_by === user.id && dev.claimed;
 
-  // Fire-and-forget: earn PX for visiting another dev's profile
+  // Earn PX for visiting another dev's profile, after the page renders
   if (user && !isOwner) {
-    const sb = getSupabaseAdmin();
-    sb.from("developers")
-      .select("id, github_login")
-      .eq("claimed_by", user.id)
-      .order("claimed_at", { ascending: true })
-      .limit(CLAIMED_DEVELOPER_LIMIT)
-      .then(({ data: rows }) => {
-        const viewer = pickClaimedDeveloper(rows, user);
-        if (viewer) {
-          import("@/lib/pixels").then(({ earnPixels }) => {
-            const today = new Date().toISOString().slice(0, 10);
-            earnPixels(viewer.id, "visit_city", dev.id.toString(), `visit:${today}:${viewer.id}`);
-          }).catch(() => {});
-        }
-      });
+    after(async () => {
+      const { data: rows } = await getSupabaseAdmin()
+        .from("developers")
+        .select("id, github_login")
+        .eq("claimed_by", user.id)
+        .order("claimed_at", { ascending: true })
+        .limit(CLAIMED_DEVELOPER_LIMIT);
+      const viewer = pickClaimedDeveloper(rows, user);
+      if (!viewer) return;
+      const { earnPixels } = await import("@/lib/pixels");
+      const today = new Date().toISOString().slice(0, 10);
+      await earnPixels(viewer.id, "visit_city", dev.id.toString(), `visit:${today}:${viewer.id}`);
+    });
   }
 
   const baseUrl =

@@ -208,6 +208,11 @@ async function rewardAfterLogin(
 ): Promise<void> {
   const admin = getSupabaseAdmin();
   try {
+    // Starter PX so a new player can buy a first item in their first session.
+    if (claimedNow) {
+      await earnPixels(dev.id, "welcome", undefined, `welcome:${dev.id}`);
+    }
+
     // Process referral (from ?ref= param forwarded by client)
     if (claimedNow && ref && ref !== githubLogin && !dev.referred_by) {
       const { data: referrer } = await admin
@@ -225,12 +230,7 @@ async function rewardAfterLogin(
         await admin.rpc("increment_referral_count", { referrer_dev_id: referrer.id });
 
         // Referral reward: +25 PX, idempotent per referred dev
-        earnPixels(
-          referrer.id,
-          "referral",
-          dev.id.toString(),
-          `referral:${dev.id}`
-        ).catch(() => {});
+        await earnPixels(referrer.id, "referral", dev.id.toString(), `referral:${dev.id}`);
 
         await admin.from("activity_feed").insert({
           event_type: "referral",

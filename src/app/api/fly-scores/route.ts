@@ -113,6 +113,10 @@ export async function POST(request: Request) {
     admin.rpc("grant_xp", { p_developer_id: dev.id, p_source: "fly", p_amount: flyXp }).then();
   }
 
+  // Earn PX for the day's first flight (a "play" session, capped with the other modes)
+  const { earnPixels } = await import("@/lib/pixels");
+  await earnPixels(dev.id, "play_fly", undefined, `play_fly:${seed}:${dev.id}`);
+
   // Track daily missions for fly scores
   trackDailyMission(dev.id, "fly_score_50", { score });
   trackDailyMission(dev.id, "fly_score_150", { score });

@@ -12,6 +12,18 @@ export const metadata: Metadata = {
     "Earn Pixels (PX) by coding and playing to unlock cosmetics, upgrades and more for your building in Git City.",
 };
 
+// Mirrors the earn rules in supabase/migrations/162_pixel_economy.sql.
+const EARN_WAYS = [
+  { name: "Check In", px: "+5 PX", how: "Open the city once a day" },
+  { name: "Code on GitHub", px: "+10 PX", how: "Contribute on GitHub, paid at your next check-in" },
+  { name: "Daily Missions", px: "+15 PX", how: "Complete all 3 daily missions" },
+  { name: "Play", px: "+5 PX", how: "First drive, flight, raid or arcade game of the day, up to +10 PX" },
+  { name: "Weekly Bonus", px: "+50 PX", how: "Finish the daily missions 7 days in a row" },
+  { name: "Streak Milestones", px: "+3~35 PX", how: "Bonus at 3, 7, 14 and 30 day streaks" },
+  { name: "Invite Devs", px: "+25 PX", how: "Each dev who joins through your link" },
+  { name: "Visit Profiles", px: "+1 PX", how: "Explore other developers' buildings" },
+];
+
 export default async function PixelsPage() {
   const supabase = await createServerSupabase();
   const {
@@ -145,56 +157,26 @@ export default async function PixelsPage() {
         {/* Earn section */}
         <div className="mt-12 border-[3px] border-border bg-bg-raised p-6">
           <h2 className="text-xl text-cream mb-2 text-center">
-            Earn Pixels for Free
+            Earn Pixels
           </h2>
           <p className="text-sm text-muted normal-case text-center mb-6">
-            Play Git City daily to earn Pixels without spending a dime
+            Every item in the shop can be earned by coding and playing
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-4 border-2 border-border bg-bg/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm text-cream">Daily Missions</p>
-                <p className="text-sm text-lime font-bold">+5 PX</p>
+            {EARN_WAYS.map((way) => (
+              <div key={way.name} className="p-4 border-2 border-border bg-bg/50">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm text-cream">{way.name}</p>
+                  <p className="text-sm text-lime font-bold">{way.px}</p>
+                </div>
+                <p className="text-xs text-muted normal-case">{way.how}</p>
               </div>
-              <p className="text-xs text-muted normal-case">
-                Complete 3 daily missions
-              </p>
-            </div>
-
-            <div className="p-4 border-2 border-border bg-bg/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm text-cream">Raids</p>
-                <p className="text-sm text-lime font-bold">+2 PX</p>
-              </div>
-              <p className="text-xs text-muted normal-case">
-                Attack other buildings
-              </p>
-            </div>
-
-            <div className="p-4 border-2 border-border bg-bg/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm text-cream">Streak Milestones</p>
-                <p className="text-sm text-lime font-bold">+3~35 PX</p>
-              </div>
-              <p className="text-xs text-muted normal-case">
-                Bonus at 3, 7, 14, and 30 day streaks
-              </p>
-            </div>
-
-            <div className="p-4 border-2 border-border bg-bg/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm text-cream">Visit Profiles</p>
-                <p className="text-sm text-lime font-bold">+1 PX</p>
-              </div>
-              <p className="text-xs text-muted normal-case">
-                Explore other developers&apos; buildings
-              </p>
-            </div>
+            ))}
           </div>
 
           <p className="text-xs text-dim normal-case text-center mt-5">
-            Earn up to ~15 PX per day through gameplay. Daily cap: 50 PX.
+            An active day pays about 40 PX, a full week about 330 PX.
           </p>
         </div>
       </div>
