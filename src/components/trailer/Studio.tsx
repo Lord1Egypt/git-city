@@ -22,6 +22,7 @@ const RATES = [1, 0.5, 0.25];
 const CSS = `
 ${TITLE_CSS}
 .film-recording, .film-recording * { cursor: none !important; }
+/* The site's lo-fi radio floats bottom left on pages without its slot (GlobalRadio): not in a film. */
 body > .fixed.bottom-4.left-3 { display: none !important; }
 `;
 

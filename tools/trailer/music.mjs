@@ -28,8 +28,13 @@ const at = (bar, beat = 0) => (bar * 4 + beat) * BEAT; // 0-indexed bar
 let seed = 7;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
 
-function add(buf, i, v) { if (i >= 0 && i < LEN) buf[i] += v; }
-function both(i, v, pan = 0) { add(L, i, v * (1 - pan)); add(R, i, v * (1 + pan)); }
+function add(buf, i, v) {
+  if (i >= 0 && i < LEN) buf[i] += v;
+}
+function both(i, v, pan = 0) {
+  add(L, i, v * (1 - pan));
+  add(R, i, v * (1 + pan));
+}
 
 // ─── Drums ───
 function kick(t, gain = 1) {
@@ -50,7 +55,8 @@ function kick(t, gain = 1) {
 }
 function snare(t, gain = 1) {
   const s = Math.floor(t * SR);
-  let lp = 0, prev = 0;
+  let lp = 0,
+    prev = 0;
   for (let i = 0; i < 0.22 * SR; i++) {
     const x = i / SR;
     const n = rnd();
@@ -82,12 +88,27 @@ function crash(t, gain = 1) {
     const n = rnd();
     const hp = n - prev;
     prev = n;
-    both(s + i, hp * 0.22 * Math.exp(-x * 1.6) * gain, (i % 2 ? 0.3 : -0.3));
+    both(s + i, hp * 0.22 * Math.exp(-x * 1.6) * gain, i % 2 ? 0.3 : -0.3);
   }
 }
 
 // ─── Synths ───
-function tone(t, dur, midi, { wave = "saw", gain = 0.2, cutoff = 2000, env = [0.005, 0.1, 0.6, 0.08], pan = 0, vib = 0, detune = 0, sc = true, glideFrom = null } = {}) {
+function tone(
+  t,
+  dur,
+  midi,
+  {
+    wave = "saw",
+    gain = 0.2,
+    cutoff = 2000,
+    env = [0.005, 0.1, 0.6, 0.08],
+    pan = 0,
+    vib = 0,
+    detune = 0,
+    sc = true,
+    glideFrom = null,
+  } = {},
+) {
   const s = Math.floor(t * SR);
   const [a, d, sus, r] = env;
   const n = Math.floor((dur + r) * SR);
@@ -101,13 +122,25 @@ function tone(t, dur, midi, { wave = "saw", gain = 0.2, cutoff = 2000, env = [0.
     let e = x < a ? x / a : x < a + d ? 1 - (1 - sus) * ((x - a) / d) : sus;
     if (x > dur) e *= Math.max(0, 1 - (x - dur) / r);
     let f = f0;
-    if (glideFrom !== null) f = mtof(glideFrom) + (f0 - mtof(glideFrom)) * Math.min(1, x / Math.max(0.001, dur));
+    if (glideFrom !== null)
+      f = mtof(glideFrom) + (f0 - mtof(glideFrom)) * Math.min(1, x / Math.max(0.001, dur));
     if (vib) f *= 1 + vib * Math.sin(2 * Math.PI * 5.5 * x) * Math.min(1, x * 4);
     let v = 0;
     voices.forEach((dv, j) => {
       phs[j] = (phs[j] + (f * Math.pow(2, dv / 1200)) / SR) % 1;
       const p = phs[j];
-      v += wave === "saw" ? 2 * p - 1 : wave === "square" ? (p < 0.5 ? 1 : -1) : wave === "pulse" ? (p < 0.25 ? 1 : -1) : Math.sin(2 * Math.PI * p);
+      v +=
+        wave === "saw"
+          ? 2 * p - 1
+          : wave === "square"
+            ? p < 0.5
+              ? 1
+              : -1
+            : wave === "pulse"
+              ? p < 0.25
+                ? 1
+                : -1
+              : Math.sin(2 * Math.PI * p);
     });
     v /= voices.length;
     lp += k * (v - lp);
@@ -118,7 +151,8 @@ function tone(t, dur, midi, { wave = "saw", gain = 0.2, cutoff = 2000, env = [0.
 }
 
 // Echo send for the lead (dotted eighth).
-const echoL = new Float32Array(LEN), echoR = new Float32Array(LEN);
+const echoL = new Float32Array(LEN),
+  echoR = new Float32Array(LEN);
 function lead(t, dur, midi, gain = 0.13) {
   const s = Math.floor(t * SR);
   const n = Math.floor((dur + 0.05) * SR);
@@ -127,7 +161,10 @@ function lead(t, dur, midi, gain = 0.13) {
     const x = i / SR;
     const f = mtof(midi) * (1 + 0.006 * Math.sin(2 * Math.PI * 6 * x) * Math.min(1, x * 3));
     ph = (ph + f / SR) % 1;
-    let e = Math.min(1, x / 0.004) * (x > dur ? Math.max(0, 1 - (x - dur) / 0.05) : 1) * (0.8 + 0.2 * Math.exp(-x * 8));
+    let e =
+      Math.min(1, x / 0.004) *
+      (x > dur ? Math.max(0, 1 - (x - dur) / 0.05) : 1) *
+      (0.8 + 0.2 * Math.exp(-x * 8));
     const v = (ph < 0.25 ? 1 : -1) * e * gain;
     both(s + i, v, -0.1);
     add(echoL, s + i, v * 0.5);
@@ -137,7 +174,8 @@ function lead(t, dur, midi, gain = 0.13) {
 
 // ─── FX ───
 function riser(t0, t1, gain = 0.25) {
-  const s = Math.floor(t0 * SR), n = Math.floor((t1 - t0) * SR);
+  const s = Math.floor(t0 * SR),
+    n = Math.floor((t1 - t0) * SR);
   let lp = 0;
   for (let i = 0; i < n; i++) {
     const u = i / n;
@@ -149,8 +187,11 @@ function riser(t0, t1, gain = 0.25) {
 }
 // The engine: a detuned saw growl gliding up, wobbling like revs.
 function engine(t0, t1, gain = 0.22) {
-  const s = Math.floor(t0 * SR), n = Math.floor((t1 - t0) * SR);
-  let p1 = 0, p2 = 0, lp = 0;
+  const s = Math.floor(t0 * SR),
+    n = Math.floor((t1 - t0) * SR);
+  let p1 = 0,
+    p2 = 0,
+    lp = 0;
   for (let i = 0; i < n; i++) {
     const u = i / n;
     const x = i / SR;
@@ -174,7 +215,14 @@ function impact(t, gain = 1) {
     lp += 0.15 * (rnd() - lp);
     both(s + i, lp * 0.9 * Math.exp(-x * 9) * gain);
   }
-  tone(t, 0.35, 28, { wave: "sine", gain: 0.5 * gain, cutoff: 400, env: [0.002, 0.3, 0.2, 0.3], sc: false, glideFrom: 40 });
+  tone(t, 0.35, 28, {
+    wave: "sine",
+    gain: 0.5 * gain,
+    cutoff: 400,
+    env: [0.002, 0.3, 0.2, 0.3],
+    sc: false,
+    glideFrom: 40,
+  });
 }
 
 // ─── Arrangement ───
@@ -184,7 +232,13 @@ for (const b of [0]) {
   engine(at(b, 0), at(b, 3), 0.24);
   riser(at(b, 1.5), at(b, 3), 0.18);
   impact(at(b, 3), 1.1);
-  tone(at(b, 0), BAR, 28, { wave: "saw", gain: 0.12, cutoff: 220, env: [0.02, 0.2, 0.8, 0.1], sc: false });
+  tone(at(b, 0), BAR, 28, {
+    wave: "saw",
+    gain: 0.12,
+    cutoff: 220,
+    env: [0.02, 0.2, 0.8, 0.1],
+    sc: false,
+  });
 }
 
 // Chords: Em, C, D, B (i, VI, VII, V).
@@ -208,12 +262,34 @@ function groove(bar, { hats = true, arp = true, pad = true, bassBusy = true, dro
   for (let e = 0; e < 8; e++) {
     const m = c.root + (e % 2 ? 12 : 0);
     if (!bassBusy && e % 2 === 0) continue;
-    tone(at(bar, e / 2), BEAT / 2 * 0.9, m, { wave: "saw", gain: 0.22, cutoff: 900, env: [0.003, 0.08, 0.5, 0.03], detune: 8 });
+    tone(at(bar, e / 2), (BEAT / 2) * 0.9, m, {
+      wave: "saw",
+      gain: 0.22,
+      cutoff: 900,
+      env: [0.003, 0.08, 0.5, 0.03],
+      detune: 8,
+    });
   }
-  if (pad) for (const n of c.notes) tone(at(bar), BAR, n - 12, { wave: "saw", gain: 0.05, cutoff: 1500, env: [0.05, 0.4, 0.7, 0.2], detune: 14, pan: n % 2 ? 0.4 : -0.4 });
+  if (pad)
+    for (const n of c.notes)
+      tone(at(bar), BAR, n - 12, {
+        wave: "saw",
+        gain: 0.05,
+        cutoff: 1500,
+        env: [0.05, 0.4, 0.7, 0.2],
+        detune: 14,
+        pan: n % 2 ? 0.4 : -0.4,
+      });
   if (arp) {
     const seq = [c.notes[0], c.notes[1], c.notes[2], c.notes[0] + 12];
-    for (let s = 0; s < 16; s++) tone(at(bar, s / 4), BEAT / 4 * 0.8, seq[s % 4], { wave: "pulse", gain: 0.06, cutoff: 3500, env: [0.002, 0.05, 0.4, 0.03], pan: 0.35 });
+    for (let s = 0; s < 16; s++)
+      tone(at(bar, s / 4), (BEAT / 4) * 0.8, seq[s % 4], {
+        wave: "pulse",
+        gain: 0.06,
+        cutoff: 3500,
+        env: [0.002, 0.05, 0.4, 0.03],
+        pan: 0.35,
+      });
   }
   if (drop) crash(at(bar), 0.9);
 }
@@ -224,51 +300,106 @@ if (MODE === "soon") {
   // 8-bit kick and crunch on the stamp (19), a thud as TOWNS stamps on (21),
   // a chord stab on COMING SOON (23) and a held note under the hold.
   const C = 18 * BEAT;
-  tone(C, 0.9, 28, { wave: "sine", gain: 0.25, cutoff: 300, env: [0.002, 0.8, 0.1, 0.6], sc: false, glideFrom: 36 });
+  tone(C, 0.9, 28, {
+    wave: "sine",
+    gain: 0.25,
+    cutoff: 300,
+    env: [0.002, 0.8, 0.1, 0.6],
+    sc: false,
+    glideFrom: 36,
+  });
   const stamp = C + BEAT;
   kick(stamp, 1.1);
   snare(stamp, 0.6);
-  tone(stamp, 0.18, 40, { wave: "square", gain: 0.16, cutoff: 1800, env: [0.001, 0.12, 0.2, 0.05], sc: false });
+  tone(stamp, 0.18, 40, {
+    wave: "square",
+    gain: 0.16,
+    cutoff: 1800,
+    env: [0.001, 0.12, 0.2, 0.05],
+    sc: false,
+  });
   // TOWNS stamps on (card beat 3): a dry thud, like a rubber stamp.
   const thud = C + 3 * BEAT;
   kick(thud, 1.2);
   snare(thud, 0.45);
-  tone(thud, 0.12, 33, { wave: "square", gain: 0.2, cutoff: 700, env: [0.001, 0.08, 0.1, 0.04], sc: false });
+  tone(thud, 0.12, 33, {
+    wave: "square",
+    gain: 0.2,
+    cutoff: 700,
+    env: [0.001, 0.08, 0.1, 0.04],
+    sc: false,
+  });
   const stab = C + 5 * BEAT;
   kick(stab, 0.8);
-  for (const n of [64, 67, 71, 76]) tone(stab, 0.22, n, { wave: "saw", gain: 0.07, cutoff: 2600, env: [0.002, 0.15, 0.3, 0.12], detune: 12, sc: false });
-  tone(stab, 3 * BEAT, 52, { wave: "saw", gain: 0.045, cutoff: 900, env: [0.08, 0.5, 0.7, 0.4], detune: 10, sc: false });
+  for (const n of [64, 67, 71, 76])
+    tone(stab, 0.22, n, {
+      wave: "saw",
+      gain: 0.07,
+      cutoff: 2600,
+      env: [0.002, 0.15, 0.3, 0.12],
+      detune: 12,
+      sc: false,
+    });
+  tone(stab, 3 * BEAT, 52, {
+    wave: "saw",
+    gain: 0.045,
+    cutoff: 900,
+    env: [0.08, 0.5, 0.7, 0.4],
+    detune: 10,
+    sc: false,
+  });
 } else {
-for (let b = 1; b < 9; b++) groove(b, { drop: b === 1 || b === 5 });
+  for (let b = 1; b < 9; b++) groove(b, { drop: b === 1 || b === 5 });
 
-// Lead melody over bars 10-13 (eighths, 0 = rest).
-const MEL = [
-  [71, 71, 76, 74, 71, 69, 67, 69],
-  [67, 67, 72, 71, 67, 64, 67, 69],
-  [69, 69, 74, 72, 69, 66, 69, 71],
-  [71, 0, 75, 0, 78, 76, 75, 71],
-];
-for (let i = 0; i < 4; i++) {
-  const b = 9 + i;
-  groove(b, { drop: i === 0 });
-  MEL[i].forEach((m, e) => m && lead(at(b, e / 2), BEAT / 2 * 0.9, m));
-}
-
-// Build: bars 14-15, snare roll and riser, bass on quarters.
-for (const b of [13, 14]) {
-  const c = CHORDS[b % 4];
-  for (let q = 0; q < 4; q++) {
-    kick(at(b, q), 0.9);
-    tone(at(b, q), BEAT * 0.9, c.root + 12, { wave: "saw", gain: 0.18, cutoff: 700 + (b - 13) * 900 + q * 250, env: [0.003, 0.1, 0.6, 0.05], detune: 8 });
+  // Lead melody over bars 10-13 (eighths, 0 = rest).
+  const MEL = [
+    [71, 71, 76, 74, 71, 69, 67, 69],
+    [67, 67, 72, 71, 67, 64, 67, 69],
+    [69, 69, 74, 72, 69, 66, 69, 71],
+    [71, 0, 75, 0, 78, 76, 75, 71],
+  ];
+  for (let i = 0; i < 4; i++) {
+    const b = 9 + i;
+    groove(b, { drop: i === 0 });
+    MEL[i].forEach((m, e) => m && lead(at(b, e / 2), (BEAT / 2) * 0.9, m));
   }
-  const div = b === 13 ? 4 : 8;
-  for (let s = 0; s < div * 4; s++) snare(at(b, s / div), 0.35 + 0.55 * ((b - 13) * 16 + s * (16 / div / 2)) / 32);
-}
-riser(at(13), at(15), 0.3);
-impact(at(15), 1.2);
-tone(at(15), BAR * 1.2, 40, { wave: "saw", gain: 0.12, cutoff: 600, env: [0.005, 1.2, 0.3, 1.0], detune: 12, sc: false });
-for (const n of CHORDS[0].notes) tone(at(15), BAR * 1.2, n, { wave: "saw", gain: 0.05, cutoff: 1800, env: [0.005, 1.4, 0.3, 1.2], detune: 14, sc: false });
 
+  // Build: bars 14-15, snare roll and riser, bass on quarters.
+  for (const b of [13, 14]) {
+    const c = CHORDS[b % 4];
+    for (let q = 0; q < 4; q++) {
+      kick(at(b, q), 0.9);
+      tone(at(b, q), BEAT * 0.9, c.root + 12, {
+        wave: "saw",
+        gain: 0.18,
+        cutoff: 700 + (b - 13) * 900 + q * 250,
+        env: [0.003, 0.1, 0.6, 0.05],
+        detune: 8,
+      });
+    }
+    const div = b === 13 ? 4 : 8;
+    for (let s = 0; s < div * 4; s++)
+      snare(at(b, s / div), 0.35 + (0.55 * ((b - 13) * 16 + s * (16 / div / 2))) / 32);
+  }
+  riser(at(13), at(15), 0.3);
+  impact(at(15), 1.2);
+  tone(at(15), BAR * 1.2, 40, {
+    wave: "saw",
+    gain: 0.12,
+    cutoff: 600,
+    env: [0.005, 1.2, 0.3, 1.0],
+    detune: 12,
+    sc: false,
+  });
+  for (const n of CHORDS[0].notes)
+    tone(at(15), BAR * 1.2, n, {
+      wave: "saw",
+      gain: 0.05,
+      cutoff: 1800,
+      env: [0.005, 1.4, 0.3, 1.2],
+      detune: 14,
+      sc: false,
+    });
 }
 // Echo on the lead: dotted eighth, three repeats.
 const dly = Math.floor(BEAT * 0.75 * SR);
@@ -276,27 +407,47 @@ for (let i = dly; i < LEN; i++) {
   echoL[i] += echoR[i - dly] * 0.45;
   echoR[i] += echoL[i - dly] * 0.45;
 }
-for (let i = dly; i < LEN; i++) { L[i] += echoL[i - dly] * 0.6; R[i] += echoR[i - dly] * 0.6; }
+for (let i = dly; i < LEN; i++) {
+  L[i] += echoL[i - dly] * 0.6;
+  R[i] += echoR[i - dly] * 0.6;
+}
 
 // The teaser's freeze: hard silence from beat 16 until the name lands on beat 18.
 if (MODE === "soon") {
-  const s0 = Math.floor(16 * BEAT * SR), s1 = Math.floor(18 * BEAT * SR) - 40;
+  const s0 = Math.floor(16 * BEAT * SR),
+    s1 = Math.floor(18 * BEAT * SR) - 40;
   for (let i = s0; i < s1 && i < LEN; i++) {
     const k = i < s0 + 220 ? 1 - (i - s0) / 220 : 0;
-    L[i] *= k; R[i] *= k; echoL[i] = 0; echoR[i] = 0;
+    L[i] *= k;
+    R[i] *= k;
+    echoL[i] = 0;
+    echoR[i] = 0;
   }
 }
 
 // Master: gentle saturation and normalize.
 let peak = 0;
-for (let i = 0; i < LEN; i++) { L[i] = Math.tanh(L[i] * 1.25); R[i] = Math.tanh(R[i] * 1.25); peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i])); }
+for (let i = 0; i < LEN; i++) {
+  L[i] = Math.tanh(L[i] * 1.25);
+  R[i] = Math.tanh(R[i] * 1.25);
+  peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
+}
 const norm = 0.92 / peak;
 
 const out = Buffer.alloc(44 + LEN * 4);
-out.write("RIFF", 0); out.writeUInt32LE(36 + LEN * 4, 4); out.write("WAVE", 8);
-out.write("fmt ", 12); out.writeUInt32LE(16, 16); out.writeUInt16LE(1, 20); out.writeUInt16LE(2, 22);
-out.writeUInt32LE(SR, 24); out.writeUInt32LE(SR * 4, 28); out.writeUInt16LE(4, 32); out.writeUInt16LE(16, 34);
-out.write("data", 36); out.writeUInt32LE(LEN * 4, 40);
+out.write("RIFF", 0);
+out.writeUInt32LE(36 + LEN * 4, 4);
+out.write("WAVE", 8);
+out.write("fmt ", 12);
+out.writeUInt32LE(16, 16);
+out.writeUInt16LE(1, 20);
+out.writeUInt16LE(2, 22);
+out.writeUInt32LE(SR, 24);
+out.writeUInt32LE(SR * 4, 28);
+out.writeUInt16LE(4, 32);
+out.writeUInt16LE(16, 34);
+out.write("data", 36);
+out.writeUInt32LE(LEN * 4, 40);
 for (let i = 0; i < LEN; i++) {
   out.writeInt16LE(Math.round(Math.max(-1, Math.min(1, L[i] * norm)) * 32767), 44 + i * 4);
   out.writeInt16LE(Math.round(Math.max(-1, Math.min(1, R[i] * norm)) * 32767), 46 + i * 4);

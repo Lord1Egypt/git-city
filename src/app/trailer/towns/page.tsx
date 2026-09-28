@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { getLeagueBySlug } from "@/lib/leagues/service";
 import { getCityNorms, getLeagueCityDevs, getLeagueMembers } from "@/lib/leagues/queries";
 import { getCachedCity } from "@/lib/league-city/service";
@@ -20,7 +19,8 @@ export const metadata: Metadata = {
 
 export default async function TeaserPage() {
   const [norms, ...sides] = await Promise.all([getCityNorms(), ...RIVALRY.map(loadSide)]);
-  if (sides.some((s) => !s)) notFound();
+  // A fork without the rivalry towns gets told what the example needs, not a bare 404.
+  if (sides.some((s) => !s)) return <MissingTowns />;
   return <TownsFilm sides={sides as [TeaserSide, TeaserSide]} cityNorms={norms} />;
 }
 
@@ -38,4 +38,22 @@ async function loadSide(r: (typeof RIVALRY)[number]): Promise<TeaserSide | null>
     city,
     cityDevs: await getLeagueCityDevs(members),
   };
+}
+
+function MissingTowns() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-bg p-6 font-pixel text-warm">
+      <div className="max-w-xl space-y-3 text-[12px] normal-case leading-relaxed">
+        <p className="text-lime uppercase">Towns teaser</p>
+        <p>
+          This example film plays in the two rivalry towns,{" "}
+          {RIVALRY.map((r) => r.slug).join(" and ")}, and neither was found in your database. Create
+          them (or point RIVALRY in src/lib/towns/rivalry.ts at two towns you have) and reload.
+        </p>
+        <p className="text-muted">
+          The trailer kit and how to make your own film: tools/trailer/README.md
+        </p>
+      </div>
+    </main>
+  );
 }

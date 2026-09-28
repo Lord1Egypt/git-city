@@ -11,18 +11,33 @@ const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
 function wav(path, data) {
   let peak = 0;
   for (const v of data) peak = Math.max(peak, Math.abs(v));
-  const n = data.length, out = Buffer.alloc(44 + n * 2);
-  out.write("RIFF", 0); out.writeUInt32LE(36 + n * 2, 4); out.write("WAVE", 8); out.write("fmt ", 12);
-  out.writeUInt32LE(16, 16); out.writeUInt16LE(1, 20); out.writeUInt16LE(1, 22); out.writeUInt32LE(SR, 24);
-  out.writeUInt32LE(SR * 2, 28); out.writeUInt16LE(2, 32); out.writeUInt16LE(16, 34); out.write("data", 36); out.writeUInt32LE(n * 2, 40);
-  for (let i = 0; i < n; i++) out.writeInt16LE(Math.round((data[i] / peak) * 0.95 * 32767), 44 + i * 2);
+  const n = data.length,
+    out = Buffer.alloc(44 + n * 2);
+  out.write("RIFF", 0);
+  out.writeUInt32LE(36 + n * 2, 4);
+  out.write("WAVE", 8);
+  out.write("fmt ", 12);
+  out.writeUInt32LE(16, 16);
+  out.writeUInt16LE(1, 20);
+  out.writeUInt16LE(1, 22);
+  out.writeUInt32LE(SR, 24);
+  out.writeUInt32LE(SR * 2, 28);
+  out.writeUInt16LE(2, 32);
+  out.writeUInt16LE(16, 34);
+  out.write("data", 36);
+  out.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++)
+    out.writeInt16LE(Math.round((data[i] / peak) * 0.95 * 32767), 44 + i * 2);
   writeFileSync(path, out);
 }
 
 // Explosion: a sub drop, a noise body closing down, and crackle in the tail.
 {
-  const n = Math.floor(1.8 * SR), d = new Float32Array(n);
-  let ph = 0, lp = 0, lp2 = 0;
+  const n = Math.floor(1.8 * SR),
+    d = new Float32Array(n);
+  let ph = 0,
+    lp = 0,
+    lp2 = 0;
   for (let i = 0; i < n; i++) {
     const x = i / SR;
     const f = 30 + 90 * Math.exp(-x * 9);
@@ -40,15 +55,17 @@ function wav(path, data) {
 
 // Whoosh: band of noise sweeping up, in and out.
 {
-  const n = Math.floor(0.55 * SR), d = new Float32Array(n);
-  let lo = 0, hi = 0;
+  const n = Math.floor(0.55 * SR),
+    d = new Float32Array(n);
+  let lo = 0,
+    hi = 0;
   for (let i = 0; i < n; i++) {
     const u = i / n;
     const fc = 400 + 4500 * u;
     const k = 1 - Math.exp((-2 * Math.PI * fc) / SR);
     const nz = rnd();
     lo += k * (nz - lo);
-    hi += (k * 0.35) * (nz - hi);
+    hi += k * 0.35 * (nz - hi);
     d[i] = (lo - hi) * Math.sin(Math.PI * u) ** 1.5;
   }
   wav(`${process.argv[2]}/whoosh.wav`, d);
@@ -56,10 +73,18 @@ function wav(path, data) {
 // Crumble: a building settling into rubble. A soft thud, a low rumble that
 // swells and fades, and debris clattering, thinning out.
 {
-  const n = Math.floor(2.2 * SR), d = new Float32Array(n);
-  let lp = 0, lp2 = 0, ph = 0;
+  const n = Math.floor(2.2 * SR),
+    d = new Float32Array(n);
+  let lp = 0,
+    lp2 = 0,
+    ph = 0;
   const clacks = [];
-  for (let i = 0; i < 70; i++) clacks.push({ at: 0.05 + Math.pow(Math.random(), 1.8) * 1.6, f: 900 + Math.random() * 2600, a: 0.15 + Math.random() * 0.35 });
+  for (let i = 0; i < 70; i++)
+    clacks.push({
+      at: 0.05 + Math.pow(Math.random(), 1.8) * 1.6,
+      f: 900 + Math.random() * 2600,
+      a: 0.15 + Math.random() * 0.35,
+    });
   for (let i = 0; i < n; i++) {
     const x = i / SR;
     ph += (2 * Math.PI * (55 + 25 * Math.exp(-x * 6))) / SR;
@@ -80,20 +105,23 @@ function wav(path, data) {
 
 // Key: one mechanical keyboard click.
 {
-  const n = Math.floor(0.06 * SR), d = new Float32Array(n);
+  const n = Math.floor(0.06 * SR),
+    d = new Float32Array(n);
   let prev = 0;
   for (let i = 0; i < n; i++) {
     const x = i / SR;
     const nz = rnd();
     const hp = nz - prev;
     prev = nz;
-    d[i] = hp * Math.exp(-x * 140) * 0.8 + Math.sin(2 * Math.PI * 1900 * x) * Math.exp(-x * 90) * 0.35;
+    d[i] =
+      hp * Math.exp(-x * 140) * 0.8 + Math.sin(2 * Math.PI * 1900 * x) * Math.exp(-x * 90) * 0.35;
   }
   wav(`${process.argv[2]}/key.wav`, d);
 }
 // Horn: a little two-tone beep-beep, square and bright.
 {
-  const n = Math.floor(0.42 * SR), d = new Float32Array(n);
+  const n = Math.floor(0.42 * SR),
+    d = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const x = i / SR;
     const on = x < 0.14 || (x > 0.2 && x < 0.38);

@@ -679,6 +679,10 @@ export default function TeaserRig({
       _look.set(run.x, 30, b0 - 10);
       lens = 42;
     } else if (shot.kind === "finale" && run && tower !== undefined) {
+      // Known limit: the smash store takes floors from the bottom and lets the
+      // rest fall with gravity, so an implosion this fast floats the tower up
+      // out of frame before it lands. It needs a "sink" mode in the store to
+      // read as a demolition; the teaser doesn't use this take.
       const tz = run.zs[run.zs.length - 1];
       const hitAt = (COLLAPSE - shot.start) * BEAT;
       const z = tz + 24 + INVADE_SPEED * Math.max(0, hitAt - t);

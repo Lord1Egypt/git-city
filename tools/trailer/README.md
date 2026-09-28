@@ -11,6 +11,8 @@ npm run trailer:audio   # synthesizes the music and sound effects into public/tr
 npm run dev             # then open http://localhost:3001/trailer/towns
 ```
 
+The example plays in the two rivalry towns (`RIVALRY` in `src/lib/towns/rivalry.ts`). If your database doesn't have them, the page says so. Create them, or point `RIVALRY` at two towns you have. The engine itself needs no data: a film of your own can draw anything.
+
 The studio: a 16:9 stage, the scenes on the right (a picked scene loops), play, scrub, slow motion. Keys:
 
 | Key | Does |
@@ -46,6 +48,8 @@ The studio: a 16:9 stage, the scenes on the right (a picked scene loops), play, 
 **A shot recipe** (in the rig) gets `t`, the seconds into its action, and poses a car and a camera as pure functions of `t`. It never integrates over frames, so scrubbing, looping and slow motion are free. Anything a take breaks (floors off a building) goes through state that the studio resets on every loop and seek (`onReset`).
 
 **Stages stay mounted.** Each world is its own canvas that never remounts: a cut only changes which one is visible. A mounted-and-dropped WebGL canvas loses its context after a few loops, so anything with a canvas stays mounted the whole film and hides when it's off.
+
+**Shot recipes in the example rig.** The teaser uses `revback`, `drift`, `missile`, `cornersmash` and `jump`. These also work and are ready for a next film: `rev`, `topdrift`, `boost`, `arrival`, `aerial` and `invasion`. `finale` (a tower imploding) has a known limit, noted in the code: the smash store lets the tower float up as its floors go.
 
 **To add a take:**
 1. Add a `kind` and its recipe in the rig.
@@ -110,7 +114,11 @@ Before calling a shot done, check that nothing sits between the camera and the s
 - In a timeline file, a constant used before it's declared breaks the page at runtime, not at build time.
 - A raw `<script>` in the root layout trips React 19 in dev.
 
-## Recording (macOS)
+## Recording
+
+Any screen recorder works: the studio's Record plays the film full window with no cursor. The rest of this section is the macOS setup we used.
+
+To record the game itself outside the studio, add `?capture=1` to any page. It hides everything but the 3D scene, and a town replays its arrival intro on every load. `?capture=hud` hides only the cursor.
 
 1. `BROWSER="Brave Browser" tools/trailer/capture.sh http://localhost:3001/trailer/towns` opens a clean window: its own profile, no address bar, a 1280×720 page. The default browser is Chrome.
 2. In OBS:
@@ -127,3 +135,7 @@ Before calling a shot done, check that nothing sits between the camera and the s
 - The `soon` cut shows how to shape a track around a film: a hard gate to silence on the freeze, and the end card's hits (stamp, thud, stab) on its beats.
 - `sfx.mjs` makes the effects the game doesn't ship. The game's own skid and impact live in `public/sounds/drive`.
 - Nothing here needs samples or a license. The generated files are gitignored; `npm run trailer:audio` rebuilds them.
+
+## Licenses
+
+The kit is part of Git City and under its AGPL-3.0 license. The music and effects are synthesized by the scripts here, with no samples, so they carry no third-party rights. The game sounds the example uses (skid, impact) and the car model are Kenney's, CC0 (see the repo's CLAUDE.md, "Third-party Assets"). Footage you record of your own game is yours.

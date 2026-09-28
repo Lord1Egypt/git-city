@@ -38,9 +38,6 @@ export interface TeaserSide {
   cityDevs: Record<string, unknown>[];
 }
 
-/** The login planted on the Codex rubble. */
-const ATTACKER = "srizzon";
-
 function useTown(side: TeaserSide, cityNorms: LayoutNorms, gen: number) {
   const base = useMemo(() => {
     const devs = side.cityDevs as unknown as DeveloperRecord[];
@@ -103,6 +100,9 @@ export default function TownsFilm({
   const claude = useTown(claudeSide, cityNorms, gen);
   const codex = useTown(codexSide, cityNorms, gen);
   const [clock] = useState(() => new Transport(FILM.beat));
+  // The flag planted on a town's rubble names someone from the other side.
+  const loginOf = (side: TeaserSide) =>
+    String((side.cityDevs[0] as { github_login?: string } | undefined)?.github_login ?? side.name);
 
   const town = (stage: Stage, frame: Frame<Stage>) => {
     const side = stage === "claude" ? claudeSide : codexSide;
@@ -147,7 +147,7 @@ export default function TownsFilm({
               store={t.store}
               homeColor={side.color}
               rivalColor={other.color}
-              attacker={ATTACKER}
+              attacker={loginOf(other)}
             />
           </LeagueScene>
         </div>
