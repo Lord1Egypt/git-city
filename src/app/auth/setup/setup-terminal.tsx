@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProvisionStep, SetupEvent } from "@/lib/auth-provision";
+import { createBrowserSupabase } from "@/lib/supabase";
 import {
   TERMINAL_KEYFRAMES,
   TERMINAL_LIME as LIME,
@@ -34,6 +35,21 @@ const SLOW_STEP_MS = 5000;
 const EXIT_HOLD_MS = 350;
 
 const fmt = (n: number) => n.toLocaleString("en-US");
+
+/**
+ * Dev only: scripts/new-user-login.mjs opens this page with a staging session
+ * in the hash (#access_token=…&refresh_token=…) to test a first login without
+ * GitHub OAuth. Stripped from production builds.
+ */
+async function adoptDevSession() {
+  if (process.env.NODE_ENV === "production") return;
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const access_token = hash.get("access_token");
+  const refresh_token = hash.get("refresh_token");
+  if (!access_token || !refresh_token) return;
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  await createBrowserSupabase().auth.setSession({ access_token, refresh_token });
+}
 
 /**
  * Login screen between the OAuth callback and the city: builds the player's
@@ -98,6 +114,7 @@ export default function SetupTerminal({ next, refLogin }: { next: string | null;
     setEntering(false);
 
     (async () => {
+      await adoptDevSession();
       const res = await fetch("/api/auth/provision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
