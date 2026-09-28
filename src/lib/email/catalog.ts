@@ -1,9 +1,9 @@
 // Every email Git City sends, for the admin (/admin/emails). `types` are the
 // notification_log types the engine writes; empty means a direct send
-// (advertisers, internal) that isn't logged there. `previews` are
+// (landmark owners, internal) that isn't logged there. `previews` are
 // keys in src/lib/email/previews.
 
-export type EmailArea = "game" | "towns" | "shop" | "ads" | "internal" | "campaigns";
+export type EmailArea = "game" | "towns" | "shop" | "ads" | "campaigns";
 export type EmailSender = "notify" | "mail";
 
 export interface CatalogEmail {
@@ -23,8 +23,7 @@ export const EMAIL_AREAS: { key: EmailArea; label: string }[] = [
   { key: "game", label: "Game" },
   { key: "towns", label: "Towns" },
   { key: "shop", label: "Shop" },
-  { key: "ads", label: "Advertisers" },
-  { key: "internal", label: "Internal" },
+  { key: "ads", label: "Landmarks" },
   { key: "campaigns", label: "Campaigns" },
 ];
 
@@ -57,17 +56,8 @@ export const EMAIL_CATALOG: CatalogEmail[] = [
   { name: "Gift sent", area: "shop", trigger: "You buy a gift for someone", audience: "Buyers", category: "transactional", sender: "notify", types: ["gift_sent"], previews: ["gift-sent"], source: "notification-senders/purchase.ts" },
   { name: "Gift received", area: "shop", trigger: "Someone gifts you an item", audience: "Players", category: "social", sender: "mail", types: ["gift_received"], previews: ["gift-received"], source: "notification-senders/gift.ts" },
 
-  // Advertisers (direct sends)
-  { name: "Ad ending", area: "ads", trigger: "Every 6h, 2 days before an ad ends", audience: "Advertisers", category: "transactional", sender: "notify", types: [], previews: ["ad-expiring"], source: "ad-emails.ts" },
-  { name: "Ad results", area: "ads", trigger: "When an ad ends", audience: "Advertisers", category: "transactional", sender: "notify", types: [], previews: ["ad-expired"], source: "ad-emails.ts" },
-  { name: "Ad follow-ups", area: "ads", trigger: "7 and 30 days after an ad ends", audience: "Advertisers", category: "marketing", sender: "mail", types: [], previews: ["ad-followup-7d", "ad-followup-30d"], source: "ad-emails.ts" },
-  { name: "Weekly ads report", area: "ads", trigger: "Mondays 10:00 UTC", audience: "Advertisers", category: "transactional", sender: "mail", types: [], previews: ["ad-weekly-report"], source: "notification-senders/ad-report.ts" },
-  { name: "Business sign-in link", area: "ads", trigger: "Sign-in on /business/login", audience: "Advertisers and companies", category: "transactional", sender: "notify", types: [], previews: ["ad-sign-in"], source: "api/ads/auth/send-magic-link" },
+  // Landmarks (direct sends)
   { name: "Landmark welcome", area: "ads", trigger: "Admin sends it from Landmarks", audience: "Landmark owners", category: "transactional", sender: "notify", types: [], previews: ["ad-landmark-welcome"], source: "landmarks/welcome-email.ts" },
-
-  // Internal
-  { name: "Ad sale", area: "internal", trigger: "Stripe checkout for ads or landmarks", audience: "Owner", category: "transactional", sender: "notify", types: [], previews: ["admin-ad-sale", "admin-ad-sale-landmark"], source: "admin-emails.ts" },
-  { name: "Landmark / sponsorship inquiry", area: "internal", trigger: "Contact forms on /advertise and /sponsorship", audience: "Owner", category: "transactional", sender: "notify", types: [], previews: ["admin-landmark-inquiry", "admin-sponsorship-inquiry"], source: "admin-emails.ts" },
 
   // Campaigns
   { name: "Towns launch", area: "campaigns", trigger: "Admin campaign, sent in waves", audience: "Players by activity", category: "product_news", sender: "mail", types: ["campaign_towns_launch"], previews: ["campaign-towns-launch", "campaign-towns-launch-repermission"], source: "campaigns/towns-launch.ts" },

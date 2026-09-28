@@ -4024,21 +4024,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
               )}
             </div>
 
-            {/* ── Opportunities ── */}
-            <div className="px-5 pt-5 pb-1">
-              <p className="text-[9px] text-muted/50 uppercase tracking-[0.2em]">Opportunities</p>
-            </div>
-            <div className="divide-y divide-border/40">
-              <Link
-                href="/advertise"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-5 py-3.5 active:bg-white/5"
-              >
-                <span className="text-sm text-cream">Place your Ad</span>
-                <span className="text-xs" style={{ color: theme.accent }}>&#8594;</span>
-              </Link>
-            </div>
-
             {/* ── Community ── */}
             <div className="px-5 pt-5 pb-1">
               <p className="text-[9px] text-muted/50 uppercase tracking-[0.2em]">Community</p>

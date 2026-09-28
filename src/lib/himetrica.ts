@@ -90,24 +90,6 @@ export function trackSkyAdCtaClick(ad_id: string, ad_type: string) {
   hm()?.track("sky_ad_cta_click", { ad_id, ad_type });
 }
 
-export function trackAdvertisePageView(source?: string) {
-  hm()?.track("advertise_page_view", { source });
-}
-
-export function trackAdvertiseCtaClick() {
-  hm()?.track("advertise_cta_click");
-}
-
-// ─── Sponsorship Funnel ─────────────────────────────────────
-
-export function trackSponsorshipPageView(source?: string) {
-  hm()?.track("sponsorship_page_view", { source });
-}
-
-export function trackSponsorshipCtaClick(cta?: string) {
-  hm()?.track("sponsorship_cta_click", { cta });
-}
-
 // ─── Engagement ─────────────────────────────────────────────
 
 export function trackBuildingClicked(target_login: string) {
