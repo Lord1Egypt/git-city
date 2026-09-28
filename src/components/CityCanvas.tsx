@@ -1776,9 +1776,68 @@ function OrbitScene({ buildings, focusedBuilding, focusedBuildingB, focusPositio
       else if (cmd.type === "north") start((c.target as THREE.Vector3).clone(), null, 0);
       else if (cmd.type === "flyTo") start(new THREE.Vector3(cmd.x, 0, cmd.z), cmd.distance ?? null, null);
     });
+    // Trackpad (Google Earth on a Mac): two-finger swipe turns and tilts the
+    // city, pinch zooms, a Safari twist turns it. A mouse wheel still zooms.
+    // Pinches arrive as ctrl+wheel and go on to OrbitControls untouched.
+    let lastWheelAt = 0;
+    let lastWasTrackpad = false;
+    const isTrackpad = (e: WheelEvent) => {
+      const now = performance.now();
+      const sameGesture = now - lastWheelAt < 150;
+      lastWheelAt = now;
+      // A swipe's momentum tail keeps the verdict of its first event.
+      if (sameGesture) return lastWasTrackpad;
+      const legacy = (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
+      lastWasTrackpad = e.deltaMode === 0 && (
+        e.deltaX !== 0 ||
+        (legacy !== undefined && legacy !== 0 ? legacy === -3 * e.deltaY : !Number.isInteger(e.deltaY))
+      );
+      return lastWasTrackpad;
+    };
+    const takeCamera = (c: { dispatchEvent: (ev: { type: string }) => void }) => {
+      c.dispatchEvent({ type: "start" });
+      c.dispatchEvent({ type: "end" });
+    };
+    const onWheel = (e: WheelEvent) => {
+      const c = controlsRef.current;
+      if (!c || !c.enabled || e.ctrlKey || !isTrackpad(e)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      takeCamera(c);
+      const k = (2 * Math.PI * c.rotateSpeed) / el.clientHeight;
+      c._rotateLeft(-e.deltaX * k);
+      c._rotateUp(-e.deltaY * k);
+    };
+    let lastRotation = 0;
+    const onGestureStart = (e: Event) => {
+      e.preventDefault();
+      lastRotation = (e as Event & { rotation?: number }).rotation ?? 0;
+    };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      const c = controlsRef.current;
+      if (!c || !c.enabled) return;
+      const rotation = (e as Event & { rotation?: number }).rotation ?? 0;
+      const d = rotation - lastRotation;
+      lastRotation = rotation;
+      if (d === 0) return;
+      takeCamera(c);
+      c._rotateLeft(-(d * Math.PI) / 180);
+    };
+    // Capture on the canvas runs before OrbitControls' own wheel listener.
+    el.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    el.addEventListener("gesturestart", onGestureStart);
+    el.addEventListener("gesturechange", onGestureChange);
     el.addEventListener("dblclick", onDbl);
     window.addEventListener("keydown", onKey);
-    return () => { unsub(); el.removeEventListener("dblclick", onDbl); window.removeEventListener("keydown", onKey); };
+    return () => {
+      unsub();
+      el.removeEventListener("wheel", onWheel, { capture: true });
+      el.removeEventListener("gesturestart", onGestureStart);
+      el.removeEventListener("gesturechange", onGestureChange);
+      el.removeEventListener("dblclick", onDbl);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [gl, camera]);
 
   const _navSph = useMemo(() => new THREE.Spherical(), []);
@@ -1826,7 +1885,8 @@ function OrbitScene({ buildings, focusedBuilding, focusedBuildingB, focusPositio
       )}
       {/* Google Maps / Earth style: left-drag pans the ground, right-drag (or
           Shift/Ctrl + left) rotates and tilts, the wheel zooms toward the
-          cursor, arrows pan; one finger pans, two pinch and rotate. */}
+          cursor, arrows pan; one finger pans, two pinch and rotate; on a
+          trackpad two-finger swipe rotates and tilts, pinch zooms. */}
       <OrbitControls
         ref={controlsRef}
         enableDamping
