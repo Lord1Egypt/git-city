@@ -64,9 +64,9 @@ const SECTIONS: { heading: string; links: AdminLink[] }[] = [
     heading: "Monitoring",
     links: [
       {
-        href: "/admin/email-monitoring",
-        title: "Email deliverability",
-        description: "Sent, bounced, failed and suppressed counts",
+        href: "/admin/emails",
+        title: "Emails",
+        description: "Delivery health, every email with previews, campaigns and dated chores",
       },
     ],
   },
