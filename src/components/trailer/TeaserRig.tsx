@@ -671,32 +671,10 @@ export default function TeaserRig({
             gravity: -5,
           });
       }
-      // Three moves: low ahead of the shooter looking back at it while it
-      // locks on; on the launch, riding the missile's tail with the orange
-      // car dead ahead; on the hit, still beside the blast, watching the car
-      // go over.
-      const sx = xb;
-      const sz = zb - 5;
-      if (t < fire) {
-        _pos.set(xb + 6, 1.8, zb - 12);
-        _look.set(xb, 2, zb);
-        lens = 44;
-      } else if (t < hit) {
-        const u = (t - fire) / (hit - fire);
-        const mx = sx + (xo - sx) * u;
-        const mz = sz + (zo - sz) * u;
-        const dx = xo - mx;
-        const dz = zo - mz;
-        const d = Math.max(0.001, Math.hypot(dx, dz));
-        _pos.set(mx - (dx / d) * 7, 4, mz - (dz / d) * 7);
-        _look.set(xo, 1.8, zo);
-        lens = 48;
-      } else {
-        const zHit = z0 - MISSILE_SPEED * hit;
-        _pos.set(xo - 13, 4, zHit + 16);
-        _look.set(xo, 5, zHit - 6);
-        lens = 52;
-      }
+      // Low, behind and right of the shooter, moving with both cars.
+      _pos.set(xb + 9, 3, zb + 12);
+      _look.set(1, 2.2, zo + 4);
+      lens = 44;
       st.current.amp = 0.5;
     } else if (shot.kind === "arrival") {
       const z = gateZ + ARRIVAL_SPEED * (CROSS - t);
