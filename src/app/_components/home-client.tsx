@@ -1576,7 +1576,9 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
     return () => timers.forEach(clearTimeout);
   }, [rabbitCinematic]);
 
-  // Fetch rabbit progress on login — sync local progress to server
+  // Rabbit progress on login comes from the server only. Local progress is
+  // never pushed up: a browser shared across environments (or an old hunt)
+  // would otherwise "complete" the hunt and open /rabbit on sign-in.
   useEffect(() => {
     if (!session) return;
     (async () => {
@@ -1585,28 +1587,10 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
         if (!res.ok) return;
         const data = await res.json();
         const serverProgress = data?.progress ?? 0;
-        const localProgress = parseInt(localStorage.getItem("gitcity_rabbit_progress") ?? "0", 10) || 0;
-
-        // Sync local progress to server if ahead (silently fails if no claimed building)
-        if (localProgress > serverProgress) {
-          for (let s = serverProgress + 1; s <= localProgress; s++) {
-            const sr = await fetch("/api/rabbit", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sighting: s }),
-            });
-            if (!sr.ok) break; // stop sync if server rejects (e.g. no claimed building)
-          }
-        }
-
-        const best = Math.max(serverProgress, localProgress);
-        setRabbitProgress(best);
-        localStorage.setItem("gitcity_rabbit_progress", String(best));
-        if (best > 0 && best < 5) {
-          setRabbitSighting(best + 1);
-        }
-        if (best >= 5 && serverProgress < 5 && localProgress >= 5) {
-          setRabbitCompletion(true);
+        setRabbitProgress(serverProgress);
+        localStorage.setItem("gitcity_rabbit_progress", String(serverProgress));
+        if (serverProgress > 0 && serverProgress < 5) {
+          setRabbitSighting(serverProgress + 1);
         }
       } catch { }
     })();
