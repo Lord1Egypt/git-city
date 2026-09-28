@@ -131,6 +131,11 @@ export function statTiles(items: { value: string; label: string }[]): string {
 </table>`;
 }
 
+/** Fixed vertical space between blocks, e.g. under a button. */
+export function spacer(height: number): string {
+  return `<div style="height:${height}px; line-height:${height}px; font-size:0;">&nbsp;</div>`;
+}
+
 /**
  * The one call to action: lime block with a darker bottom edge. Kept as a solid
  * color on purpose: Gmail iOS dark mode turns it dark green with white text,

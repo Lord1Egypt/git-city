@@ -1,4 +1,4 @@
-import { EMAIL_BASE_URL, button, heading, heroImage, paragraph, trackedUrl } from "../email/components";
+import { EMAIL_BASE_URL, button, heading, heroImage, paragraph, spacer, trackedUrl } from "../email/components";
 import { renderLayout, renderText } from "../email/layout";
 import type { CampaignDefinition, CampaignRenderContext } from "./types";
 
@@ -45,7 +45,7 @@ function repermission(ctx: CampaignRenderContext) {
     title: subject,
     preheader,
     hero: heroImage({ src: `${EMAIL_BASE_URL}/towns/opengraph-image`, href: ctx.confirmUrl, alt: "Git City Towns: Claude vs Codex. Pick your side. Battle starts Monday." }),
-    body: [heading("Still want Git City news?"), ...lines.map((l) => paragraph(l)), button("Yes, keep me posted", ctx.confirmUrl), paragraph(skip, { muted: true })].join("\n"),
+    body: [heading("Still want Git City news?"), ...lines.map((l) => paragraph(l)), button("Yes, keep me posted", ctx.confirmUrl), spacer(20), paragraph(skip, { muted: true })].join("\n"),
     reason,
     links: ctx.links,
   });
