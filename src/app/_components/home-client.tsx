@@ -4307,7 +4307,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
                   }}
                 />
               ) : MILESTONE_MODE === "rivalry" ? (
-                <RivalryCta from="home" />
+                <RivalryCta from="home" accent={theme.accent} />
               ) : MILESTONE_MODE === "stars" ? (
                 // ── GitHub Stars mode ──
                 (() => {
