@@ -70,6 +70,11 @@ const ARRIVAL_SPEED = 55;
 const INVADE_SPEED = 62;
 /** Rev: the burnout lasts this long, then the car launches (s, units/s²). */
 const REV_LAUNCH = 1.2;
+/** The long lens on the wheel from across the street, and how wide it opens for the launch. */
+const REV_DIST = 24;
+const REV_FOV = 11;
+const REV_WIDE = 30;
+const BASE_FOV = 50;
 const REV_ACCEL = 150;
 const SMOKE = ["#d9d6de", "#bdb9c4", "#ece9ef", "#a7a2b0"];
 /** Implosion: one floor off every column this often (s). */
@@ -89,6 +94,7 @@ export default function TeaserRig({
   clock,
   h,
   gateZ,
+  revZ,
   run,
   store,
   homeColor,
@@ -100,6 +106,8 @@ export default function TeaserRig({
   h: number;
   /** World z of the portal. */
   gateZ: number;
+  /** Where the burnout car waits on the main street (a plain stretch of road). */
+  revZ: number;
   run: SmashRun | null;
   store: SmashStore;
   /** This town's side: the arrival car. */
@@ -138,11 +146,13 @@ export default function TeaserRig({
     /** Body bounce (units) and squat (radians). */
     bob = 0,
     squat = 0,
+    /** Heading: π faces north (−z), 0 faces south (+z). */
+    yaw = Math.PI,
   ) => {
     if (!g) return;
     g.visible = true;
     g.position.set(x, bob, z);
-    g.rotation.set(squat, Math.PI, 0);
+    g.rotation.set(squat, yaw, 0);
     st.current.spin += (wheelSpeed * dt) / (WHEEL.radius * M_TO_UNIT);
     WHEELS.forEach((w, i) => {
       const o = wheels[i];
@@ -182,7 +192,7 @@ export default function TeaserRig({
     if (hits.length) st.current.shake = Math.max(st.current.shake, big ? 1 : 0.35);
   };
 
-  useFrame((_, delta) => {
+  useFrame((three, delta) => {
     const dt = Math.min(delta, 0.05);
     const beat = beatOf(clock);
     const prev = st.current.last;
@@ -194,74 +204,82 @@ export default function TeaserRig({
     st.current.shake = Math.max(0, st.current.shake - dt * 2.2);
 
     st.current.amp = 1;
+    let lens = BASE_FOV;
     if (shot.kind === "rev") {
-      // Burnout: parked on the main street, the rear wheel spins up in its own
-      // smoke, the body shakes; then the car launches out of frame and the
-      // street it leaves shows the town.
-      const zPark = gateZ - LOT * 2.5;
-      const wheel = WHEELS[stage === "claude" ? 3 : 2];
-      // The car faces north (rotation π): local (x, z) is world (−x, −z).
-      const wx = LANE - wheel.x * M_TO_UNIT;
-      const wz = zPark - wheel.z * M_TO_UNIT;
-      const out = Math.sign(wx - LANE);
+      // Burnout, seen from the side on a long lens: the car waits on the main
+      // street facing the exit, the rear wheel spins up in its own smoke and
+      // the body shakes; then it launches to the left of the frame, trailing
+      // smoke, and the camera travels with it. The camera looks west, so the
+      // sky and the open lots are behind the car, and south is screen left.
+      const zPark = revZ;
+      const x = -LANE;
+      // Facing south (rotation 0), local (x, z) is world (x, z); the east-side rear wheel faces the camera.
+      const wheel = WHEELS[2];
+      const wx = x + wheel.x * M_TO_UNIT;
+      const out = 1;
+      const u = Math.max(0, t - REV_LAUNCH);
+      const zCar = zPark + 0.5 * REV_ACCEL * u * u;
+      const wz = zCar + wheel.z * M_TO_UNIT;
       if (t < REV_LAUNCH) {
-        const u = t / REV_LAUNCH;
-        const wheelSpeed = 25 + 170 * u * u;
+        const k = t / REV_LAUNCH;
         pose(
           home.current,
           homeWheels.current,
-          LANE,
+          x,
           zPark,
           0,
           dt,
-          wheelSpeed,
-          0.05 * Math.sin(t * 70) * (0.4 + u),
-          -0.025 * u,
+          25 + 170 * k * k,
+          0.05 * Math.sin(t * 70) * (0.4 + k),
+          0.025 * k,
+          0,
         );
-        bursts.current?.burst(wx, 0.5, wz + 0.9, {
+        bursts.current?.burst(wx, 0.5, wz - 0.9, {
           count: 1,
-          speed: 1.5 + 2 * u,
+          speed: 1 + 1.5 * k,
           colors: SMOKE,
-          size: 0.4 + 0.35 * u,
+          size: 0.28 + 0.27 * k,
           life: 1.0,
           gravity: -1.5,
           flat: 0.6,
         });
-        st.current.shake = Math.max(st.current.shake, 0.06 + 0.12 * u);
+        st.current.shake = Math.max(st.current.shake, 0.06 + 0.12 * k);
       } else {
-        const u = t - REV_LAUNCH;
         const speed = REV_ACCEL * u;
         pose(
           home.current,
           homeWheels.current,
-          LANE,
-          zPark - 0.5 * REV_ACCEL * u * u,
+          x,
+          zCar,
           speed,
           dt,
           speed + 60,
           0,
-          0.04 * Math.max(0, 1 - u * 3),
+          -0.04 * Math.max(0, 1 - u * 3),
+          0,
         );
         // The smoke trails the wheel as it goes.
-        const zWheel = zPark - 0.5 * REV_ACCEL * u * u - wheel.z * M_TO_UNIT;
         if (u < 0.6)
-          bursts.current?.burst(wx, 0.5, zWheel + 0.9, {
+          bursts.current?.burst(wx, 0.5, wz - 0.9, {
             count: 1,
-            speed: 3,
+            speed: 2,
             colors: SMOKE,
-            size: 0.6,
+            size: 0.45,
             life: 0.8,
             gravity: -1.5,
             flat: 0.6,
           });
         if (u < 0.3) st.current.shake = Math.max(st.current.shake, 0.5 * (1 - u / 0.3));
       }
-      // Low beside the car, just ahead of the rear wheel, looking back at it
-      // (the arch far behind); it eases in while the wheel spins, then the
-      // car launches past the lens.
-      const dolly = 0.8 * smooth(Math.min(1, t / REV_LAUNCH));
-      _pos.set(wx + out * (4.6 - dolly), 0.95, wz - 2.6 + dolly * 0.5);
-      _look.set(wx - out * 0.3, 1.0, wz + 1.6);
+      // From across the street: the wheel low in the frame, a strip of road
+      // under it. After the launch the camera travels with the car, a little
+      // slower, pulling back and widening, so it runs off to the left.
+      const chase = smooth(Math.min(1, u / 0.35));
+      const zRest = zPark + wheel.z * M_TO_UNIT;
+      const zCam = zRest - 0.6 + (zCar - zPark) * 0.8;
+      _pos.set(wx + out * (REV_DIST + 3 * chase), 1.3 + 1.5 * chase, zCam);
+      _look.set(wx, 1.7 + 0.8 * chase, zCam + 0.6);
+      lens = REV_FOV + (REV_WIDE - REV_FOV) * chase;
       st.current.amp = 0.22;
     } else if (shot.kind === "arrival") {
       const z = gateZ + ARRIVAL_SPEED * (CROSS - t);
@@ -342,6 +360,11 @@ export default function TeaserRig({
       const n = performance.now() / 1000;
       _pos.x += Math.sin(n * 71) * 1.6 * k * st.current.amp;
       _pos.y += Math.cos(n * 53) * 1.2 * k * st.current.amp;
+    }
+    const cam = three.camera;
+    if (cam instanceof THREE.PerspectiveCamera && cam.fov !== lens) {
+      cam.fov = lens;
+      cam.updateProjectionMatrix();
     }
     camera.position.copy(_pos);
     camera.lookAt(_look);

@@ -9,6 +9,8 @@ import {
   type LayoutNorms,
 } from "@/lib/github";
 import type { LeagueCity } from "@/lib/league-city/service";
+import type { CityObject } from "@/lib/league-city/types";
+import { LOT } from "@/lib/league-city/grid";
 import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
 import { smashStoreFor } from "@/lib/league-city/smash";
 import {
@@ -66,12 +68,38 @@ function useTown(side: TeaserSide, cityNorms: LayoutNorms, gen: number) {
     const run = real.length ? smashRun(side.city.objects, side.city.h, real[0]) : null;
     const buildings = run ? [...real, ...run.buildings] : real;
     const portal = side.city.objects.find((o) => o.item_type === "portal");
-    return { buildings, run, gateZ: portal?.pz ?? 24 };
+    return { buildings, run, gateZ: portal?.pz ?? 24, revZ: plainStreet(side.city.objects) };
   }, [side, cityNorms]);
   // A fresh store puts every building back up (a new take, a loop, a seek back).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const store = useMemo(() => smashStoreFor(base.buildings), [base, gen]);
   return { ...base, store };
+}
+
+/** Props on the road that would sit in the burnout shot (pads, bumps, ramps). */
+const ON_ROAD = new Set([
+  "boost_pad",
+  "speed_bump",
+  "ramp",
+  "ramp_big",
+  "cone",
+  "tire_wall",
+  "crates",
+]);
+
+/** A lot row on the main street near the entrance with nothing on the road, as a world z. */
+function plainStreet(objects: readonly CityObject[]): number {
+  for (let z = -2; z >= -12; z--) {
+    const busy = objects.some(
+      (o) =>
+        o.item_type !== null &&
+        ON_ROAD.has(o.item_type) &&
+        Math.abs(o.x) <= 1 &&
+        Math.abs(o.z - z) <= 1,
+    );
+    if (!busy) return z * LOT;
+  }
+  return -2 * LOT;
 }
 
 const CSS = `
@@ -306,6 +334,7 @@ export default function TeaserClient({
               clock={clock}
               h={side.city.h}
               gateZ={t.gateZ}
+              revZ={t.revZ}
               run={t.run}
               store={t.store}
               homeColor={side.color}
