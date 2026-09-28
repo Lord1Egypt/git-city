@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           Privacy <span style={{ color: ACCENT }}>Policy</span>
         </h1>
         <p className="mt-2 text-[10px] text-muted normal-case">
-          Last updated: April 27, 2026
+          Last updated: September 27, 2026
         </p>
         <p className="mt-1 text-[10px] text-muted normal-case">
           {LEGAL_NAME} is operated by {LEGAL_RAZAO_SOCIAL} (CNPJ {LEGAL_CNPJ},{" "}
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
             <ul className="flex flex-col gap-1">
               <Li>Generate your 3D building in the city</Li>
               <Li>Display your profile on the leaderboard</Li>
-              <Li>Send notifications you opted into (email)</Li>
+              <Li>Email you about your own activity (raids, towns, reminders, weekly recap) and, occasionally, about big Git City launches. Every email except receipts and sign-in links can be turned off from its footer or Settings</Li>
               <Li>Process purchases through our payment providers</Li>
               <Li>Improve the service and fix bugs</Li>
               <Li>Detect and prevent abuse (rate limiting, fraud)</Li>
@@ -97,13 +97,14 @@ export default function PrivacyPage() {
               </Li>
               <Li>
                 <span style={{ color: ACCENT }}>Legitimate interest</span> -
-                Security, abuse prevention, aggregated analytics, and product
-                improvement.
+                Security, abuse prevention, aggregated analytics, product
+                improvement, and emailing players about Git City&apos;s own new
+                features. You can object at any time with the unsubscribe link in
+                any email or in Settings.
               </Li>
               <Li>
-                <span style={{ color: ACCENT }}>Consent</span> - Optional email
-                notifications and any future opt-in features. You can withdraw
-                consent at any time.
+                <span style={{ color: ACCENT }}>Consent</span> - Any future
+                opt-in features. You can withdraw consent at any time.
               </Li>
               <Li>
                 <span style={{ color: ACCENT }}>Legal obligation</span> -
