@@ -18,6 +18,7 @@ import {
   BLASTS,
   COLLAPSE,
   LENGTH,
+  LOGO,
   SCENES,
   SONG_OFFSET,
   SOUNDS,
@@ -29,6 +30,7 @@ import {
   type Stage,
 } from "@/lib/trailer/teaser";
 import TeaserRig, { beatOf, TeaserTransport } from "@/components/trailer/TeaserRig";
+import EndCard from "@/components/trailer/EndCard";
 
 const LeagueScene = dynamic(() => import("@/components/league/LeagueScene"), {
   ssr: false,
@@ -138,6 +140,8 @@ export default function TeaserClient({
   const [recording, setRecording] = useState(false);
   const [frame, setFrame] = useState<Frame>(frameAt(0));
   const [texts, setTexts] = useState<number[]>([]);
+  const [endCard, setEndCard] = useState(false);
+  const endBeat = useCallback(() => beatOf(clock) - LOGO, [clock]);
   const flash = useRef<HTMLDivElement>(null);
   const scrub = useRef<HTMLInputElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
@@ -343,11 +347,13 @@ export default function TeaserClient({
       }
       const f = frameAt(beat);
       const on = TEXTS.flatMap((c, i) => (beat >= c.start && beat < c.end ? [i] : []));
-      const next = JSON.stringify([f, on]);
+      const card = beat >= LOGO && beat < LENGTH;
+      const next = JSON.stringify([f, on, card]);
       if (next !== key) {
         key = next;
         setFrame(f);
         setTexts(on);
+        setEndCard(card);
       }
       if (scrub.current && document.activeElement !== scrub.current)
         scrub.current.value = String(beat);
@@ -429,6 +435,7 @@ export default function TeaserClient({
       {town("claude")}
       {town("codex")}
       {frame.kind === "black" && <div className="absolute inset-0 bg-black" />}
+      {endCard && <EndCard beat={endBeat} />}
 
       {(["left", "right"] as const).map((place) => {
         const c = cue(place);

@@ -145,13 +145,13 @@ const IMPACT = "/sounds/drive/impact.ogg";
 
 /** Sound effects over the music, from each take's own moments, and the crash in the dark after the name. */
 export const SOUNDS: SoundCue[] = [
-  {
-    beat: SHOTS[SHOTS.length - 1].end + 7,
-    src: "/trailer/sfx/explosion.wav",
-    gain: 0.9,
-    rate: 0.45,
-  },
-  { beat: SHOTS[SHOTS.length - 1].end + 7, src: IMPACT, gain: 0.8, rate: 0.6 },
+  // The end card: a click as each chip pops (DRIVE, DRIFT, SMASH), the building settling at the end.
+  ...Array.from({ length: 3 }, (_, i) => ({
+    beat: SHOTS[SHOTS.length - 1].end + 3 + i * 0.5,
+    src: "/trailer/sfx/key.wav",
+    gain: 0.7,
+  })),
+  { beat: SHOTS[SHOTS.length - 1].end + 7, src: "/trailer/sfx/crumble.wav", gain: 0.75 },
 ].concat(
   SHOTS.flatMap((s): SoundCue[] => {
     if (s.kind === "revback" && s.stage === "claude")
@@ -231,8 +231,6 @@ const TAGS: [ShotKind, string, number, boolean][] = [
 const TAGGED = false;
 
 export const TEXTS: TextCue[] = [
-  { start: LOGO, end: LENGTH, text: "Git City Towns", place: "end1" as const },
-  { start: LOGO + 2, end: LENGTH, text: "Soon", place: "end3" as const },
   ...(TAGGED ? TAGS : []).flatMap(([kind, text, at, big]) =>
     SHOTS.filter((s) => s.kind === kind).map((s) => ({
       start: momentOf(s, at),
@@ -244,14 +242,15 @@ export const TEXTS: TextCue[] = [
   ),
 ];
 
-/** The scenes the studio lists: one per take (a split take is two shots). */
-export const SCENES = SHOTS.filter((s, i) => i === 0 || SHOTS[i - 1].start !== s.start).map(
-  (s) => ({
+/** The scenes the studio lists: one per take (a split take is two shots), then the end card. */
+export const SCENES = [
+  ...SHOTS.filter((s, i) => i === 0 || SHOTS[i - 1].start !== s.start).map((s) => ({
     name: s.name,
     start: s.start,
     end: s.end,
-  }),
-);
+  })),
+  { name: "End card", start: LOGO, end: LENGTH },
+];
 
 export function frameAt(beat: number): Frame {
   if (beat < 0 || beat >= END) return { kind: "black" };
