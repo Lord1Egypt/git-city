@@ -7,9 +7,18 @@ const INSTALL = "npx skills add srizzon/git-city --skill game-trailer";
 const REPO = "https://github.com/srizzon/git-city/tree/main/.claude/skills/game-trailer";
 
 const STEPS: [string, string][] = [
-  ["It asks you first", "What should people feel at the end? Teaser or trailer? The idea is yours."],
-  ["It writes the film", "Short takes on the music's beat, shot in your real game: your cars, your map, your camera."],
-  ["You watch it live", "A studio page in your game. Scene by scene, scrub, slow motion. Claude checks every beat before you see it."],
+  [
+    "It asks you first",
+    "What should people feel at the end? Teaser or trailer? The idea is yours.",
+  ],
+  [
+    "It writes the film",
+    "Short takes on the music's beat, shot in your real game: your cars, your map, your camera.",
+  ],
+  [
+    "You watch it live",
+    "A studio page in your game. Scene by scene, scrub, slow motion. Claude checks every beat before you see it.",
+  ],
   ["You press record", "Music made for the cut, an end card, and one clean pass into OBS."],
 ];
 
@@ -49,6 +58,45 @@ function Install() {
   );
 }
 
+/** A pixel speaker: sound waves when on, an X when muted. */
+function SpeakerIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 11 11"
+      shapeRendering="crispEdges"
+      fill="currentColor"
+      aria-hidden
+    >
+      <rect x="0" y="4" width="2" height="3" />
+      <rect x="2" y="3" width="1" height="5" />
+      <rect x="3" y="2" width="1" height="7" />
+      <rect x="4" y="1" width="1" height="9" />
+      {muted ? (
+        <>
+          <rect x="6" y="3" width="1" height="1" />
+          <rect x="7" y="4" width="1" height="1" />
+          <rect x="8" y="5" width="1" height="1" />
+          <rect x="9" y="6" width="1" height="1" />
+          <rect x="10" y="7" width="1" height="1" />
+          <rect x="10" y="3" width="1" height="1" />
+          <rect x="9" y="4" width="1" height="1" />
+          <rect x="7" y="6" width="1" height="1" />
+          <rect x="6" y="7" width="1" height="1" />
+        </>
+      ) : (
+        <>
+          <rect x="6" y="4" width="1" height="3" />
+          <rect x="8" y="2" width="1" height="1" />
+          <rect x="9" y="3" width="1" height="5" />
+          <rect x="8" y="8" width="1" height="1" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function Teaser() {
   const video = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
@@ -63,40 +111,33 @@ function Teaser() {
   };
   return (
     <figure className="border-[3px] border-border bg-bg-card">
-      <video
-        ref={video}
-        className="block aspect-video w-full bg-black"
-        src="/trailer-kit/towns-teaser.mp4"
-        poster="/trailer-kit/towns-teaser.jpg"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="metadata"
-      />
-      <figcaption className="flex items-center justify-between gap-3 border-t-[3px] border-border px-4 py-3">
-        <span className="text-xs text-muted normal-case">Git City Towns teaser. Recorded in one take, straight from the game.</span>
-        {/* Muted: one clear action. Playing with sound: say so, and offer the way back. */}
-        {muted ? (
-          <button
-            type="button"
-            onClick={toggle}
-            className="btn-press shrink-0 bg-lime px-3 py-2 text-xs tracking-widest text-bg"
-          >
-            &#9654; Play with sound
-          </button>
-        ) : (
-          <span className="flex shrink-0 items-center gap-3 text-xs">
-            <span className="text-lime">&#9834; Sound on</span>
-            <button
-              type="button"
-              onClick={toggle}
-              className="btn-press border-[3px] border-border px-3 py-1.5 text-muted hover:text-cream"
-            >
-              Mute
-            </button>
-          </span>
-        )}
+      <div className="relative">
+        <video
+          ref={video}
+          className="block aspect-video w-full bg-black"
+          src="/trailer-kit/towns-teaser.mp4"
+          poster="/trailer-kit/towns-teaser.jpg"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+        />
+        {/* Sound, the way video players do it: a speaker, crossed out while muted. */}
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={muted ? "Turn sound on" : "Mute"}
+          title={muted ? "Turn sound on" : "Mute"}
+          className="absolute bottom-3 left-3 flex size-10 items-center justify-center bg-black/60 text-cream transition-colors hover:bg-black/80 hover:text-lime"
+        >
+          <SpeakerIcon muted={muted} />
+        </button>
+      </div>
+      <figcaption className="border-t-[3px] border-border px-4 py-3">
+        <span className="text-xs text-muted normal-case">
+          Git City Towns teaser. Recorded in one take, straight from the game.
+        </span>
       </figcaption>
     </figure>
   );
@@ -131,7 +172,8 @@ export default function KitPage() {
         <div className="mx-auto mt-6 max-w-2xl px-4 sm:px-6">
           <Install />
           <p className="mt-3 text-center text-sm text-muted normal-case">
-            Then ask Claude Code: <span className="text-cream">&ldquo;Make a teaser for my game.&rdquo;</span>
+            Then ask Claude Code:{" "}
+            <span className="text-cream">&ldquo;Make a teaser for my game.&rdquo;</span>
           </p>
         </div>
       </section>
@@ -151,7 +193,9 @@ export default function KitPage() {
 
       <section className="mx-auto mt-20 max-w-4xl px-4 sm:px-6">
         <h2 className="text-lg text-cream sm:text-xl">In the skill</h2>
-        <p className="mt-1 text-xs text-muted normal-case">MIT. Works in any React web game: three.js, canvas or plain DOM.</p>
+        <p className="mt-1 text-xs text-muted normal-case">
+          MIT. Works in any React web game: three.js, canvas or plain DOM.
+        </p>
         <dl className="mt-4 border-[3px] border-border bg-bg-card">
           {KIT.map(([name, what], i) => (
             <div
@@ -169,7 +213,9 @@ export default function KitPage() {
         <div className="flex flex-col items-start justify-between gap-4 border-[3px] border-border bg-bg-card p-5 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm text-cream sm:text-base">Try the studio</p>
-            <p className="mt-1 text-sm text-muted normal-case">A demo film built with the kit. Space plays, arrows step, Shift R records.</p>
+            <p className="mt-1 text-sm text-muted normal-case">
+              A demo film built with the kit. Space plays, arrows step, Shift R records.
+            </p>
           </div>
           <Link
             href="/trailer/demo"
