@@ -8,7 +8,6 @@ export const REMOVED_PAGE_REDIRECTS = [
   { source: "/ads/:path*", destination: "/", permanent: false },
   { source: "/business/:path*", destination: "/", permanent: false },
   { source: "/sponsorship", destination: "/", permanent: false },
-  { source: "/media-kit", destination: "/", permanent: false },
   { source: "/pitch", destination: "/", permanent: false },
   { source: "/support", destination: "/", permanent: false },
 ] as const;
