@@ -144,7 +144,7 @@ export default class DriveServer implements Party.Server {
 
   /** Tell the town tally who's here (best effort). */
   private async reportLive(l: TownLive) {
-    const secret = this.room.env.LIVE_SECRET as string | undefined;
+    const secret = (this.room.env.LIVE_SECRET as string | undefined)?.trim();
     const tally = this.room.context.parties.townlive;
     if (!secret || !tally) return;
     try {

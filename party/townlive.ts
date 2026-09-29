@@ -29,7 +29,7 @@ export default class TownLiveServer implements Party.Server {
     }
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
-    const secret = this.room.env.LIVE_SECRET as string | undefined;
+    const secret = (this.room.env.LIVE_SECRET as string | undefined)?.trim();
     if (!secret || request.headers.get(LIVE_SECRET_HEADER) !== secret) return new Response("Forbidden", { status: 403 });
     let body: unknown;
     try {
