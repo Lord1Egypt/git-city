@@ -32,6 +32,7 @@ const ROUTE_LIMITS: [string, number, number][] = [
 // on every request, reducing latency by ~270ms on these high-traffic paths.
 const AUTH_SKIP_PREFIXES = [
   "/api/online",
+  "/api/towns/live",
   "/api/presence",
   "/api/feed",
   "/api/city",
