@@ -255,6 +255,18 @@ button:not(:disabled) {
   100% { opacity: 0; transform: translateY(100vh) rotate(720deg); }
 }
 
+/* Home intro handoff: the UI fades in over the landing shot, the title first. */
+@keyframes introUiEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes introTitleEnter {
+  from { opacity: 0; transform: scale(1.12); }
+  to { opacity: 1; transform: scale(1); }
+}
+.intro-ui-enter { animation: introUiEnter 700ms ease-out both; }
+.intro-title-enter { animation: introTitleEnter 450ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
 @keyframes streak-pulse {
   0%, 100% { box-shadow: 0 0 0 0 transparent; }
   50% { box-shadow: 0 0 8px 2px currentColor; }

@@ -22,6 +22,7 @@ import RaidSequence3D, { VehicleMesh } from "./RaidSequence3D";
 import type { RaidPhase } from "@/lib/useRaidSequence";
 import type { RaidExecuteResponse } from "@/lib/raid";
 import { SF_PLAZA_SCALE, plazaCenterWorld } from "@/lib/sponsors/sfPlaza";
+import { IntroColdOpen, HOME_CAM, coldOpen } from "./IntroColdOpen";
 import { sunPosition, samplePalette, skyState } from "@/lib/sky";
 import WhiteRabbit from "./WhiteRabbit";
 import CelebrationEffect from "./CelebrationEffect";
@@ -140,6 +141,9 @@ function IntroFlyover({ onEnd, lookScale = 1, target }: { onEnd: () => void; loo
     if (ended.current) return;
     elapsed.current += delta;
 
+    // The overlay (bars + lines) follows this clock too.
+    coldOpen.active = true;
+    coldOpen.t = elapsed.current;
     const rawT = Math.min(elapsed.current / INTRO_DURATION, 1);
     const t = introEase(rawT);
 
@@ -152,6 +156,7 @@ function IntroFlyover({ onEnd, lookScale = 1, target }: { onEnd: () => void; loo
 
     if (elapsed.current >= INTRO_DURATION && !ended.current) {
       ended.current = true;
+      coldOpen.active = false;
       onEnd();
     }
   });
@@ -1707,9 +1712,10 @@ function OrbitScene({ buildings, focusedBuilding, focusedBuildingB, focusPositio
   const { camera } = useThree();
   const frameCount = useRef(0);
 
-  // Reset camera on mount — wide panorama from front, E.Arcade centered
+  // Reset camera on mount — wide panorama from front, E.Arcade centered.
+  // The home intro ends on this exact pose, so it hands over without a cut.
   useEffect(() => {
-    camera.position.set(-800, 700, -1000);
+    camera.position.set(...HOME_CAM);
     camera.lookAt(TARGET_X, TARGET_Y, TARGET_Z);
   }, [camera]);
 
@@ -2278,7 +2284,9 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       )}
       {!sfHome && <ThemeSkyFX key={`sky-fx-${themeIndex}`} themeIndex={themeIndex as 0 | 1 | 2 | 3} theme={t} />}
 
-      {introMode && <IntroFlyover onEnd={onIntroEnd ?? (() => { })} lookScale={sfMap ? SF_PLAZA_SCALE : 1} target={introTarget} />}
+      {introMode && (sfMap
+        ? <IntroColdOpen buildings={buildings} onEnd={onIntroEnd ?? (() => { })} />
+        : <IntroFlyover onEnd={onIntroEnd ?? (() => { })} lookScale={1} target={introTarget} />)}
 
       {rabbitCinematic && rabbitCinematicTarget != null && (
         <RabbitFlyover
