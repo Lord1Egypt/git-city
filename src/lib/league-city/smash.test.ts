@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { columnEdges, smashStoreFor } from "./smash";
+import { SMASH, columnEdges, smashStoreFor } from "./smash";
 
 const tower = {
   loginLower: "a",
@@ -60,7 +60,7 @@ describe("SmashStore", () => {
 
   it("loads saved damage with the floors grown back since, by time and by contributions", () => {
     const s = smashStoreFor([tower], 1000);
-    s.load([{ login: "a", rows: Array(16).fill(2), regenFrom: 0, contribBase: 10, contribNow: 13, demolishedBy: null }], 2500);
+    s.load([{ login: "a", rows: Array(16).fill(2), regenFrom: 0, contribBase: 10, contribNow: 13, demolishedBy: null, shieldUntil: 0 }], 2500);
     // 2 left + 3 contributions + 2 hours (periods) = 7.
     expect(s.rows[0]).toBe(7);
     expect(s.shown[0]).toBe(7);
@@ -99,5 +99,30 @@ describe("standingHeight", () => {
     expect(s.standingHeight(0)).toBe(3 * 6);
     s.hitColumns(0, Array.from({ length: 16 }, (_, c) => c), 10, 0);
     expect(s.standingHeight(0)).toBe(6);
+  });
+
+  it("never hits the spared building (your own)", () => {
+    const s = smashStoreFor([tower]);
+    expect(s.hitCircle(0, 0, 30, 1, 0, 0, undefined, "a")).toEqual([]);
+    expect(s.isDamaged(0)).toBe(false);
+  });
+
+  it("a fallen building is shielded: no floor comes off until the shield ends", () => {
+    const s = smashStoreFor([{ ...tower, floors: 1, windowsPerFloor: 1, sideWindowsPerFloor: 1 }]);
+    const { down } = s.hitColumns(0, [0], 1, 1000, "b");
+    expect(down).toBe(true);
+    expect(s.isShielded(0, 1000 + SMASH.shieldMs - 1)).toBe(true);
+    s.regrow(0, 1);
+    expect(s.hitColumns(0, [0], 1, 2000).took).toBe(0);
+    expect(s.hitCircle(0, 0, 30, 1, 2000)).toEqual([]);
+    expect(s.hitColumns(0, [0], 1, 1000 + SMASH.shieldMs).took).toBe(1);
+  });
+
+  it("keeps a shielded building in the snapshot even once it's whole again", () => {
+    const s = smashStoreFor([{ ...tower, floors: 1, windowsPerFloor: 1, sideWindowsPerFloor: 1 }]);
+    s.hitColumns(0, [0], 1, 1000, "b");
+    s.regrow(0, 1);
+    expect(s.snapshot(2000).map((d) => d.shieldUntil)).toEqual([1000 + SMASH.shieldMs]);
+    expect(s.snapshot(1000 + SMASH.shieldMs)).toEqual([]);
   });
 });

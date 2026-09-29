@@ -1,10 +1,12 @@
 // ─── Smash ──────────────────────────────────────────────────
-// Driving through the rival town's buildings. Each building is a grid of up
+// Driving through a town's buildings (anyone's but your own). Each building is a grid of up
 // to 4×4 columns (cut on its window lines), each column a stack of floors.
 // A car passing through a column takes its bottom floor and the rest drops a
 // row; blasts take several. The building is its own health bar: a small one
 // falls in a few passes, a tall one in many. Knocked-out floors grow back on
-// their own, one row every `regenMs`.
+// their own, one row every `regenMs`. A building that fell is shielded for
+// `shieldMs` (Clash of Clans' shield): it grows back before anyone can hit it
+// again, so nobody keeps a small town flat.
 //
 // Everything is in city units, times are epoch ms. The store is shared by the
 // drive world (which hits it) and the building renderer (which draws it), so
@@ -26,6 +28,8 @@ export const SMASH = {
   boostRows: 2,
   /** A floor grows back after this long (ms). */
   regenMs: 3_600_000,
+  /** A fallen building can't be hit for this long (ms). */
+  shieldMs: 12 * 3_600_000,
   /** A column falls into the gap its lost floors leave (floors/s²), bounces a little, and grows back (floors/s). */
   gravity: 30,
   bounce: 0.22,
@@ -71,6 +75,8 @@ export interface DamageEntry {
   contribNow: number;
   /** Who took the last floor, while it lies in rubble. */
   demolishedBy: string | null;
+  /** Epoch ms its shield ends (0: none). */
+  shieldUntil: number;
 }
 
 export interface SmashHit {
@@ -135,6 +141,8 @@ export class SmashStore {
   private changed = new Set<number>();
   /** Who took the last floor of each building lying in rubble. */
   readonly demolishedBy = new Map<number, string>();
+  /** Epoch ms each building's shield ends (0: none). */
+  readonly shieldUntil: Float64Array;
 
   constructor(targets: readonly SmashTarget[], regenMs: number = SMASH.regenMs) {
     this.targets = [...targets];
@@ -145,6 +153,7 @@ export class SmashStore {
     this.vel = new Float32Array(this.targets.length * SMASH_SLOTS);
     this.since = new Float64Array(this.targets.length);
     this.damaged = new Uint8Array(this.targets.length);
+    this.shieldUntil = new Float64Array(this.targets.length);
     this.targets.forEach((t, i) => {
       for (let c = 0; c < cols(t); c++) {
         this.rows[i * SMASH_SLOTS + c] = t.floors;
@@ -156,6 +165,16 @@ export class SmashStore {
 
   isDamaged(target: number): boolean {
     return this.damaged[target] === 1;
+  }
+
+  /** Fell less than `shieldMs` ago: no floor comes off. */
+  isShielded(target: number, now: number): boolean {
+    return this.shieldUntil[target] > now;
+  }
+
+  /** The room's word on a shield (epoch ms it ends, 0 for none). */
+  setShield(target: number, until: number) {
+    this.shieldUntil[target] = Number.isFinite(until) && until > 0 ? until : 0;
   }
 
   /** Damaged or still animating: the renderer draws these as columns. */
@@ -180,12 +199,12 @@ export class SmashStore {
     return this.since[target];
   }
 
-  /** The damaged buildings, to send a newcomer or to save. */
-  snapshot(): { login: string; rows: number[]; regenFrom: number; demolishedBy: string | null }[] {
+  /** The damaged (or still shielded) buildings, to send a newcomer or to save. */
+  snapshot(now = Date.now()): { login: string; rows: number[]; regenFrom: number; demolishedBy: string | null; shieldUntil: number }[] {
     const out = [];
     for (let i = 0; i < this.targets.length; i++) {
-      if (!this.damaged[i]) continue;
-      out.push({ login: this.targets[i].login, rows: this.rowsOf(i), regenFrom: this.since[i], demolishedBy: this.demolishedBy.get(i) ?? null });
+      if (!this.damaged[i] && !this.isShielded(i, now)) continue;
+      out.push({ login: this.targets[i].login, rows: this.rowsOf(i), regenFrom: this.since[i], demolishedBy: this.demolishedBy.get(i) ?? null, shieldUntil: this.shieldUntil[i] });
     }
     return out;
   }
@@ -198,6 +217,7 @@ export class SmashStore {
       const back = Math.max(0, e.contribNow - e.contribBase);
       this.setRows(i, e.rows.map((r) => r + back), now, e.regenFrom, false);
       this.setBy(i, e.demolishedBy);
+      this.setShield(i, e.shieldUntil);
       if (this.damaged[i]) this.regen(i, now);
       for (let c = 0; c < cols(this.targets[i]); c++) this.shown[i * SMASH_SLOTS + c] = this.rows[i * SMASH_SLOTS + c];
     }
@@ -237,14 +257,15 @@ export class SmashStore {
   }
 
   /** The room's full list: listed buildings take their floors, every other damaged one is whole again. */
-  applyAll(list: readonly (readonly [string, readonly number[], string | null])[], now: number) {
+  applyAll(list: readonly (readonly [string, readonly number[], string | null, number?])[], now: number) {
     const listed = new Set<number>();
-    for (const [login, rows, by] of list) {
+    for (const [login, rows, by, shield] of list) {
       const i = this.index.get(login);
       if (i === undefined) continue;
       listed.add(i);
       this.setRows(i, rows, now, undefined, false);
       this.setBy(i, by);
+      this.setShield(i, shield ?? 0);
     }
     for (let i = 0; i < this.targets.length; i++) {
       if (this.damaged[i] && !listed.has(i)) this.setRows(i, [], now, undefined, false);
@@ -338,14 +359,16 @@ export class SmashStore {
    * Takes `n` floors from every standing column the circle touches. With a
    * cooldown, a column hit less than that long ago by the same source is
    * skipped (a car inside a column takes one floor per pass, not per frame).
+   * `spare` is a building left alone (yours).
    */
-  hitCircle(cx: number, cz: number, r: number, n: number, now: number, cooldownMs = 0, by?: string): SmashHit[] {
+  hitCircle(cx: number, cz: number, r: number, n: number, now: number, cooldownMs = 0, by?: string, spare?: string): SmashHit[] {
     const hits: SmashHit[] = [];
     for (let i = 0; i < this.targets.length; i++) {
       const t = this.targets[i];
+      if (t.login === spare) continue;
       const bx0 = t.x - t.w / 2;
       const bz0 = t.z - t.d / 2;
-      if (!touches(cx, cz, r, bx0, bx0 + t.w, bz0, bz0 + t.d)) continue;
+      if (!touches(cx, cz, r, bx0, bx0 + t.w, bz0, bz0 + t.d) || this.isShielded(i, now)) continue;
       if (this.damaged[i]) this.regen(i, now);
       const nx = t.xs.length - 1;
       for (let a = 0; a < nx; a++) {
@@ -379,6 +402,7 @@ export class SmashStore {
       }
       if (hits.length && hits[hits.length - 1].target === i && this.standing(i) === 0) {
         hits[hits.length - 1].down = true;
+        this.shieldUntil[i] = now + SMASH.shieldMs;
         if (by) this.setBy(i, by);
       }
     }
@@ -392,7 +416,7 @@ export class SmashStore {
   hitColumns(target: number, columns: readonly number[], n: number, now: number, by?: string): { took: number; down: boolean } {
     const t = this.targets[target];
     const before = this.standing(target);
-    if (before === 0) return { took: 0, down: false };
+    if (before === 0 || this.isShielded(target, now)) return { took: 0, down: false };
     if (this.damaged[target]) this.regen(target, now);
     let took = 0;
     for (const c of new Set(columns)) {
@@ -414,6 +438,7 @@ export class SmashStore {
     this.moving.add(target);
     this.changed.add(target);
     const down = this.standing(target) === 0;
+    if (down) this.shieldUntil[target] = now + SMASH.shieldMs;
     if (down && by) this.setBy(target, by);
     return { took, down };
   }

@@ -99,12 +99,12 @@ export type ServerMsg =
   | { t: "bump"; from: string; x: number; z: number }
   /** Someone's quick reaction (not echoed to the sender). */
   | { t: "emote"; from: string; e: number }
-  /** Rivalry smash: whether your `auth` puts you on the other side (you may break this town) or on this one (home). */
+  /** Smash: whether your `auth` lets you break this town's buildings (signed in with one), and whether you live here. */
   | { t: "smash_me"; can: boolean; home: boolean; login: string | null }
-  /** Rivalry smash: a building's floors per column now; `by` took its last floor. */
-  | { t: "damage"; b: string; r: number[]; by?: string | null }
-  /** Rivalry smash: every damaged building, when the room loads or you arrive. */
-  | { t: "damage_all"; list: [string, number[], string | null][] }
+  /** Smash: a building's floors per column now; `by` took its last floor; `s` its shield's end (epoch ms). */
+  | { t: "damage"; b: string; r: number[]; by?: string | null; s?: number }
+  /** Smash: every damaged building [login, rows, by, shield end], when the room loads or you arrive. */
+  | { t: "damage_all"; list: [string, number[], string | null, number][] }
   | ["s", string, ...number[]];
 
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
