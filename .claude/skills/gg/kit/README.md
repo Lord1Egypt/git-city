@@ -34,7 +34,7 @@ To set it up by hand, copy `src/` into your app (for example `src/trailer-kit/`)
 
 ## The studio
 
-A 16:9 stage with a ruler to scrub (its marks are the cuts), the scenes on the right (a picked scene loops), slow motion, and Export mp4 at the top, which copies the export command for this page. `?` shows the keys:
+A 16:9 stage, play and scene-to-scene buttons, a ruler to scrub (its marks are the cuts), the scenes on the right (a picked scene loops), slow motion, and Export mp4 at the top, which copies the export command for this page. Keys:
 
 | Key | Does |
 |---|---|
