@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { LiveBadge } from "./live";
+import type { TownLive } from "@/lib/towns/live";
 import type { TownCard as Card } from "@/lib/towns/rows";
 import type { GridTown } from "@/lib/towns/discover";
 import { SKY_SWATCHES } from "@/lib/league-city/identity";
@@ -31,7 +33,7 @@ export default function TownCard({ card }: { card: Card }) {
 }
 
 /** The Discover grid's card: a photo of the real town. */
-export function GridTownCard({ town }: { town: GridTown }) {
+export function GridTownCard({ town, live }: { town: GridTown; live?: TownLive }) {
   const tags = [
     town.yours && { label: "You live here", cls: "bg-cream text-bg" },
     town.tag === "trending" && { label: "↑ Trending", cls: "bg-lime text-bg" },
@@ -69,6 +71,7 @@ export function GridTownCard({ town }: { town: GridTown }) {
             ))}
           </div>
         )}
+        <LiveBadge live={live} />
       </div>
       <div className="flex flex-col gap-1.5 px-4 py-3">
         <p className="truncate text-sm text-cream normal-case">{town.name}</p>

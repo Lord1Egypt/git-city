@@ -13,7 +13,8 @@ import { BATTLE_START, BATTLE_START_LABEL, timeUntil } from "@/lib/towns/rivalry
 import type { GridTown } from "@/lib/towns/discover";
 import { GridTownCard } from "./TownCard";
 import { useDesktop } from "./useDesktop";
-import type { TownLive } from "@/app/api/towns/live/route";
+import { LiveBadge, useTownsLive } from "./live";
+import { sortByLive, type TownLive } from "@/lib/towns/live";
 
 const TownHero = dynamic(() => import("./TownHero"), { ssr: false });
 
@@ -147,7 +148,7 @@ export default function RivalryPoster({
       </section>
 
       <WhoPicked sides={sides} />
-      <OtherTowns towns={others} />
+      <OtherTowns towns={sortByLive(others, live)} live={live} />
     </main>
   );
 }
@@ -162,38 +163,6 @@ function useStartsIn(): string | null {
     return () => clearInterval(id);
   }, []);
   return left;
-}
-
-const LIVE_MS = 15_000;
-
-/** Who is inside each rivalry town now, polled while the tab is visible. */
-function useTownsLive(): Record<string, TownLive | null> {
-  const [live, setLive] = useState<Record<string, TownLive | null>>({});
-  useEffect(() => {
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const load = () =>
-      fetch("/api/towns/live")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => j && setLive(j))
-        .catch(() => {});
-    const start = () => {
-      if (timer) return;
-      void load();
-      timer = setInterval(load, LIVE_MS);
-    };
-    const stop = () => {
-      if (timer) clearInterval(timer);
-      timer = null;
-    };
-    const onVisibility = () => (document.hidden ? stop() : start());
-    start();
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      stop();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
-  return live;
 }
 
 function leadLine(sides: Pair): string {
@@ -220,7 +189,6 @@ function SideCard({
   onPick: (i: 0 | 1) => void;
 }) {
   const yours = mine === index;
-  const inTown = live ? live.driving + live.watching : 0;
   return (
     <article className="flex flex-col border-[3px] bg-bg-card" style={{ borderColor: yours ? side.color : "var(--color-border)" }}>
       <div className="relative aspect-[4/5] overflow-hidden border-b-[3px] border-border sm:aspect-[2/1]">
@@ -230,15 +198,7 @@ function SideCard({
             &#10003; Your side
           </span>
         )}
-        {live && inTown > 0 && (
-          <span className="absolute top-2 right-2 bg-bg/85 px-2 py-1 text-right text-[10px] leading-snug text-cream tabular-nums sm:text-xs">
-            <span className="flex items-center justify-end gap-1.5">
-              <span className="blink-dot inline-block h-1.5 w-1.5 bg-lime" aria-hidden />
-              {fmt(inTown)} in town
-            </span>
-            {live.driving > 0 && <span className="block text-muted">{fmt(live.driving)} driving</span>}
-          </span>
-        )}
+        <LiveBadge live={live} />
       </div>
       <div className="flex flex-1 flex-col justify-between gap-4 p-3 sm:flex-row sm:items-center sm:p-5">
         <div>
@@ -321,7 +281,7 @@ function WhoPicked({ sides }: { sides: Pair }) {
   );
 }
 
-function OtherTowns({ towns }: { towns: GridTown[] }) {
+function OtherTowns({ towns, live }: { towns: GridTown[]; live: Record<string, TownLive> }) {
   return (
     <section id="other-towns" className="mx-auto mt-20 max-w-6xl scroll-mt-6 px-4 sm:px-6">
       <div className="flex items-end justify-between gap-3">
@@ -336,7 +296,7 @@ function OtherTowns({ towns }: { towns: GridTown[] }) {
       {towns.length > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           {towns.map((t) => (
-            <GridTownCard key={t.slug} town={t} />
+            <GridTownCard key={t.slug} town={t} live={live[t.slug]} />
           ))}
         </div>
       )}
