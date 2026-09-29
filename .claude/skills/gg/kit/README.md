@@ -1,18 +1,18 @@
 # Trailer kit
 
-Make your web game's trailer inside the game itself. A film is data (takes on the music's beat grid), a studio page plays it live in your engine, and a screen recorder captures one clean pass. No video editor.
+Make your web game's trailer inside the game itself. A film is data (takes on the music's beat grid), a studio page plays it live in your engine, and the export renders it frame by frame to an mp4, music included. No video editor, no screen recorder.
 
-It came out of making the [Git City](https://thegitcity.com) Towns teaser, and it ships inside the `game-trailer` Claude skill, so Claude can set it up in your project and build the film with you. MIT licensed (see `LICENSE`).
+It came out of making the [Git City](https://thegitcity.com) Towns teaser, and it ships inside the `gg` Claude skill ("You made a game. gg."), so Claude can set it up in your project and build the film with you. MIT licensed (see `LICENSE`).
 
 ## Install
 
 ```bash
-npx skills add srizzon/git-city --skill game-trailer
+npx skills add srizzon/git-city --skill gg
 ```
 
-Then ask Claude for a teaser. The skill has it copy this kit into your project and start from the template film.
+Then tell Claude "let's /gg this". The skill copies this kit into your project and starts from the template film.
 
-To set it up by hand, copy `src/` into your app (for example `src/trailer-kit/`), copy `tools/` anywhere, and mount `src/examples/MinimalFilm.tsx` on a page. It needs React 18+ and nothing else: no Tailwind, no three.js (your pictures can use them). In Next.js App Router the components are client components already.
+To set it up by hand, copy `src/` into your app (for example `src/trailer-kit/`), copy `tools/` anywhere, and mount `src/examples/MinimalFilm.tsx` on a page. The studio needs React 18+ and nothing else: no Tailwind, no three.js (your pictures can use them). The export needs Playwright and ffmpeg (see "Export"). In Next.js App Router the components are client components already.
 
 ## What's here
 
@@ -27,13 +27,14 @@ To set it up by hand, copy `src/` into your app (for example `src/trailer-kit/`)
 | `src/examples/MinimalFilm.tsx` | The smallest film, in plain HTML. The template for your own. |
 | `tools/music.mjs` | A tiny synthesizer that writes the film's music at its BPM. |
 | `tools/sfx.mjs` | Synthesized effects: explosion, whoosh, crumble, key click, horn. |
-| `tools/capture.sh` | macOS: opens a clean browser window to record. |
+| `tools/export.mjs` | Renders a film from the studio to an mp4, frame by frame, with its sound mixed in. |
+| `tools/capture.sh` | macOS: opens a clean browser window, for recording by hand. |
 
 **Styling.** The studio carries its own CSS. To match your game, give it a `className` that sets the variables: `--tk-font`, `--tk-bg`, `--tk-panel`, `--tk-line`, `--tk-line-hi`, `--tk-text`, `--tk-muted`, `--tk-accent`, `--tk-rec`.
 
 ## The studio
 
-A 16:9 stage, the scenes on the right (a picked scene loops), play, scrub, slow motion. Keys:
+A 16:9 stage, the scenes on the right (a picked scene loops), play, scrub, slow motion, and Export mp4, which copies the export command for this page. Keys:
 
 | Key | Does |
 |---|---|
@@ -43,7 +44,7 @@ A 16:9 stage, the scenes on the right (a picked scene loops), play, scrub, slow 
 | Home End | Scene start / end |
 | 1–9, 0 | Pick a scene, the whole film |
 | [ ] | Slower / faster (1×, 0.5×, 0.25×) |
-| Shift R | Record: full window, no cursor, 1s of black, the whole film once |
+| Shift R | Record by hand: full window, no cursor, 1s of black, the whole film once |
 | Esc | Stop recording |
 
 ## How a film is built
@@ -56,9 +57,9 @@ A 16:9 stage, the scenes on the right (a picked scene loops), play, scrub, slow 
 
 **A shot recipe** gets `t`, the seconds into its action, and places things as functions of `t`. That's what makes scrubbing, looping and slow motion show the same picture. Anything with memory (particles, destruction) only advances while the clock moves, or a paused frame fills up with smoke. Events that fire when a beat is crossed fire while playing forward, not when you scrub past them.
 
-Anything a take breaks lives in state the studio resets through `onReset`: when a take is picked, when it loops, when you seek backwards, and when recording starts.
+Anything a take breaks lives in state the studio resets through `onReset`: when a take is picked, when it loops, when you seek backwards, and when a recording or an export starts.
 
-**Sound only plays at 1×.** At 0.5× and 0.25× the studio is silent: music and effects are synced to real time. Record at 1×.
+**Sound only plays at 1×.** At 0.5× and 0.25× the studio is silent: music and effects are synced to real time. (The export doesn't care: it mixes the sound from the film's cues.)
 
 **Stages stay mounted.** Each world is its own element (or canvas) that never remounts: a cut only changes which one is visible. A WebGL canvas that's mounted and dropped loses its context after a few loops. The end card's `button` slot follows the same rule.
 
@@ -139,9 +140,25 @@ What we learned making the Towns teaser, mostly from Derek Lieu's trailer writin
 - A raw `<script>` in a Next.js root layout trips React 19 in dev.
 - Remotion's `Freeze` clamps to the composition's length (we started with Remotion and dropped it for live recording).
 
-## Recording
+## Export
 
-Any screen recorder works: the studio's Record plays the film full window with no cursor. The rest is the macOS setup we used.
+```bash
+npm i -D playwright && npx playwright install chromium   # once
+brew install ffmpeg                                      # or npm i -D ffmpeg-static
+node tools/export.mjs http://localhost:3000/your-film --poster 9.2
+```
+
+Add it to your scripts as `"trailer:export": "node <path>/tools/export.mjs"`: that's the command the studio's Export button copies.
+
+- It opens the studio with `?export` in a headless browser. The studio waits (`window.__gg`), and the export swaps the page's clocks for a virtual one: `performance.now`, `Date.now`, `requestAnimationFrame`, timers and CSS animations. Each frame is drawn at its exact time and screenshotted, so a slow machine still gets every frame, and three.js, particles and titles all come out as they play in the studio.
+- The sound isn't recorded: it's mixed from the film's `song` and `sounds`, so it lands on the same beats as the picture. Sounds your game plays by itself aren't in the file, so cue them in the film.
+- `--poster <s>` picks the thumbnail: a settled frame (the name on the end card, a freeze). It's written as `trailer.jpg` and baked in as frame 0, which is what X, Slack and Discord show before the video plays.
+- Options: `--out gg-output/trailer.mp4` (default), `--fps 30` (60 for fast motion), `--size 1920x1080`.
+- A `<video>` inside the stage plays on real time, not the virtual clock, and randomness that isn't seeded changes between runs.
+
+## Recording by hand
+
+The export is the way to go. If you'd rather use a screen recorder, the studio's Record plays the film full window with no cursor. The rest is the macOS setup we used.
 
 1. `BROWSER="Brave Browser" tools/capture.sh http://localhost:3000/your-film` opens a clean window: its own profile, no address bar, a 1280×720 page. The default browser is Chrome.
    - It sizes the window through System Events, so your terminal needs macOS Accessibility permission.
