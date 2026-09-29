@@ -6,12 +6,11 @@ import { generateCityLayout, type CityBuilding, type DeveloperRecord } from "@/l
 import { leagueTag } from "@/lib/leagues/cache";
 import { getCityNorms, getLeagueCityDevs, getLeagueMembers } from "@/lib/leagues/queries";
 import { isoDay, weekContributions, weekStart } from "@/lib/leagues/scoring";
-import { rivalOf } from "@/lib/towns/rivalry";
 import { leagueBuildings, scaleTownHeights } from "./buildings";
 import { getCachedCity } from "./service";
-import { toTarget, type DamageEntry, type SmashTarget } from "./smash";
+import { SMASH, toTarget, type DamageEntry, type SmashTarget } from "./smash";
 
-// ─── Rivalry smash (server) ─────────────────────────────────
+// ─── Smash (server) ─────────────────────────────────────────
 // The town's buildings as smash targets (the same formulas the town page
 // draws with), its saved damage, who may smash, and the signed saves the
 // PartyKit drive room sends (party/drive.ts signs them with the shared
@@ -23,7 +22,7 @@ export interface SmashTown {
   devIds: Record<string, number>;
 }
 
-/** The town's buildings exactly as its page lays them out. Cached 60s per town. */
+/** The town's buildings exactly as its page lays them out, invited members' (drawn faded) too. Cached 60s per town. */
 export function getSmashTown(leagueId: string): Promise<SmashTown> {
   return unstable_cache(
     async (): Promise<SmashTown> => {
@@ -71,6 +70,7 @@ interface DamageRow {
   regen_from: string;
   contrib_base: number;
   demolished_by: number | null;
+  shield_until: string | null;
 }
 
 /** The town's saved damage, with the owners' contributions now (the store grows floors back from them). */
@@ -78,7 +78,7 @@ export async function getDamage(leagueId: string, town: SmashTown): Promise<Dama
   const sb = getSupabaseAdmin();
   const { data } = await sb
     .from("town_building_damage")
-    .select("developer_id, rows, regen_from, contrib_base, demolished_by")
+    .select("developer_id, rows, regen_from, contrib_base, demolished_by, shield_until")
     .eq("league_id", leagueId)
     .returns<DamageRow[]>();
   const rows = data ?? [];
@@ -101,6 +101,7 @@ export async function getDamage(leagueId: string, town: SmashTown): Promise<Dama
       contribBase: r.contrib_base,
       contribNow: contribs.get(r.developer_id) ?? 0,
       demolishedBy: r.demolished_by !== null ? (loginOf.get(r.demolished_by) ?? null) : null,
+      shieldUntil: r.shield_until ? Date.parse(r.shield_until) : 0,
     });
   }
   return out;
@@ -111,13 +112,13 @@ export async function getDamage(leagueId: string, town: SmashTown): Promise<Dama
 export interface SmashViewer {
   login: string;
   devId: number;
-  /** An active member of the rival side of this town. */
+  /** Anyone signed in with a building may smash (the room keeps their own building whole). */
   canSmash: boolean;
-  /** An active member of this town (its buildings are theirs to defend, not break). */
+  /** An active member of this town (their building here is theirs to rebuild). */
   home: boolean;
 }
 
-/** The dev behind a Supabase access token, and whether they're on the other side of `slug`. */
+/** The dev behind a Supabase access token, and whether they live in `slug`. */
 export async function smashViewer(token: string, slug: string): Promise<SmashViewer | null> {
   const sb = getSupabaseAdmin();
   const { data: auth } = await sb.auth.getUser(token);
@@ -130,27 +131,50 @@ export async function smashViewer(token: string, slug: string): Promise<SmashVie
     .limit(1)
     .maybeSingle<{ id: number; github_login: string }>();
   if (!dev) return null;
-  const rival = rivalOf(slug);
-  const { data: sides } = await sb
+  const { data: here } = await sb
     .from("league_members")
     .select("leagues!inner(slug)")
     .eq("developer_id", dev.id)
     .eq("status", "active")
-    .in("leagues.slug", [slug, ...(rival ? [rival] : [])])
+    .eq("leagues.slug", slug)
+    .limit(1)
     .returns<{ leagues: { slug: string } }[]>();
-  const on = new Set((sides ?? []).map((r) => r.leagues.slug));
-  return { login: dev.github_login.toLowerCase(), devId: dev.id, canSmash: !!rival && on.has(rival), home: on.has(slug) };
+  return { login: dev.github_login.toLowerCase(), devId: dev.id, canSmash: true, home: (here ?? []).length > 0 };
 }
 
 // ─── Signed saves from the drive room ───────────────────────
 
-export interface SmashSave {
-  at: number;
-  rows: { login: string; rows: number[]; regenFrom: number; contribBase: number; demolishedBy: string | null }[];
-  demolished: { victim: string; attacker: string }[];
+export interface SmashSaveRow {
+  login: string;
+  rows: number[];
+  regenFrom: number;
+  contribBase: number;
+  demolishedBy: string | null;
+  /** The killer's developer id, when the room knows it (it learned it from /smash/me). */
+  demolishedById?: number;
+  /** Epoch ms the shield ends (0: none). */
+  shieldUntil?: number;
 }
 
-/** The room signs `${slug}.${body}`; a save more than a minute old is refused. */
+export interface SmashFall {
+  victim: string;
+  attacker: string;
+  attackerId: number;
+  /** Epoch ms it fell (with the town and the victim, the fall's key). */
+  at: number;
+}
+
+export interface SmashSave {
+  at: number;
+  rows: SmashSaveRow[];
+  demolished: SmashFall[];
+}
+
+const isId = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n > 0;
+/** A login-shaped key. Whose building it is gets checked against the town (SmashTown.devIds), not its spelling. */
+const isLogin = (s: unknown): s is string => typeof s === "string" && s.length > 0 && s.length <= 39;
+
+/** The room signs `${slug}.${body}`; a save more than a minute old, or malformed, is refused. */
 export function verifySmashSave(slug: string, body: string, signature: string | null, now = Date.now()): SmashSave | null {
   const secret = process.env.FORCE_PUSH_HMAC_SECRET;
   if (!secret || secret.length < 32 || !signature || body.length > 200_000) return null;
@@ -165,51 +189,95 @@ export function verifySmashSave(slug: string, body: string, signature: string | 
   }
   if (typeof save.at !== "number" || Math.abs(now - save.at) > 60_000) return null;
   if (!Array.isArray(save.rows) || !Array.isArray(save.demolished)) return null;
-  return save;
+  const falls = save.demolished.filter(
+    (d) => isLogin(d?.victim) && isLogin(d.attacker) && d.victim !== d.attacker && isId(d.attackerId) && typeof d.at === "number" && Math.abs(now - d.at) < 86_400_000,
+  );
+  return { at: save.at, rows: save.rows.filter((r) => isLogin(r?.login)), demolished: falls };
 }
 
-/** Writes the room's damage: damaged buildings upserted, healed ones deleted. */
-export async function saveDamage(leagueId: string, town: SmashTown, save: SmashSave): Promise<void> {
+/** Writes the room's damage: damaged (or still shielded) buildings upserted, healed ones deleted. Throws on a failed write (the room retries). */
+export async function saveDamage(leagueId: string, town: SmashTown, save: SmashSave, now = Date.now()): Promise<void> {
   const sb = getSupabaseAdmin();
   const floorsOf = new Map(town.targets.map((t) => [t.login, t.floors]));
+  const saved = save.rows.filter((r) => town.devIds[r.login] !== undefined && floorsOf.has(r.login));
+  if (saved.length === 0) return;
+  const ids = saved.map((r) => town.devIds[r.login]);
+  // A building first hit in this room session comes with base -1: its owner's contributions now.
+  const fresh = saved.filter((r) => !(Number(r.contribBase) >= 0)).map((r) => town.devIds[r.login]);
+  const [baseNow, { data: before, error: readErr }] = await Promise.all([
+    weekContribs(fresh),
+    // Who knocked each one down, as saved: a killer the room only knows by login (loaded, not seen driving) keeps it.
+    sb.from("town_building_damage").select("developer_id, demolished_by").eq("league_id", leagueId).in("developer_id", ids).returns<{ developer_id: number; demolished_by: number | null }[]>(),
+  ]);
+  if (readErr) throw readErr;
+  const killerBefore = new Map((before ?? []).map((r) => [r.developer_id, r.demolished_by]));
+
   const upserts = [];
   const healed: number[] = [];
-  // A building first hit in this room session comes with base -1: its owner's contributions now.
-  const fresh = save.rows.filter((r) => !(Number(r.contribBase) >= 0)).map((r) => town.devIds[r.login]).filter((id) => id !== undefined);
-  const baseNow = await weekContribs(fresh);
-  for (const r of save.rows) {
+  for (const r of saved) {
     const devId = town.devIds[r.login];
-    const floors = floorsOf.get(r.login);
-    if (devId === undefined || floors === undefined || !Array.isArray(r.rows) || r.rows.length === 0 || r.rows.length > 16) continue;
+    const floors = floorsOf.get(r.login) as number;
+    if (!Array.isArray(r.rows) || r.rows.length === 0 || r.rows.length > 16) continue;
     const rows = r.rows.map((n) => Math.max(0, Math.min(floors, Math.round(Number(n) || 0))));
-    if (rows.every((n) => n >= floors)) {
+    // The shield can't reach past what a fall now would give.
+    const shield = Math.min(Number(r.shieldUntil) || 0, now + SMASH.shieldMs);
+    if (rows.every((n) => n >= floors) && shield <= now) {
       healed.push(devId);
       continue;
     }
-    const killer = r.demolishedBy ? await devIdOf(r.demolishedBy, town) : null;
+    const killer = !r.demolishedBy
+      ? null
+      : (town.devIds[r.demolishedBy] ?? (isId(r.demolishedById) ? r.demolishedById : (killerBefore.get(devId) ?? null)));
     upserts.push({
       league_id: leagueId,
       developer_id: devId,
       rows,
-      regen_from: new Date(Number(r.regenFrom) || Date.now()).toISOString(),
+      regen_from: new Date(Number(r.regenFrom) || now).toISOString(),
       contrib_base: Number(r.contribBase) >= 0 ? Math.round(Number(r.contribBase)) : (baseNow.get(devId) ?? 0),
       demolished_by: killer,
-      demolished_at: killer ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
+      demolished_at: killer ? new Date(now).toISOString() : null,
+      shield_until: shield > now ? new Date(shield).toISOString() : null,
+      updated_at: new Date(now).toISOString(),
     });
   }
-  if (upserts.length) await sb.from("town_building_damage").upsert(upserts, { onConflict: "league_id,developer_id" });
-  if (healed.length) await sb.from("town_building_damage").delete().eq("league_id", leagueId).in("developer_id", healed);
+  if (upserts.length) {
+    const { error } = await sb.from("town_building_damage").upsert(upserts, { onConflict: "league_id,developer_id" });
+    if (error) throw error;
+  }
+  if (healed.length) {
+    const { error } = await sb.from("town_building_damage").delete().eq("league_id", leagueId).in("developer_id", healed);
+    if (error) throw error;
+  }
 }
 
-/** A login's developer id: from the town, or looked up (the attacker lives in the other town). */
-export async function devIdOf(login: string, town: SmashTown): Promise<number | null> {
-  if (login in town.devIds) return town.devIds[login];
-  const { data } = await getSupabaseAdmin()
-    .from("developers")
-    .select("id")
-    .ilike("github_login", login.replace(/[%_\\]/g, ""))
-    .limit(1)
-    .maybeSingle<{ id: number }>();
-  return data?.id ?? null;
+export interface RecordedFall {
+  victim: string;
+  victimId: number;
+  attacker: string;
+  attackerId: number;
+}
+
+/**
+ * Logs the save's falls (town_demolitions). A resent save inserts nothing
+ * twice: returns only the falls that are new, the ones to email about.
+ */
+export async function recordFalls(leagueId: string, town: SmashTown, save: SmashSave): Promise<RecordedFall[]> {
+  const falls = save.demolished.flatMap((d) => {
+    const victimId = town.devIds[d.victim];
+    return victimId === undefined || victimId === d.attackerId ? [] : [{ ...d, victimId }];
+  });
+  if (falls.length === 0) return [];
+  const { data, error } = await getSupabaseAdmin()
+    .from("town_demolitions")
+    .upsert(
+      falls.map((f) => ({ league_id: leagueId, victim_id: f.victimId, attacker_id: f.attackerId, fell_at: new Date(f.at).toISOString() })),
+      { onConflict: "league_id,victim_id,fell_at", ignoreDuplicates: true },
+    )
+    .select("victim_id, attacker_id")
+    .returns<{ victim_id: number; attacker_id: number }[]>();
+  if (error) throw error;
+  const fresh = new Set((data ?? []).map((r) => `${r.victim_id}:${r.attacker_id}`));
+  return falls
+    .filter((f) => fresh.has(`${f.victimId}:${f.attackerId}`))
+    .map((f) => ({ victim: f.victim, victimId: f.victimId, attacker: f.attacker, attackerId: f.attackerId }));
 }
