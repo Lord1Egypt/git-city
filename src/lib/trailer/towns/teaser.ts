@@ -1,7 +1,7 @@
 // ─── Towns teaser ───────────────────────────────────────────
 // The Git City Towns "coming soon" teaser, as a Film (@trailer-kit/film) the
 // studio plays in the engine, so the whole film is one screen recording. It
-// is also the worked example of the trailer kit (.claude/skills/game-trailer/kit/README.md):
+// is also the worked example of the trailer kit (.claude/skills/gg/kit/README.md):
 // the takes, their moments, and the sounds on those moments.
 //
 // The film: a split screen burnout hooks, three flashes of play cut at their

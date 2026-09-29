@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 
 const INSTALL = "npx skills add srizzon/git-city --skill game-trailer";
-const REPO = "https://github.com/srizzon/git-city/tree/main/.claude/skills/game-trailer";
+const REPO = "https://github.com/srizzon/git-city/tree/main/.claude/skills/gg";
 
 const STEPS: [string, string][] = [
   [

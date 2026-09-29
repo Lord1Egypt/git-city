@@ -6,7 +6,7 @@ import { RIVALRY } from "@/lib/towns/rivalry";
 import { townDisplayName } from "@/lib/towns/names";
 import TownsFilm, { type TownSide } from "./towns-film";
 
-// The Git City Towns teaser in the trailer studio (.claude/skills/game-trailer/kit/README.md):
+// The Git City Towns teaser in the trailer studio (.claude/skills/gg/kit/README.md):
 // played live in the engine so the film is one screen recording. Not linked
 // from anywhere.
 
@@ -51,7 +51,7 @@ function MissingTowns() {
           film that runs anywhere, open /trailer/demo, and start your own from it.
         </p>
         <p className="text-muted">
-          The trailer kit and how to make your own film: .claude/skills/game-trailer/kit/README.md
+          The trailer kit and how to make your own film: .claude/skills/gg/kit/README.md
         </p>
       </div>
     </main>

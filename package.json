@@ -33,7 +33,7 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "trailer:audio": "node .claude/skills/game-trailer/kit/tools/music.mjs public/trailer/towns-teaser.wav soon && node .claude/skills/game-trailer/kit/tools/music.mjs public/trailer/demo.wav demo && node .claude/skills/game-trailer/kit/tools/sfx.mjs public/trailer/sfx"
+    "trailer:audio": "node .claude/skills/gg/kit/tools/music.mjs public/trailer/towns-teaser.wav soon && node .claude/skills/gg/kit/tools/music.mjs public/trailer/demo.wav demo && node .claude/skills/gg/kit/tools/sfx.mjs public/trailer/sfx"
   },
   "dependencies": {
     "@pmndrs/detect-gpu": "^6.0.8",

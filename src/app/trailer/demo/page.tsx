@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import DemoFilm from "./demo-film";
 
-// The trailer kit's demo film (.claude/skills/game-trailer/kit/README.md): a short teaser in a
+// The trailer kit's demo film (.claude/skills/gg/kit/README.md): a short teaser in a
 // world made in code, so it runs on any fork with no data. Not linked from
 // anywhere.
 
