@@ -41,7 +41,17 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
     ),
   "town-demolished": () =>
     renderTownDemolishedEmail(
-      { leagueSlug: "codex-town", leagueName: "Codex Town", attackerLogin: "srizzon", victimLogin: "yuripulga", rivalSlug: "claude-code-town", rivalName: "Claude Code Town", downHere: 3, downThere: 1 },
+      { leagueSlug: "codex-town", leagueName: "Codex Town", attackerLogin: "srizzon", victimLogin: "yuripulga", attackerId: 12, victimId: 465, hitBackSlug: "claude-code-town", revenge: false, down: 3 },
+      PREVIEW_LINKS,
+    ),
+  "town-demolished-hit-back": () =>
+    renderTownDemolishedEmail(
+      { leagueSlug: "fulldev", leagueName: "Fulldev", attackerLogin: "yuripulga", victimLogin: "srizzon", attackerId: 465, victimId: 12, hitBackSlug: "fulldev", revenge: true, down: 2 },
+      PREVIEW_LINKS,
+    ),
+  "town-demolished-no-town": () =>
+    renderTownDemolishedEmail(
+      { leagueSlug: "brasil-town", leagueName: "Brasil Town", attackerLogin: "pyromains", victimLogin: "srizzon", attackerId: 7, victimId: 12, hitBackSlug: null, revenge: false, down: 1 },
       PREVIEW_LINKS,
     ),
   "race-passed": () =>

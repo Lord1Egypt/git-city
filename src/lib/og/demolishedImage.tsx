@@ -1,7 +1,8 @@
 // "Knocked down" card (1200x630), the town_demolished email's hero: the
-// attacker in their side's color, the owner's building as an outline of its
-// old size over a pile of rubble with the attacker town's flag in it, and the
-// rivalry's score in rubble right now. Same family as the battle card.
+// attacker, the owner's building as an outline of its old size over a pile of
+// rubble with the attacker's flag (their avatar) in it, and the count in
+// rubble right now: the rivalry's score in Claude/Codex, the town's own
+// elsewhere. Same family as the battle card.
 
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
@@ -9,8 +10,8 @@ import { join } from "node:path";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { RIVALRY } from "@/lib/towns/rivalry";
 import { getLeagueBySlug } from "@/lib/leagues/service";
-import { getCachedCity } from "@/lib/league-city/service";
-import { rubbleBySlug } from "@/lib/league-city/rubble";
+import { attackerTown, rubbleBySlug, rubbleIn } from "@/lib/league-city/rubble";
+import { townDisplayName } from "@/lib/towns/names";
 
 export const DEMOLISHED_IMAGE_SIZE = { width: 1200, height: 630 };
 
@@ -19,36 +20,60 @@ const CREAM = "#e8dcc8";
 const MUTED = "#8c8c9c";
 const CARD = "#1c1c20";
 const RED = "#ef4444";
+const LIME = "#c8e64a";
 
-interface Dev {
+export interface DemolishedDev {
+  id: number;
   github_login: string;
   avatar_url: string | null;
 }
 
-export async function renderDemolishedImage(slug: string, attacker: string, victim: string): Promise<ImageResponse> {
+/**
+ * The two devs on the card. By id (?a=&d=): only a fall town_demolitions has
+ * for this town, so nobody can make a card of a knock-down that never
+ * happened. By login (?attacker=&victim=): emails sent before the log existed.
+ */
+export async function demolishedPair(leagueId: string, q: URLSearchParams): Promise<[DemolishedDev, DemolishedDev] | null> {
+  const sb = getSupabaseAdmin();
+  const a = Number(q.get("a"));
+  const d = Number(q.get("d"));
+  if (Number.isSafeInteger(a) && Number.isSafeInteger(d) && a > 0 && d > 0) {
+    const [{ data: fall }, { data: devs }] = await Promise.all([
+      sb.from("town_demolitions").select("id").eq("league_id", leagueId).eq("attacker_id", a).eq("victim_id", d).limit(1),
+      sb.from("developers").select("id, github_login, avatar_url").in("id", [a, d]).returns<DemolishedDev[]>(),
+    ]);
+    const atk = devs?.find((x) => x.id === a);
+    const def = devs?.find((x) => x.id === d);
+    return (fall ?? []).length > 0 && atk && def ? [atk, def] : null;
+  }
+  const logins = [q.get("attacker") ?? "", q.get("victim") ?? ""].map((l) => l.replace(/[^A-Za-z0-9-]/g, "").slice(0, 39));
+  if (!logins[0] || !logins[1]) return null;
+  const { data: devs } = await sb.from("developers").select("id, github_login, avatar_url").in("github_login", logins).returns<DemolishedDev[]>();
+  const find = (l: string) => devs?.find((x) => x.github_login.toLowerCase() === l.toLowerCase());
+  const atk = find(logins[0]);
+  const def = find(logins[1]);
+  return atk && def ? [atk, def] : null;
+}
+
+type Dev = Pick<DemolishedDev, "github_login" | "avatar_url">;
+
+export async function renderDemolishedImage(slug: string, atk: DemolishedDev, def: DemolishedDev): Promise<ImageResponse> {
   const fonts = [
     { name: "Silkscreen", data: await readFile(join(process.cwd(), "public/fonts/Silkscreen-Regular.ttf")), style: "normal" as const, weight: 400 as const },
   ];
   const here = RIVALRY.find((r) => r.slug === slug);
-  const there = RIVALRY.find((r) => r.slug !== slug);
-  const sb = getSupabaseAdmin();
-  const logins = [attacker, victim].map((l) => l.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 39));
-  const [{ data: devs }, rubble, flagLogo] = await Promise.all([
-    sb.from("developers").select("github_login, avatar_url").in("github_login", logins).returns<Dev[]>(),
-    rubbleBySlug().catch(() => ({}) as Record<string, number>),
-    // The attacker town's logo, on the flag in the rubble.
-    there
-      ? getLeagueBySlug(there.slug)
-          .then((l) => (l ? getCachedCity(l.id) : null))
-          .then((c) => c?.identity.logoUrl ?? null)
-          .catch(() => null)
-      : Promise.resolve(null),
+  const league = await getLeagueBySlug(slug);
+  const [rubble, downHere, from] = await Promise.all([
+    here ? rubbleBySlug().catch(() => ({}) as Record<string, number>) : Promise.resolve({} as Record<string, number>),
+    league ? rubbleIn(league.id).catch(() => 1) : Promise.resolve(1),
+    attackerTown(atk.id, slug).catch(() => null),
   ]);
-  const find = (l: string): Dev => devs?.find((d) => d.github_login.toLowerCase() === l) ?? { github_login: l, avatar_url: null };
-  const atk = find(logins[0]);
-  const def = find(logins[1]);
-  const atkColor = there?.color ?? RED;
+  // In the rivalry, the attacker's side; anywhere else, their town.
+  const side = here ? RIVALRY.find((r) => r.slug === from?.slug) : undefined;
+  const atkColor = side?.color ?? LIME;
+  const atkLabel = side ? `${side.name.toUpperCase()} SIDE` : from ? townDisplayName(from.name).toUpperCase() : "";
   const homeColor = here?.color ?? MUTED;
+  const townName = (here ? `${here.name} town` : townDisplayName(league?.name ?? slug)).toUpperCase();
 
   const avatar = (dev: Dev, color: string, size: number) =>
     dev.avatar_url ? (
@@ -84,7 +109,7 @@ export async function renderDemolishedImage(slug: string, attacker: string, vict
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <div style={{ display: "flex", fontSize: 22, color: MUTED, letterSpacing: 8 }}>{`${(here?.name ?? "").toUpperCase()} TOWN`}</div>
+          <div style={{ display: "flex", fontSize: 22, color: MUTED, letterSpacing: 8 }}>{townName.slice(0, 40)}</div>
           <div style={{ display: "flex", fontSize: 88, color: RED, marginTop: 4 }}>KNOCKED DOWN</div>
         </div>
 
@@ -95,7 +120,7 @@ export async function renderDemolishedImage(slug: string, attacker: string, vict
             <div style={{ display: "flex", fontSize: atk.github_login.length > 14 ? 22 : 28, color: CREAM, marginTop: 16, textTransform: "uppercase" }}>
               {atk.github_login.slice(0, 20)}
             </div>
-            <div style={{ display: "flex", fontSize: 18, color: atkColor, marginTop: 6, letterSpacing: 4 }}>{`${(there?.name ?? "").toUpperCase()} SIDE`}</div>
+            <div style={{ display: "flex", fontSize: 18, color: atkColor, marginTop: 6, letterSpacing: 4 }}>{atkLabel.slice(0, 24)}</div>
           </div>
 
           {/* The owner's building: its old size, rubble, and the attacker's flag in it */}
@@ -105,7 +130,7 @@ export async function renderDemolishedImage(slug: string, attacker: string, vict
               <div style={{ display: "flex", position: "absolute", left: 60, top: 62, width: 6, height: 180, backgroundColor: "#c9ccd2" }} />
               <div style={{ display: "flex", position: "absolute", left: 57, top: 54, width: 12, height: 12, backgroundColor: "#e8c547" }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "absolute", left: 66, top: 66, width: 96, height: 62, backgroundColor: "#11151d", border: `4px solid ${atkColor}` }}>
-                {flagLogo ? <img src={flagLogo} alt="" width={56} height={56} style={{ imageRendering: "pixelated" }} /> : null}
+                {atk.avatar_url ? <img src={atk.avatar_url} alt="" width={56} height={56} /> : null}
               </div>
               {rubbleBlocks.map(([x, bottom, w, h, deg, lit], i) => (
                 <div
@@ -133,16 +158,14 @@ export async function renderDemolishedImage(slug: string, attacker: string, vict
             <div style={{ display: "flex", fontSize: 18, color: MUTED, marginTop: 6, letterSpacing: 4 }}>IN RUBBLE</div>
           </div>
 
-          {/* The score in rubble */}
+          {/* The count in rubble: the rivalry's score, or this town's */}
           <div style={{ display: "flex", flexDirection: "column", width: 330, gap: 18 }}>
-            {[here, there].map((side) =>
-              side ? (
-                <div key={side.slug} style={{ display: "flex", flexDirection: "column", padding: "14px 18px", backgroundColor: CARD, borderLeft: `6px solid ${side.color}` }}>
-                  <div style={{ display: "flex", fontSize: 56, color: CREAM }}>{rubble[side.slug] ?? 0}</div>
-                  <div style={{ display: "flex", fontSize: 16, color: MUTED, letterSpacing: 2 }}>{`${side.name.toUpperCase()} BUILDINGS DOWN`}</div>
-                </div>
-              ) : null,
-            )}
+            {(here ? [here, ...RIVALRY.filter((r) => r.slug !== slug)].map((r) => ({ key: r.slug, color: r.color, n: rubble[r.slug] ?? 0, label: `${r.name.toUpperCase()} ${(rubble[r.slug] ?? 0) === 1 ? "BUILDING" : "BUILDINGS"} DOWN` })) : [{ key: slug, color: LIME, n: Math.max(1, downHere), label: downHere > 1 ? "BUILDINGS DOWN HERE" : "BUILDING DOWN HERE" }]).map((row) => (
+              <div key={row.key} style={{ display: "flex", flexDirection: "column", padding: "14px 18px", backgroundColor: CARD, borderLeft: `6px solid ${row.color}` }}>
+                <div style={{ display: "flex", fontSize: 56, color: CREAM }}>{row.n}</div>
+                <div style={{ display: "flex", fontSize: 16, color: MUTED, letterSpacing: 2 }}>{row.label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
