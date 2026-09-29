@@ -44,12 +44,12 @@ export function useTownsLive(): Record<string, TownLive> {
 export function LiveBadge({ live }: { live: TownLive | null | undefined }) {
   if (!live || inTown(live) === 0) return null;
   return (
-    <span className="absolute bottom-2 left-2 bg-bg/85 px-2 py-1 text-[10px] leading-snug text-cream tabular-nums sm:text-xs">
+    <span className="absolute bottom-2 left-2 bg-bg px-2 py-1 text-[10px] leading-snug text-cream tabular-nums sm:text-xs">
       <span className="flex items-center gap-1.5">
         <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
         {fmt(inTown(live))} in town
       </span>
-      {live.driving > 0 && <span className="block text-muted">{fmt(live.driving)} driving</span>}
+      {live.driving > 0 && <span className="block pl-3 text-muted">{fmt(live.driving)} driving</span>}
     </span>
   );
 }
