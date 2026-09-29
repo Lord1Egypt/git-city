@@ -162,6 +162,12 @@ export default class DriveServer implements Party.Server {
     conn.send(JSON.stringify(msg));
   }
 
+  /** GET: who's in the city right now, for /towns (cached by /api/towns/live). */
+  onRequest(request: Party.Request) {
+    if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+    return Response.json({ driving: this.drivers.size, watching: this.watchers.size });
+  }
+
   onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Connection) {
     if (this.watchers.has(sender.id)) return;
     if (typeof message !== "string") return;
