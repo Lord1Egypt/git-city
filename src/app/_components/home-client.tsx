@@ -3040,7 +3040,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
 
       {/* ─── Intro Cold Open Overlay ─── */}
       {introMode && (
-        <IntroColdOpenOverlay onSkip={endIntro} />
+        <IntroColdOpenOverlay accent={theme.accent} onSkip={endIntro} />
       )}
 
       {/* ─── Fly Mode HUD ─── */}

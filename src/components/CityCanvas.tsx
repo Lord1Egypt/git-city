@@ -22,7 +22,7 @@ import RaidSequence3D, { VehicleMesh } from "./RaidSequence3D";
 import type { RaidPhase } from "@/lib/useRaidSequence";
 import type { RaidExecuteResponse } from "@/lib/raid";
 import { SF_PLAZA_SCALE, plazaCenterWorld } from "@/lib/sponsors/sfPlaza";
-import { IntroColdOpen, HOME_CAM } from "./IntroColdOpen";
+import { IntroColdOpen, HOME_CAM, coldOpen } from "./IntroColdOpen";
 import { sunPosition, samplePalette, skyState } from "@/lib/sky";
 import WhiteRabbit from "./WhiteRabbit";
 import CelebrationEffect from "./CelebrationEffect";
@@ -141,6 +141,9 @@ function IntroFlyover({ onEnd, lookScale = 1, target }: { onEnd: () => void; loo
     if (ended.current) return;
     elapsed.current += delta;
 
+    // The overlay (bars + lines) follows this clock too.
+    coldOpen.active = true;
+    coldOpen.t = elapsed.current;
     const rawT = Math.min(elapsed.current / INTRO_DURATION, 1);
     const t = introEase(rawT);
 
@@ -153,6 +156,7 @@ function IntroFlyover({ onEnd, lookScale = 1, target }: { onEnd: () => void; loo
 
     if (elapsed.current >= INTRO_DURATION && !ended.current) {
       ended.current = true;
+      coldOpen.active = false;
       onEnd();
     }
   });
@@ -2281,7 +2285,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       {!sfHome && <ThemeSkyFX key={`sky-fx-${themeIndex}`} themeIndex={themeIndex as 0 | 1 | 2 | 3} theme={t} />}
 
       {introMode && (sfMap
-        ? <IntroColdOpen buildings={buildings} onEnd={onIntroEnd ?? (() => { })} />
+        ? <IntroColdOpen onEnd={onIntroEnd ?? (() => { })} />
         : <IntroFlyover onEnd={onIntroEnd ?? (() => { })} lookScale={1} target={introTarget} />)}
 
       {rabbitCinematic && rabbitCinematicTarget != null && (
