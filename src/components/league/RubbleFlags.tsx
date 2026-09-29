@@ -7,9 +7,10 @@ import { Flag } from "./identity/IdentityPieces";
 import { useFontReady, useLogo } from "./identity/IdentityLayer";
 import { wideTexture } from "./identity/logoTexture";
 
-// Rivalry smash: the attacker's town flag, planted in each building lying in
-// rubble. The town's own flag piece (pole, gold ball, waving cloth), its cloth
-// the attacker town's logo with the @login of whoever took the last floor.
+// Smash: the attacker's flag, planted in each building lying in rubble. The
+// town's own flag piece (pole, gold ball, waving cloth), its cloth the GitHub
+// avatar and @login of whoever took the last floor (they may come from any
+// town, or none).
 // Re-reads the store only when its version moves (a building falls or heals).
 
 interface Planted {
@@ -24,8 +25,11 @@ const CLOTH: [number, number] = [22, 11];
 /** Lower than the town's own flags: it stands in rubble, in view of the car. */
 const POLE = 18;
 
-function Planted({ flag, logoUrl, phase }: { flag: Planted; logoUrl: string | null; phase: number }) {
-  const logo = useLogo(logoUrl);
+/** A GitHub avatar by login (CORS-open, so it can go on a canvas). */
+const avatarOf = (login: string) => `https://avatars.githubusercontent.com/${encodeURIComponent(login)}?s=128`;
+
+function Planted({ flag, phase }: { flag: Planted; phase: number }) {
+  const logo = useLogo(avatarOf(flag.by));
   const fontReady = useFontReady();
   // fontReady: redraw once Silkscreen is in.
   const tex = useMemo(() => wideTexture(logo, `@${flag.by}`), [logo, flag.by, fontReady]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -33,7 +37,7 @@ function Planted({ flag, logoUrl, phase }: { flag: Planted; logoUrl: string | nu
   return <Flag position={[flag.x, flag.z]} rot={0} map={tex} phase={phase} cloth={CLOTH} height={POLE} />;
 }
 
-export default function RubbleFlags({ store, logoUrl }: { store: SmashStore; logoUrl: string | null }) {
+export default function RubbleFlags({ store }: { store: SmashStore }) {
   const [flags, setFlags] = useState<Planted[]>([]);
   const seen = useRef(-1);
   useFrame(() => {
@@ -50,7 +54,7 @@ export default function RubbleFlags({ store, logoUrl }: { store: SmashStore; log
   return (
     <>
       {flags.map((f, i) => (
-        <Planted key={`${f.key}:${f.by}`} flag={f} logoUrl={logoUrl} phase={i * 0.9} />
+        <Planted key={`${f.key}:${f.by}`} flag={f} phase={i * 0.9} />
       ))}
     </>
   );

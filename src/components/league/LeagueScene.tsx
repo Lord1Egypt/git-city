@@ -538,8 +538,8 @@ export interface LeagueSceneProps {
   children?: React.ReactNode;
   /** Drive mode: the car and its world. */
   drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
-  /** A rivalry town's floors (lib/league-city/smash): broken buildings draw as columns; color: the town's side, for the ghosts. */
-  smash?: { store: SmashStore; color: string; rivalLogoUrl: string | null } | null;
+  /** The town's floors (lib/league-city/smash): broken buildings draw as columns; color: the town's, for the ghosts. */
+  smash?: { store: SmashStore; color: string } | null;
   /** The explore camera's position for the compass (MapNavControls); its presence turns the main city's controls on. */
   navCamera?: MapCameraStore;
   /** Fill the parent box instead of the viewport, and ignore the pointer (Discover's hero). */
@@ -714,7 +714,7 @@ export default function LeagueScene({
           ghostColor={smashTown?.color}
         />
       </Rise>
-      {smashTown && !editing && <RubbleFlags store={smashTown.store} logoUrl={smashTown.rivalLogoUrl} />}
+      {smashTown && !editing && <RubbleFlags store={smashTown.store} />}
       {watching && mode === "view" && !playing && !cinematic && watching.length > 0 && <WatchedCars cars={watching} />}
       {driving && drive && <DriveWorld objects={withApproach} buildings={buildings} h={h} smash={smash} {...drive} />}
       {coverRef && <CoverShot apiRef={coverRef} h={h} tallest={tallest} />}

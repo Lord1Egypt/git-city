@@ -12,17 +12,17 @@ import {
   REBUILD_REACH,
   REBUILD_SPEED,
   SAVE_MS,
-  SMASH_TOWNS,
   blastReaches,
   carReaches,
   toFootprint,
   type SmashMsg,
 } from "../src/lib/league-city/smash-net";
 
-// ─── Rivalry smash (drive room side) ────────────────────────
-// The authority on a rivalry town's floors. Loads the town's buildings and
-// saved damage from the site (/api/towns/[slug]/smash), learns who each driver
-// is from their access token (/smash/me: only the other side may smash),
+// ─── Smash (drive room side) ────────────────────────────────
+// The authority on a town's floors. Loads the town's buildings and saved
+// damage from the site (/api/towns/[slug]/smash; a room that isn't a town gets
+// a 404 and stays off), learns who each driver is from their access token
+// (/smash/me: anyone signed in with a building may smash, never their own),
 // checks every hit (near enough, a real blast, a floor budget), grows floors
 // back (time, contributions, the owner parked against it) and sends each
 // change to everyone. Saves go back to the site signed with the shared
@@ -31,7 +31,8 @@ import {
 export interface SmashDriver {
   login: string | null;
   canSmash: boolean;
-  budget: FloorBudget;
+  /** Its auth is being checked with the site. */
+  authing: boolean;
   /** Last floor taken per building column by this car (cooldown). */
   lastCol: Map<string, number>;
 }
@@ -49,10 +50,16 @@ type Where = (id: string) => { x: number; z: number; speed: number; flags: numbe
 export class SmashRoom {
   private store: SmashStore | null = null;
   private loading: Promise<void> | null = null;
+  /** The site said this room isn't a town: no smash here. */
+  private missing = false;
   /** Owners' week contributions as last seen (the base for growing floors back). */
   private contrib = new Map<string, number>();
   private dirty = new Set<string>();
-  private fallen: { victim: string; attacker: string }[] = [];
+  private fallen: { victim: string; attacker: string; attackerId: number; at: number }[] = [];
+  /** Developer id per signed-in login (from /smash/me), for the saves. */
+  private ids = new Map<string, number>();
+  /** Floors per minute, per account: more tabs don't make a faster wrecking ball. */
+  private budgets = new Map<string, FloorBudget>();
   private blasts = new Map<number, Blast>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastSave = 0;
@@ -65,7 +72,7 @@ export class SmashRoom {
   ) {}
 
   get enabled(): boolean {
-    return SMASH_TOWNS.includes(this.room.id);
+    return !this.missing;
   }
 
   private env(key: string): string | undefined {
@@ -90,7 +97,11 @@ export class SmashRoom {
   private async load() {
     const site = this.site();
     if (!site) return;
-    const res = await fetch(`${site}/api/towns/${this.room.id}/smash`, { headers: { "cache-control": "no-cache" } });
+    const res = await fetch(`${site}/api/towns/${encodeURIComponent(this.room.id)}/smash`, { headers: { "cache-control": "no-cache" } });
+    if (res.status === 404) {
+      this.missing = true;
+      return;
+    }
     if (!res.ok) throw new Error(`smash load ${res.status}`);
     const body = (await res.json()) as { targets: SmashTarget[]; damage: DamageEntry[] };
     const store = new SmashStore(body.targets);
@@ -105,7 +116,7 @@ export class SmashRoom {
 
   /** Every damaged building, for a newcomer. */
   all(): ServerMsg {
-    return { t: "damage_all", list: (this.store?.snapshot() ?? []).map((d) => [d.login, d.rows, d.demolishedBy]) };
+    return { t: "damage_all", list: (this.store?.snapshot() ?? []).map((d) => [d.login, d.rows, d.demolishedBy, d.shieldUntil]) };
   }
 
   /** Sends the damage to someone who just arrived (after the load, if it's still running). */
@@ -115,27 +126,38 @@ export class SmashRoom {
   }
 
   join(id: string) {
-    this.drivers.set(id, { login: null, canSmash: false, budget: new FloorBudget(), lastCol: new Map() });
+    this.drivers.set(id, { login: null, canSmash: false, authing: false, lastCol: new Map() });
   }
 
   leave(id: string) {
+    const login = this.drivers.get(id)?.login;
     this.drivers.delete(id);
+    // The budget stays while the account has another car here (a reconnect can't reset it).
+    if (login && ![...this.drivers.values()].some((d) => d.login === login)) {
+      const b = this.budgets.get(login);
+      if (b && b.idle(Date.now())) this.budgets.delete(login);
+    }
   }
 
   /** Asks the site who the token belongs to and tells the driver whether they may smash. */
   async auth(id: string, token: string, conn: Party.Connection) {
     const d = this.drivers.get(id);
     const site = this.site();
-    if (!d || !site || !this.enabled) return;
+    // Once per car: each auth costs the site a token check.
+    if (!d || d.authing || d.login || !site || !this.enabled) return;
+    d.authing = true;
     try {
-      const res = await fetch(`${site}/api/towns/${this.room.id}/smash/me`, { headers: { authorization: `Bearer ${token}` } });
+      const res = await fetch(`${site}/api/towns/${encodeURIComponent(this.room.id)}/smash/me`, { headers: { authorization: `Bearer ${token}` } });
       if (!res.ok) return;
-      const me = (await res.json()) as { login: string; canSmash: boolean; home: boolean };
+      const me = (await res.json()) as { login: string; devId: number; canSmash: boolean; home: boolean };
       d.login = me.login.toLowerCase();
-      d.canSmash = me.canSmash === true;
+      d.canSmash = me.canSmash === true && Number.isSafeInteger(me.devId) && me.devId > 0;
+      if (d.canSmash) this.ids.set(d.login, me.devId);
       conn.send(JSON.stringify({ t: "smash_me", can: d.canSmash, home: me.home === true, login: d.login } satisfies ServerMsg));
     } catch (err) {
       console.error("[smash] auth", err);
+    } finally {
+      d.authing = false;
     }
   }
 
@@ -175,12 +197,15 @@ export class SmashRoom {
       columns = blastReaches(store, target, m.c, blast.x, blast.z);
       n = BLAST_ROWS;
     }
-    const allowed = Math.floor(d.budget.take(columns.length * n, now) / n);
+    let budget = this.budgets.get(d.login);
+    if (!budget) this.budgets.set(d.login, (budget = new FloorBudget()));
+    const allowed = Math.floor(budget.take(columns.length * n, now) / n);
     columns = columns.slice(0, allowed);
     if (columns.length === 0) return;
     const { down } = store.hitColumns(target, columns, n, now, d.login);
-    if (down) {
-      this.fallen.push({ victim: m.b, attacker: d.login });
+    const attackerId = this.ids.get(d.login);
+    if (down && attackerId !== undefined) {
+      this.fallen.push({ victim: m.b, attacker: d.login, attackerId, at: now });
       this.lastSave = 0; // save (and email) now
     }
     this.flush();
@@ -193,7 +218,9 @@ export class SmashRoom {
     for (const i of store.takeChanged()) {
       const login = store.targets[i].login;
       this.dirty.add(login);
-      this.room.broadcast(JSON.stringify({ t: "damage", b: login, r: store.rowsOf(i), by: store.demolishedBy.get(i) ?? null } satisfies ServerMsg));
+      this.room.broadcast(
+        JSON.stringify({ t: "damage", b: login, r: store.rowsOf(i), by: store.demolishedBy.get(i) ?? null, s: store.shieldUntil[i] } satisfies ServerMsg),
+      );
     }
   }
 
@@ -239,7 +266,7 @@ export class SmashRoom {
     const store = this.store;
     if (!site || !store) return;
     try {
-      const res = await fetch(`${site}/api/towns/${this.room.id}/smash?contrib=1`, { headers: { "cache-control": "no-cache" } });
+      const res = await fetch(`${site}/api/towns/${encodeURIComponent(this.room.id)}/smash?contrib=1`, { headers: { "cache-control": "no-cache" } });
       if (!res.ok) return;
       const { contrib } = (await res.json()) as { contrib: Record<string, number> };
       for (const [login, n] of Object.entries(contrib)) {
@@ -266,11 +293,21 @@ export class SmashRoom {
       const i = store.index.get(login);
       if (i === undefined) return [];
       // -1: a building first hit this session; the site reads its owner's contributions as the base.
-      return [{ login, rows: store.rowsOf(i), regenFrom: store.regenFrom(i), contribBase: this.contrib.get(login) ?? -1, demolishedBy: store.demolishedBy.get(i) ?? null }];
+      return [
+        {
+          login,
+          rows: store.rowsOf(i),
+          regenFrom: store.regenFrom(i),
+          contribBase: this.contrib.get(login) ?? -1,
+          demolishedBy: store.demolishedBy.get(i) ?? null,
+          demolishedById: this.ids.get(store.demolishedBy.get(i) ?? ""),
+          shieldUntil: store.shieldUntil[i],
+        },
+      ];
     });
     const body = JSON.stringify({ at: Date.now(), rows, demolished: fallen });
     try {
-      const res = await fetch(`${site}/api/towns/${this.room.id}/smash`, {
+      const res = await fetch(`${site}/api/towns/${encodeURIComponent(this.room.id)}/smash`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-smash-signature": await sign(secret, `${this.room.id}.${body}`) },
         body,

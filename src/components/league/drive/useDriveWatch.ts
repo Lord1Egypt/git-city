@@ -13,7 +13,7 @@ import { syncBotClock } from "@/lib/league-city/drive/bots";
 export function useDriveWatch(
   slug: string,
   enabled: boolean,
-  /** Rivalry towns: the room's floor changes (damage, damage_all). */
+  /** Smash: the room's floor changes (damage, damage_all). */
   onDamage?: (msg: { t: string } & Record<string, unknown>) => void,
 ) {
   const remotes = useRef(new Map<string, RemoteDriver>());

@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { HUD_BOX } from "../shared";
 
-// Rivalry smash, above the honk prompt: "pick a side" for a while after you
-// run into a rival building without one, and the floor count while you're
-// parked against your own broken building (the drive room builds it back).
+// Smash, above the honk prompt: "sign in" for a while after you run into a
+// building signed out, how long a shielded one has left when you run into
+// it, and the floor count while you're parked against your own broken
+// building (the drive room builds it back).
 // Read from the telemetry every animation frame, like the honk prompt.
 
 const HINT_MS = 4500;
 
 export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }) {
+  const pathname = usePathname();
   const hint = useRef<HTMLDivElement>(null);
+  const shield = useRef<HTMLDivElement>(null);
+  const hours = useRef<HTMLSpanElement>(null);
   const rebuild = useRef<HTMLDivElement>(null);
   const floors = useRef<HTMLSpanElement>(null);
 
@@ -22,6 +26,11 @@ export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }
     const tick = () => {
       const now = performance.now();
       if (hint.current) hint.current.dataset.on = String(telemetry.sideHintAt > 0 && now - telemetry.sideHintAt < HINT_MS);
+      if (shield.current && hours.current) {
+        const on = telemetry.shieldHintAt > 0 && now - telemetry.shieldHintAt < HINT_MS;
+        shield.current.dataset.on = String(on);
+        if (on) hours.current.textContent = `${telemetry.shieldHours}h`;
+      }
       if (rebuild.current && floors.current) {
         const on = telemetry.rebuildOf > 0;
         rebuild.current.dataset.on = String(on);
@@ -38,10 +47,13 @@ export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }
   return (
     <>
       <div ref={hint} data-on="false" className={`${chip} pointer-events-none data-[on=true]:pointer-events-auto`}>
-        Pick a side to break their town
-        <Link href="/towns" className="border-2 border-lime px-1.5 text-lime hover:bg-lime/10">
-          Pick
-        </Link>
+        Sign in to knock buildings down
+        <a href={`/api/auth/github?redirect=${encodeURIComponent(`${pathname}?drive=1`)}`} className="border-2 border-lime px-1.5 text-lime hover:bg-lime/10">
+          Sign in
+        </a>
+      </div>
+      <div ref={shield} data-on="false" className={`${chip} pointer-events-none`}>
+        Just fell. Shielded for <span ref={hours} className="text-lime" />
       </div>
       <div ref={rebuild} data-on="false" className={`${chip} pointer-events-none`}>
         <span className="h-1.5 w-1.5 animate-pulse bg-lime" aria-hidden />

@@ -2,7 +2,7 @@
 // What the drift world reports to the HUD. Mutated every frame and read in
 // requestAnimationFrame, so driving never re-renders React.
 
-import type { DriveTelemetry } from "../league-city/drive/telemetry";
+import { createTelemetry, type DriveTelemetry } from "../league-city/drive/telemetry";
 import type { DriftEvent, DriftState } from "./score";
 
 export interface FeedItem {
@@ -27,5 +27,5 @@ export interface DriftTelemetry extends DriveTelemetry {
 }
 
 export function createDriftTelemetry(): DriftTelemetry {
-  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, rebuildFloors: 0, rebuildOf: 0, radar: { x: 0, z: 0, heading: 0, cars: [], crown: null }, drift: null, feed: [], split: null, carScreen: null, countdown: null, goAt: 0 };
+  return { ...createTelemetry(), drift: null, feed: [], split: null, carScreen: null, countdown: null, goAt: 0 };
 }

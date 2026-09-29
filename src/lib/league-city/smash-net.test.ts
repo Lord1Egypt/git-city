@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { RIVALRY } from "@/lib/towns/rivalry";
 import { smashStoreFor } from "./smash";
-import { FLOORS_PER_MINUTE, FloorBudget, SMASH_TOWNS, applyRoomDamage, blastReaches, carReaches, parseSmash, toFootprint } from "./smash-net";
+import { FLOORS_PER_MINUTE, FloorBudget, applyRoomDamage, blastReaches, carReaches, parseSmash, toFootprint } from "./smash-net";
 
 const tower = {
   loginLower: "a",
@@ -15,10 +14,6 @@ const tower = {
 };
 
 describe("smash-net", () => {
-  it("smashes in exactly the rivalry towns", () => {
-    expect([...SMASH_TOWNS].sort()).toEqual(RIVALRY.map((r) => r.slug).sort());
-  });
-
   it("parses only well-formed smash messages", () => {
     expect(parseSmash({ b: "a", c: [0, 3], k: "car" })).toEqual({ b: "a", c: [0, 3], k: "car" });
     expect(parseSmash({ b: "a", c: [0], k: "blast", fx: 4 })).toEqual({ b: "a", c: [0], k: "blast", fx: 4 });

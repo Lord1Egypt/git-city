@@ -1,18 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getLeagueBySlug } from "@/lib/leagues/service";
-import { isRivalry } from "@/lib/towns/rivalry";
-import { getDamage, getSmashTown, saveDamage, verifySmashSave, weekContribs } from "@/lib/league-city/smash-server";
+import { getDamage, getSmashTown, recordFalls, saveDamage, verifySmashSave, weekContribs } from "@/lib/league-city/smash-server";
 import { notifyDemolished } from "@/lib/notification-senders/town-demolished";
 
 export const dynamic = "force-dynamic";
 
-// GET: a rivalry town's smash state: its buildings as targets (for the drive
+// GET: a town's smash state: its buildings as targets (for the drive
 // room) and their saved damage (for everyone). ?contrib=1 only returns the
 // damaged owners' contributions this week (the room grows floors back from
 // them). Public: it's what anyone sees in the town.
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  if (!isRivalry(slug)) return NextResponse.json({ error: "Not a rivalry town." }, { status: 404 });
   const league = await getLeagueBySlug(slug);
   if (!league) return NextResponse.json({ error: "Town not found." }, { status: 404 });
   try {
@@ -34,10 +32,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
 }
 
 // POST: the drive room's save, signed (x-smash-signature). Writes the damaged
-// buildings and emails whoever's building just fell.
+// buildings and logs the falls before answering (a failure makes the room
+// resend); the emails to whoever's building just fell go out after.
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  if (!isRivalry(slug)) return NextResponse.json({ error: "Not a rivalry town." }, { status: 404 });
   const body = await req.text();
   const save = verifySmashSave(slug, body, req.headers.get("x-smash-signature"));
   if (!save) return NextResponse.json({ error: "Bad signature." }, { status: 401 });
@@ -46,7 +44,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   try {
     const town = await getSmashTown(league.id);
     await saveDamage(league.id, town, save);
-    for (const d of save.demolished.slice(0, 20)) await notifyDemolished(league, town, d.victim, d.attacker);
+    const falls = await recordFalls(league.id, town, save);
+    if (falls.length) {
+      after(async () => {
+        for (const f of falls.slice(0, 20)) await notifyDemolished(league, f).catch((err) => console.error("[smash:email]", err));
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[smash:save]", err);

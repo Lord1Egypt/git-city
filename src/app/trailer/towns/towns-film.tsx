@@ -132,7 +132,7 @@ export default function TownsFilm({
             objects={side.city.objects}
             buildings={t.buildings}
             mode="view"
-            smash={{ store: t.store, color: side.color, rivalLogoUrl: other.city.identity.logoUrl }}
+            smash={{ store: t.store, color: side.color }}
           >
             <TownsRig
               stage={stage}

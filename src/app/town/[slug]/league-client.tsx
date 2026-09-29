@@ -128,6 +128,7 @@ export default function LeagueClient({
   refLogin,
   startEditing = false,
   startDriving = false,
+  spawnAt = null,
   startJoin = false,
   startQuest = false,
   joinAction,
@@ -155,6 +156,8 @@ export default function LeagueClient({
   startEditing?: boolean;
   /** ?drive=1 (Surprise me, Discover's Drive): straight into the car on desktop. */
   startDriving?: boolean;
+  /** ?at=<login> with ?drive=1 (the knocked-down email's Hit back): the car starts at their building. */
+  spawnAt?: string | null;
   /** ?join=1: back from sign-in, reopen the join panel. */
   startJoin?: boolean;
   /** ?new=1 from /towns/new: the admin's first steps start. */
@@ -174,23 +177,6 @@ export default function LeagueClient({
   const isMember = viewer?.status === "active";
   // Where the explore camera looks, for the compass (set by LeagueScene's camera).
   const [navCamera] = useState(() => createCameraStore());
-  // Rivalry towns: the other side drives through the buildings and knocks
-  // their floors out (lib/league-city/smash). Everyone sees the damage.
-  const smashColor = RIVALRY.find((r) => r.slug === league.slug)?.color ?? null;
-  const rivalSlug = smashColor ? (RIVALRY.find((r) => r.slug !== league.slug)?.slug ?? null) : null;
-  // The other side's logo, for its flag planted in our rubble.
-  const [rivalLogoUrl, setRivalLogoUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!rivalSlug) return;
-    let live = true;
-    fetch(`/api/leagues/${rivalSlug}/city`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((c: { identity?: { logoUrl?: string | null } } | null) => live && setRivalLogoUrl(c?.identity?.logoUrl ?? null))
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [rivalSlug]);
   const showJoinCta = !isMember && (!!invite || !!inviteToken || viewer?.status === "invited");
   const joinKind = joinAction === "join" || joinAction === "ask" || joinAction === "pending" ? joinAction : null;
   const [panel, setPanel] = useState<PanelId>(showJoinCta || (startJoin && joinKind) ? "join" : null);
@@ -356,14 +342,14 @@ export default function LeagueClient({
       store.dispatch({ type: "resync", city });
   }, [city, store]);
   const buildings = useMemo(() => leagueBuildings(sceneObjects, byDevId), [sceneObjects, byDevId]);
-  const smashStore = useMemo(() => (smashColor ? smashStoreFor(buildings) : null), [smashColor, buildings]);
-  const smashTown = useMemo(
-    () => (smashStore && smashColor ? { store: smashStore, color: smashColor, rivalLogoUrl } : null),
-    [smashStore, smashColor, rivalLogoUrl],
-  );
+  // Anyone signed in drives through the buildings (not their own) and knocks
+  // their floors out (lib/league-city/smash). Everyone sees the damage.
+  const smashStore = useMemo(() => smashStoreFor(buildings), [buildings]);
+  // The broken part's outline: the rivalry side's color, else the town's sky accent.
+  const smashColor = RIVALRY.find((r) => r.slug === league.slug)?.color ?? (SKY_ACCENTS[identity.sky] ?? SKY_ACCENTS[1]).accent;
+  const smashTown = useMemo(() => ({ store: smashStore, color: smashColor }), [smashStore, smashColor]);
   // The saved damage, once per store (the drive room sends changes from then on).
   useEffect(() => {
-    if (!smashStore) return;
     let live = true;
     fetch(`/api/towns/${league.slug}/smash`)
       .then((r) => (r.ok ? r.json() : null))
@@ -392,6 +378,10 @@ export default function LeagueClient({
   const viewerDevId = useMemo(
     () => (viewer ? (members.find((m) => m.login.toLowerCase() === viewer.login.toLowerCase())?.developer_id ?? null) : null),
     [viewer, members],
+  );
+  const spawnDevId = useMemo(
+    () => (spawnAt ? (members.find((m) => m.login.toLowerCase() === spawnAt)?.developer_id ?? null) : null),
+    [spawnAt, members],
   );
   // Mutated by the car every frame, read by the HUD; a fresh one per drive.
   const [telemetry, setTelemetry] = useState<DriveTelemetry>(createTelemetry);
@@ -521,6 +511,7 @@ export default function LeagueClient({
       driving
         ? {
             viewerDevId,
+            spawnDevId,
             scripted: introPose,
             cinematic,
             seamless: firstDrive,
@@ -543,11 +534,11 @@ export default function LeagueClient({
             onCrown: setCrownView,
           }
         : undefined,
-    [driving, viewerDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, onDriveReady, onDriveFail, league.slug, driverName],
+    [driving, viewerDevId, spawnDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, onDriveReady, onDriveFail, league.slug, driverName],
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
-  const watch = useDriveWatch(league.slug, mode === "view", smashStore ? (msg) => applyRoomDamage(smashStore, msg, Date.now()) : undefined);
+  const watch = useDriveWatch(league.slug, mode === "view", (msg) => applyRoomDamage(smashStore, msg, Date.now()));
   // Bots fill the streets when few people are driving (lib/league-city/drive/bots).
   const bots = useTownBots(league.slug, sceneObjects, watch.drivers.length, mode === "view");
   const watchedCars = useMemo(
@@ -979,7 +970,7 @@ export default function LeagueClient({
               <div className="hidden sm:block">
                 <TownRadar buildings={buildings} camera={navCamera} />
               </div>
-              <MapNavControls camera={navCamera} accent={smashColor ?? LIME} showPlaces={false} />
+              <MapNavControls camera={navCamera} accent={RIVALRY.find((r) => r.slug === league.slug)?.color ?? LIME} showPlaces={false} />
             </>
           )}
           {/* The main city's controls hints. */}

@@ -54,6 +54,8 @@ export interface DriveWorldProps {
   buildings: CityBuilding[];
   h: number;
   viewerDevId: number | null;
+  /** Start at this dev's building instead of yours (the knocked-down email's Hit back). */
+  spawnDevId?: number | null;
   /** The town intro is driving the car (see Car); input and the drive camera wait for it. */
   scripted?: React.MutableRefObject<IntroPose | null>;
   /** The intro still has the camera and the controls. */
@@ -90,7 +92,7 @@ export interface DriveWorldProps {
   crownApi: React.MutableRefObject<CrownApi | null>;
   /** Crown Rush state for the HUD. */
   onCrown: (v: CrownView) => void;
-  /** A rivalry town's floors (lib/league-city/smash). On the other side, its buildings have no collider: the car drives through and breaks them. */
+  /** The town's floors (lib/league-city/smash). Signed in, every building but yours has no collider: the car drives through and breaks it. */
   smash?: SmashStore;
 }
 
@@ -256,6 +258,7 @@ export default function DriveWorld({
   buildings,
   h,
   viewerDevId,
+  spawnDevId = null,
   scripted,
   cinematic = false,
   seamless = false,
@@ -285,22 +288,22 @@ export default function DriveWorld({
     return () => document.removeEventListener("visibilitychange", on);
   }, []);
 
-  // The room tells us which side we're on (smash_me); until then, and on this
-  // side or none, the buildings are solid.
+  // The room tells us whether we may smash (smash_me); until then the
+  // buildings are solid. Yours always is.
   const [side, setSide] = useState<SmashSide>("none");
   const sideRef = useRef<SmashSide>("none");
   useEffect(() => {
     sideRef.current = side;
   }, [side]);
   const solid = useMemo(
-    () => (smash && side === "rival" ? buildings.filter((b) => !smash.index.has(b.loginLower)) : buildings),
-    [smash, side, buildings],
+    () => (smash && side === "smash" ? buildings.filter((b) => !smash.index.has(b.loginLower) || b.loginLower === name.toLowerCase()) : buildings),
+    [smash, side, buildings, name],
   );
   const specs = useMemo(() => buildColliders(objects, solid, h), [objects, solid, h]);
   const smashApi = useRef<SmashApi | null>(null);
   const fixed = useMemo(() => specs.filter((s) => s.body === "fixed"), [specs]);
   const dynamic = useMemo(() => specs.filter((s) => s.body === "dynamic"), [specs]);
-  const spawn = useMemo(() => spawnPoint(objects, viewerDevId, h), [objects, viewerDevId, h]);
+  const spawn = useMemo(() => spawnPoint(objects, spawnDevId ?? viewerDevId, h), [objects, spawnDevId, viewerDevId, h]);
 
   const input = useDriveInput(paused || cinematic, touch);
   const car = useRef<CarApi | null>(null);
@@ -337,11 +340,11 @@ export default function DriveWorld({
     },
     onEmote: (from, e) => emoteSink.current(from, e),
     onBattle: (e) => (e.t === "crown" ? crownSink.current(e) : battleSink.current(e)),
-    // Rivalry smash: the room asks the site who you are, and has the last word on the floors.
+    // Smash: the room asks the site who you are, and has the last word on the floors.
     auth: smash ? smashToken : undefined,
     onOther: smash
       ? (msg) => {
-          if (msg.t === "smash_me") setSide(msg.can === true ? "rival" : msg.home === true ? "home" : "none");
+          if (msg.t === "smash_me") setSide(msg.can === true ? "smash" : "none");
           for (const { target, col } of applyRoomDamage(smash, msg, Date.now())) smashApi.current?.debris(target, col);
         }
       : undefined,

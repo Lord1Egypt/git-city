@@ -1,4 +1,4 @@
-// ─── Rivalry smash: the room's rules ───────────────────────
+// ─── Smash: the room's rules ───────────────────────────────
 // What the drive room (party/drive.ts) checks before a floor comes off, and
 // the numbers it runs on. Pure and shared with the client, relative imports
 // only (PartyKit bundles it).
@@ -6,9 +6,6 @@
 import { MISSILE } from "./drive/battle";
 import { M_TO_UNIT } from "./drive/tuning";
 import { SMASH, cols, type SmashStore } from "./smash";
-
-/** The rivalry towns (lib/towns/rivalry's RIVALRY slugs; a test keeps them equal). Only their rooms smash. */
-export const SMASH_TOWNS: readonly string[] = ["claude-code-town", "codex-town"];
 
 /** Floors a blast takes from each column it reaches. */
 export const BLAST_ROWS = 3;
@@ -76,10 +73,14 @@ export function blastReaches(store: SmashStore, target: number, columns: readonl
   });
 }
 
-/** A per-driver budget of floors per rolling minute. */
+/** A per-account budget of floors per rolling minute. */
 export class FloorBudget {
   private start = 0;
   private used = 0;
+  /** Its minute is over: nothing booked would still count. */
+  idle(now: number): boolean {
+    return now - this.start >= 60_000;
+  }
   /** How many of `want` floors fit now (and books them). */
   take(want: number, now: number): number {
     if (now - this.start >= 60_000) {
@@ -103,7 +104,7 @@ export function applyRoomDamage(
   now: number,
 ): { target: number; col: number }[] {
   if (msg.t === "damage_all" && Array.isArray(msg.list)) {
-    store.applyAll(msg.list as [string, number[], string | null][], now);
+    store.applyAll(msg.list as [string, number[], string | null, number?][], now);
     return [];
   }
   if (msg.t !== "damage" || typeof msg.b !== "string" || !Array.isArray(msg.r)) return [];
@@ -112,6 +113,7 @@ export function applyRoomDamage(
   const before = store.rowsOf(target);
   store.setRows(target, msg.r as number[], now);
   store.setBy(target, typeof msg.by === "string" ? msg.by : null);
+  store.setShield(target, typeof msg.s === "number" ? msg.s : 0);
   const after = store.rowsOf(target);
   return after.flatMap((r, col) => (r < before[col] ? [{ target, col }] : []));
 }

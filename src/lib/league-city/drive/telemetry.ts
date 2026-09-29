@@ -12,9 +12,12 @@ export interface DriveTelemetry {
   /** The attack you hold, and when you got it (performance.now ms). */
   held: string | null;
   gotAt: number;
-  /** Rivalry smash: when you last ran into the rival town's buildings without a side (performance.now ms, 0 never). */
+  /** Smash: when you last ran into a building signed out (performance.now ms, 0 never). */
   sideHintAt: number;
-  /** Rivalry smash: parked against your broken building, its floors standing and in all (0 = not rebuilding). */
+  /** Smash: when you last ran into a shielded building, and hours left on its shield. */
+  shieldHintAt: number;
+  shieldHours: number;
+  /** Smash: parked against your broken building, its floors standing and in all (0 = not rebuilding). */
   rebuildFloors: number;
   rebuildOf: number;
   /** The minimap's feed (city units), written every frame by the drive world. */
@@ -39,7 +42,7 @@ export interface RadarFeed {
 }
 
 export function createTelemetry(): DriveTelemetry {
-  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, rebuildFloors: 0, rebuildOf: 0, radar: { x: 0, z: 0, heading: 0, cars: [], crown: null } };
+  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, shieldHintAt: 0, shieldHours: 0, rebuildFloors: 0, rebuildOf: 0, radar: { x: 0, z: 0, heading: 0, cars: [], crown: null } };
 }
 
 export type DriveCameraMode = "chase" | "top";

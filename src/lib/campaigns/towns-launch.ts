@@ -12,7 +12,7 @@ function announce(ctx: CampaignRenderContext) {
   const lines = [
     `Git City just passed ${buildings} buildings. Now it has a war.`,
     "Pick your side. From Monday, the side whose devs code more wins the week. Every week.",
-    "Meanwhile, you can drive into the other side's town and knock their buildings down.",
+    "Meanwhile, drive into any town and knock its buildings down. Anyone's but yours.",
   ];
   const reason = "You're getting this because you have a building in Git City. We only email product news for big launches.";
 

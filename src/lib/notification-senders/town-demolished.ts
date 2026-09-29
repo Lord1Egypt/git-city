@@ -3,59 +3,64 @@ import { sendNotification } from "../notifications";
 import { EMAIL_BASE_URL, button, heading, heroImage, paragraph, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { townDisplayName } from "../towns/names";
-import { RIVALRY } from "../towns/rivalry";
 import type { League } from "../leagues/service";
-import type { SmashTown } from "../league-city/smash-server";
-import { rubbleBySlug } from "../league-city/rubble";
+import type { RecordedFall } from "../league-city/smash-server";
+import { attackerTown, rubbleIn } from "../league-city/rubble";
 
-// "@x knocked your building down" — sent when a rival takes the last floor of
-// your building in your rivalry town (the drive room's signed save). The
-// raid alert's loop: who did it, the picture (their flag on your rubble and
-// the score between the towns), and one way back: hit their town. At most one
-// every 3 days per dev, however many times it falls.
+// "@x knocked your building down" — sent when someone takes the last floor of
+// your building in any town (the drive room's signed save). The raid alert's
+// loop: who did it, the picture (their flag on your rubble), and one way back:
+// the button drops you in the car next to their own building. When you had
+// knocked theirs down first, it's "@x hit you back". At most one every 3 days
+// per dev, however many times and in however many towns it falls.
 
 const EVERY_MS = 3 * 86_400_000;
+/** A knock counts as hitting back when you knocked theirs down this recently. */
+const REVENGE_MS = 14 * 86_400_000;
 
 export interface TownDemolishedEmailData {
   leagueSlug: string;
   leagueName: string;
   attackerLogin: string;
   victimLogin: string;
-  /** The attacker's town (where to hit back). */
-  rivalSlug: string;
-  rivalName: string;
-  /** Buildings in rubble right now: your town's, and theirs (your side's score). */
-  downHere: number;
-  downThere: number;
+  /** Developer ids, for the picture. */
+  attackerId: number;
+  victimId: number;
+  /** Where the attacker's own building stands (null: they live in no town). */
+  hitBackSlug: string | null;
+  /** You knocked theirs down first. */
+  revenge: boolean;
+  /** Buildings in rubble in this town right now (the picture's count). */
+  down: number;
 }
 
 function header(d: TownDemolishedEmailData) {
   const town = townDisplayName(d.leagueName);
-  const rival = townDisplayName(d.rivalName);
   return {
     town,
-    rival,
-    subject: `@${d.attackerLogin} knocked your building down`,
-    preheader: `Their flag is flying on your rubble in ${town}. Hit ${rival} back.`,
+    subject: d.revenge ? `@${d.attackerLogin} hit you back` : `@${d.attackerLogin} knocked your building down`,
+    preheader: d.hitBackSlug ? `Their flag is flying on your rubble in ${town}. Hit them back.` : `Their flag is flying on your rubble in ${town}.`,
   };
 }
 
 export function renderTownDemolishedEmail(d: TownDemolishedEmailData, links: EmailLinks) {
-  const { town, rival, subject, preheader } = header(d);
-  const hitBack = trackedUrl(`/town/${d.rivalSlug}?drive=1`, "town_demolished");
-  const hero = `${EMAIL_BASE_URL}/town/${d.leagueSlug}/demolished-image?attacker=${encodeURIComponent(d.attackerLogin)}&victim=${encodeURIComponent(d.victimLogin)}&v=${d.downHere}-${d.downThere}`;
+  const { town, subject, preheader } = header(d);
+  const cta = d.hitBackSlug
+    ? { label: `Hit @${d.attackerLogin} back`, url: trackedUrl(`/town/${d.hitBackSlug}?drive=1&at=${encodeURIComponent(d.attackerLogin)}`, "town_demolished") }
+    : { label: "Rebuild it", url: trackedUrl(`/town/${d.leagueSlug}?drive=1`, "town_demolished") };
+  const hero = `${EMAIL_BASE_URL}/town/${d.leagueSlug}/demolished-image?a=${d.attackerId}&d=${d.victimId}&n=${d.down}`;
   const intro = `Their flag is on your rubble in ${town}.`;
-  const rebuild = "Or park against your building to rebuild it.";
-  const reason = `You're getting this because a rival knocked down your building in ${town} on Git City.`;
+  const rebuild = "It's shielded for 12 hours. Park against it to rebuild faster.";
+  const reason = `You're getting this because someone knocked down your building in ${town} on Git City.`;
 
   const html = renderLayout({
     title: subject,
     preheader,
-    hero: heroImage({ src: hero, href: hitBack, alt: `@${d.attackerLogin} knocked down @${d.victimLogin}'s building in ${town}` }),
+    hero: heroImage({ src: hero, href: cta.url, alt: `@${d.attackerLogin} knocked down @${d.victimLogin}'s building in ${town}` }),
     body: [
-      heading("", `@${d.attackerLogin}`, " knocked you down"),
+      heading("", `@${d.attackerLogin}`, d.revenge ? " hit you back" : " knocked you down"),
       paragraph(intro),
-      button(`Hit ${rival} back`, hitBack),
+      button(cta.label, cta.url),
       `<div style="height:16px; line-height:16px; font-size:0;">&nbsp;</div>`,
       paragraph(rebuild, { muted: true }),
     ].join("\n"),
@@ -63,18 +68,30 @@ export function renderTownDemolishedEmail(d: TownDemolishedEmailData, links: Ema
     links,
   });
   const text = renderText({
-    lines: [`@${d.attackerLogin} knocked you down`, "", intro, "", `Hit ${rival} back: ${hitBack}`, "", rebuild],
+    lines: [`@${d.attackerLogin}${d.revenge ? " hit you back" : " knocked you down"}`, "", intro, "", `${cta.label}: ${cta.url}`, "", rebuild],
     reason,
     links,
   });
   return { subject, preheader, html, text };
 }
 
+/** Whether the victim had knocked one of the attacker's buildings down lately (in any town). */
+async function isRevenge(attackerId: number, victimId: number): Promise<boolean> {
+  const { data, error } = await getSupabaseAdmin()
+    .from("town_demolitions")
+    .select("id")
+    .eq("victim_id", attackerId)
+    .eq("attacker_id", victimId)
+    .gte("fell_at", new Date(Date.now() - REVENGE_MS).toISOString())
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
 /** Emails the owner of a building that just fell, unless they got one in the last 3 days. */
-export async function notifyDemolished(league: League, town: SmashTown, victim: string, attacker: string): Promise<void> {
-  const developerId = town.devIds[victim];
-  const rival = RIVALRY.find((r) => r.slug !== league.slug);
-  if (developerId === undefined || !rival || !/^[a-z0-9_-]{1,39}$/i.test(attacker)) return;
+export async function notifyDemolished(league: League, fall: RecordedFall): Promise<void> {
+  const { victim, victimId: developerId, attacker, attackerId } = fall;
+  if (developerId === attackerId) return;
   const sb = getSupabaseAdmin();
   const { data: recent } = await sb
     .from("notification_log")
@@ -87,18 +104,21 @@ export async function notifyDemolished(league: League, town: SmashTown, victim: 
     .maybeSingle();
   if (recent) return;
 
-  // Server-only, and this module is also loaded by the email previews.
-  const { getLeagueBySlug } = await import("../leagues/service");
-  const [rivalLeague, down] = await Promise.all([getLeagueBySlug(rival.slug), rubbleBySlug().catch(() => ({}) as Record<string, number>)]);
+  const [hitBack, down, revenge] = await Promise.all([
+    attackerTown(attackerId, league.slug).catch(() => null),
+    rubbleIn(league.id).catch(() => 1),
+    isRevenge(attackerId, developerId).catch(() => false),
+  ]);
   const data: TownDemolishedEmailData = {
     leagueSlug: league.slug,
     leagueName: league.name,
     attackerLogin: attacker,
     victimLogin: victim,
-    rivalSlug: rival.slug,
-    rivalName: rivalLeague?.name ?? rival.name,
-    downHere: down[league.slug] ?? 1,
-    downThere: down[rival.slug] ?? 0,
+    attackerId,
+    victimId: developerId,
+    hitBackSlug: hitBack?.slug ?? null,
+    revenge,
+    down: Math.max(1, down),
   };
   const { subject, preheader } = header(data);
   await sendNotification({
@@ -109,7 +129,7 @@ export async function notifyDemolished(league: League, town: SmashTown, victim: 
     title: subject,
     body: preheader,
     render: (links) => renderTownDemolishedEmail(data, links),
-    actionUrl: `${EMAIL_BASE_URL}/town/${rival.slug}?drive=1`,
+    actionUrl: `${EMAIL_BASE_URL}/town/${data.hitBackSlug ?? league.slug}?drive=1`,
     priority: "high",
     channels: ["email"],
   });
