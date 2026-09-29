@@ -10,6 +10,7 @@ import { INTERP_MS, emptySnapshot, type ClientMsg } from "@/lib/league-city/driv
 import { M_TO_UNIT, UNIT_TO_M } from "@/lib/league-city/drive/tuning";
 import { spinOut } from "@/lib/league-city/drive/vehicle";
 import type { CarApi } from "./Car";
+import type { DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import type { BattleEvent, RemoteDriver } from "./useDrivePresence";
 import { Bursts, type VoxelBursts } from "./Voxels";
 
@@ -75,6 +76,7 @@ export default function CrownMode({
   hitRef,
   knockRef,
   onView,
+  telemetryRef,
 }: {
   objects: CityObject[];
   carRef: React.MutableRefObject<CarApi | null>;
@@ -88,6 +90,8 @@ export default function CrownMode({
   /** A blast caught your car. */
   knockRef: React.MutableRefObject<() => void>;
   onView: (v: CrownView) => void;
+  /** The minimap reads where the crown is from here. */
+  telemetryRef?: React.MutableRefObject<DriveTelemetry>;
 }) {
   const [crown, setCrown] = useState<CrownState | null>(null);
   const state = useRef<CrownState | null>(null);
@@ -158,6 +162,7 @@ export default function CrownMode({
     if (!g || !s) return;
     const active = s.phase === "live" || s.phase === "countdown";
     g.visible = active;
+    if (telemetryRef) telemetryRef.current.radar.crown = active ? { x: 0, z: 0 } : null;
     if (!active) return;
     const t = three.clock.elapsedTime;
     const serverNow = Date.now() + offset.current;
@@ -189,6 +194,7 @@ export default function CrownMode({
       }
     }
     g.position.set(x, y, z);
+    if (telemetryRef) telemetryRef.current.radar.crown = { x, z };
     g.rotation.y = t * 1.5;
     if (beam.current) {
       beam.current.position.set(x, 60, z);
