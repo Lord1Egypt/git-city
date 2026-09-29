@@ -87,8 +87,11 @@ function DemoStage({
   const show = split || (frame.kind === "full" && frame.stage === stage);
   return (
     <div
-      className="absolute inset-y-0 overflow-hidden"
       style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        overflow: "hidden",
         left: split && stage === "night" ? "50%" : 0,
         width: split ? "50%" : "100%",
         visibility: show ? "visible" : "hidden",
@@ -96,13 +99,23 @@ function DemoStage({
       }}
     >
       <div
-        className="absolute inset-x-0 bottom-0 h-[20%]"
-        style={{ background: stage === "day" ? "#5a8f3c" : "#2a3350" }}
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: "20%",
+          background: stage === "day" ? "#5a8f3c" : "#2a3350",
+        }}
       />
       <div
         ref={block}
-        className="absolute size-[10%]"
-        style={{ background: stage === "day" ? "#e07a4f" : "#5b8def" }}
+        style={{
+          position: "absolute",
+          width: "10%",
+          height: "10%",
+          background: stage === "day" ? "#e07a4f" : "#5b8def",
+        }}
       />
     </div>
   );
@@ -116,7 +129,9 @@ export default function MinimalFilm() {
         <>
           <DemoStage stage="day" clock={clock} frame={frame} />
           <DemoStage stage="night" clock={clock} frame={frame} />
-          {frame.kind === "black" && <div className="absolute inset-0 bg-black" />}
+          {frame.kind === "black" && (
+            <div style={{ position: "absolute", inset: 0, background: "#000" }} />
+          )}
         </>
       )}
     </Studio>
