@@ -3,13 +3,13 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 
-const INSTALL = "npx skills add srizzon/git-city --skill game-trailer";
+const INSTALL = "npx skills add srizzon/git-city --skill gg";
 const REPO = "https://github.com/srizzon/git-city/tree/main/.claude/skills/gg";
 
 const STEPS: [string, string][] = [
   [
-    "It asks you first",
-    "What should people feel at the end? Teaser or trailer? The idea is yours.",
+    "It asks one question",
+    "Steer it, or let Claude make a first cut. Either way, the idea can be yours.",
   ],
   [
     "It writes the film",
@@ -19,11 +19,12 @@ const STEPS: [string, string][] = [
     "You watch it live",
     "A studio page in your game. Scene by scene, scrub, slow motion. Claude checks every beat before you see it.",
   ],
-  ["You press record", "Music made for the cut, an end card, and one clean pass into OBS."],
+  ["You press export", "Every frame rendered, music made for the cut, a poster and a caption."],
 ];
 
 const KIT: [string, string][] = [
-  ["Studio", "Plays the film in your game, with editor keys and a record mode"],
+  ["Studio", "Plays the film in your game, with editor keys and an Export button"],
+  ["Export", "Renders the film frame by frame to an mp4, sound mixed on the beat"],
   ["Film format", "Takes, trims, freezes and hits on a beat grid"],
   ["Titles and end card", "Kinetic words, a stamped logo, a slot for your gag"],
   ["Music and sound", "Synthesized to the film's BPM, no samples, no license"],
@@ -159,11 +160,11 @@ export default function KitPage() {
         <div className="mx-auto max-w-4xl px-4 pt-10 text-center sm:px-6 sm:pt-14">
           <p className="text-xs tracking-widest text-muted sm:text-sm">Git City Trailer Kit</p>
           <h1 className="mt-4 text-3xl leading-tight text-cream sm:text-5xl">
-            Claude makes your
-            <span className="block text-lime">game&apos;s trailer</span>
+            You made a game.
+            <span className="block text-lime">gg.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-cream normal-case sm:text-lg">
-            Played live in your engine, recorded in one take. No video editor.
+            Claude makes its trailer, played live in your engine. Tweak it in the studio, export the mp4.
           </p>
         </div>
         <div className="mx-auto mt-8 max-w-4xl px-4 sm:px-6">
@@ -172,8 +173,8 @@ export default function KitPage() {
         <div className="mx-auto mt-6 max-w-2xl px-4 sm:px-6">
           <Install />
           <p className="mt-3 text-center text-sm text-muted normal-case">
-            Then ask Claude Code:{" "}
-            <span className="text-cream">&ldquo;Make a teaser for my game.&rdquo;</span>
+            Then tell Claude Code:{" "}
+            <span className="text-cream">&ldquo;let&apos;s /gg this&rdquo;</span>
           </p>
         </div>
       </section>
@@ -194,7 +195,7 @@ export default function KitPage() {
       <section className="mx-auto mt-20 max-w-4xl px-4 sm:px-6">
         <h2 className="text-lg text-cream sm:text-xl">In the skill</h2>
         <p className="mt-1 text-xs text-muted normal-case">
-          MIT. Works in any React web game: three.js, canvas or plain DOM.
+          MIT. Any web game: three.js, canvas, Phaser or plain DOM, inside a React studio page.
         </p>
         <dl className="mt-4 border-[3px] border-border bg-bg-card">
           {KIT.map(([name, what], i) => (
@@ -214,7 +215,7 @@ export default function KitPage() {
           <div>
             <p className="text-sm text-cream sm:text-base">Try the studio</p>
             <p className="mt-1 text-sm text-muted normal-case">
-              A demo film built with the kit. Space plays, arrows step, Shift R records.
+              A demo film built with the kit. Space plays, arrows step, Export renders the mp4.
             </p>
           </div>
           <Link
