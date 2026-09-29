@@ -42,6 +42,9 @@ ${TITLE_CSS}
 .tk-title { flex: 1; min-width: 0; color: var(--tk-text); letter-spacing: 0.08em; }
 .tk-cmd { display: flex; align-items: center; gap: 10px; max-width: 60%; border: 2px solid var(--tk-line); padding: 8px 10px; font-size: 11px; text-transform: none; color: var(--tk-muted); }
 .tk-cmd code { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; user-select: all; color: var(--tk-text); }
+.tk-rec { display: flex; align-items: center; gap: 8px; border: 2px solid var(--tk-line) !important; padding: 10px 16px !important; color: var(--tk-text); }
+.tk-rec::before { content: ""; width: 8px; height: 8px; background: var(--tk-rec); }
+.tk-rec:hover { border-color: var(--tk-rec) !important; }
 .tk-export { background: var(--tk-accent) !important; color: var(--tk-bg) !important; padding: 12px 18px !important; }
 .tk-export:hover { filter: brightness(1.1); }
 .tk-body { display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 12px; }
@@ -491,6 +494,14 @@ export default function Studio<S extends string>({
               </button>
             </div>
           )}
+          <button
+            type="button"
+            onClick={record}
+            className="tk-rec"
+            title="Full window, no cursor, 1s of black, then the whole film. Esc stops."
+          >
+            Record
+          </button>
           <button type="button" onClick={exportFilm} className="tk-export">
             Export mp4
           </button>
