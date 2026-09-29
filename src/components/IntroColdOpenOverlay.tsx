@@ -12,11 +12,11 @@ import { COLD_OPEN, coldOpen } from "./IntroColdOpen";
 const TYPE_EVERY = 0.045; // s per letter
 const FADE = 0.2; // s
 
-/** [from, to, text] in seconds; {n} is the live count of developers online. */
+/** [from, to, text] in seconds; {n} is the live count of developers in frame. */
 const LINES: [number, number, string][] = [
-  [0.3, COLD_OPEN.wave - 0.1, "booting git city..."],
-  [COLD_OPEN.wave + 0.2, COLD_OPEN.reveal, "{n} developers online."],
-  [COLD_OPEN.reveal + 0.15, COLD_OPEN.end + 0.3, "welcome to git city."],
+  [0.3, COLD_OPEN.pull - 0.1, "every building is a developer."],
+  [COLD_OPEN.pull + 0.2, COLD_OPEN.reveal, "{n} developers."],
+  [COLD_OPEN.reveal + 0.15, COLD_OPEN.dive + 0.2, "welcome to git city."],
 ];
 
 export default function IntroColdOpenOverlay({ onSkip }: { onSkip: () => void }) {
@@ -33,7 +33,7 @@ export default function IntroColdOpenOverlay({ onSkip }: { onSkip: () => void })
       if (!panel.current) return;
       if (!line) { panel.current.style.opacity = "0"; return; }
       const [from, to, template] = line;
-      const words = template.replace("{n}", coldOpen.online.toLocaleString("en-US"));
+      const words = template.replace("{n}", coldOpen.count.toLocaleString("en-US"));
       const since = t - from;
       panel.current.style.opacity = String(Math.min(1, since / FADE, (to - t) / FADE));
       const typed = Math.min(words.length, Math.floor(since / TYPE_EVERY) + 1);

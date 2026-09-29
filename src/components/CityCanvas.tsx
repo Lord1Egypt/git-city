@@ -22,7 +22,7 @@ import RaidSequence3D, { VehicleMesh } from "./RaidSequence3D";
 import type { RaidPhase } from "@/lib/useRaidSequence";
 import type { RaidExecuteResponse } from "@/lib/raid";
 import { SF_PLAZA_SCALE, plazaCenterWorld } from "@/lib/sponsors/sfPlaza";
-import { IntroColdOpen, coldOpen, HOME_CAM } from "./IntroColdOpen";
+import { IntroColdOpen, HOME_CAM } from "./IntroColdOpen";
 import { sunPosition, samplePalette, skyState } from "@/lib/sky";
 import WhiteRabbit from "./WhiteRabbit";
 import CelebrationEffect from "./CelebrationEffect";
@@ -1709,14 +1709,8 @@ function OrbitScene({ buildings, focusedBuilding, focusedBuildingB, focusPositio
   const frameCount = useRef(0);
 
   // Reset camera on mount — wide panorama from front, E.Arcade centered.
-  // After the home intro plays out, land there from its last frame instead.
-  const landing = useRef<{ t: number; from: THREE.Spherical | null } | null>(null);
+  // The home intro ends on this exact pose, so it hands over without a cut.
   useEffect(() => {
-    if (coldOpen.handoff === "land") {
-      coldOpen.handoff = "cut";
-      landing.current = { t: 0, from: null };
-      return;
-    }
     camera.position.set(...HOME_CAM);
     camera.lookAt(TARGET_X, TARGET_Y, TARGET_Z);
   }, [camera]);
@@ -1797,8 +1791,6 @@ function OrbitScene({ buildings, focusedBuilding, focusedBuildingB, focusPositio
   }, [gl, camera]);
 
   const _navSph = useMemo(() => new THREE.Spherical(), []);
-  const _landTo = useMemo(() => new THREE.Spherical(), []);
-  const _landVec = useMemo(() => new THREE.Vector3(), []);
   useFrame((_, delta) => {
     const c = controlsRef.current;
     if (!c) return;
@@ -1806,24 +1798,6 @@ function OrbitScene({ buildings, focusedBuilding, focusedBuildingB, focusPositio
     // across the streets, from high up it becomes a map seen from above.
     const d = camera.position.distanceTo(c.target);
     c.maxPolarAngle = MAX_TILT - (MAX_TILT - MIN_TILT_FAR) * smoothstep(2500, 20000, d);
-    const land = landing.current;
-    if (land) {
-      const target = c.target as THREE.Vector3;
-      if (!land.from) land.from = new THREE.Spherical().setFromVector3(camera.position.clone().sub(target));
-      const to = _landTo.setFromVector3(_landVec.set(...HOME_CAM).sub(target));
-      land.t = Math.min(1, land.t + delta / 1.6);
-      const e = land.t < 0.5 ? 4 * land.t ** 3 : 1 - (-2 * land.t + 2) ** 3 / 2;
-      let dTheta = to.theta - land.from.theta;
-      dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta));
-      _navSph.set(
-        Math.exp(Math.log(land.from.radius) + (Math.log(to.radius) - Math.log(land.from.radius)) * e),
-        land.from.phi + (to.phi - land.from.phi) * e,
-        land.from.theta + dTheta * e,
-      );
-      camera.position.setFromSpherical(_navSph).add(target);
-      c.update();
-      if (land.t >= 1) landing.current = null;
-    }
     const a = navAnim.current;
     if (a) {
       a.t = Math.min(1, a.t + delta / a.dur);
@@ -1884,7 +1858,6 @@ function OrbitScene({ buildings, focusedBuilding, focusedBuildingB, focusPositio
           mapNav.userMoved = true;
           if (controlsRef.current) controlsRef.current.autoRotate = false;
           navAnim.current = null;
-          landing.current = null;
         }}
       />
     </>
