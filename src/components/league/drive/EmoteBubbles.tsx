@@ -19,6 +19,14 @@ export interface EmoteApi {
   send: (e: number) => void;
 }
 
+/** One line of the HUD's reaction log. */
+export interface EmoteLogEntry {
+  key: number;
+  name: string;
+  e: number;
+  mine: boolean;
+}
+
 interface Bubble {
   key: number;
   /** "me" or a driver id. */
@@ -27,8 +35,8 @@ interface Bubble {
 }
 
 /** Over the name tag (RemoteCars draws it at 7.5); yours, with no tag, just over the roof. */
-const LIFT = 12;
-const SELF_LIFT = 7;
+const LIFT = 9.5;
+const SELF_LIFT = 5;
 
 function EmoteBubble({ bubble, carRef, remotes }: { bubble: Bubble; carRef: React.MutableRefObject<CarApi | null>; remotes: React.MutableRefObject<Map<string, RemoteDriver>> }) {
   const group = useRef<THREE.Group>(null);
@@ -65,6 +73,8 @@ export default function EmoteBubbles({
   send,
   apiRef,
   sinkRef,
+  name,
+  onLog,
 }: {
   carRef: React.MutableRefObject<CarApi | null>;
   remotes: React.MutableRefObject<Map<string, RemoteDriver>>;
@@ -72,14 +82,20 @@ export default function EmoteBubbles({
   apiRef: React.MutableRefObject<EmoteApi | null>;
   /** The drive room's emote messages land here. */
   sinkRef: React.MutableRefObject<(from: string, e: number) => void>;
+  /** Your name in the room, for the log. */
+  name: string;
+  /** Every reaction, yours too, for the HUD's log. */
+  onLog?: (entry: EmoteLogEntry) => void;
 }) {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const seq = useRef(0);
   const last = useRef(0);
   // DriveWorld hands a new `send` every render; the timers must outlive those.
   const sendRef = useRef(send);
+  const logRef = useRef({ name, onLog });
   useEffect(() => {
     sendRef.current = send;
+    logRef.current = { name, onLog };
   });
 
   useEffect(() => {
@@ -87,6 +103,9 @@ export default function EmoteBubbles({
     const pop = (who: string, e: number) => {
       const key = ++seq.current;
       setBubbles((list) => [...list.filter((b) => b.who !== who), { key, who, e }]);
+      const { name: me, onLog: log } = logRef.current;
+      const n = who === "me" ? me : remotes.current.get(who)?.name;
+      if (n) log?.({ key, name: n, e, mine: who === "me" });
       const t = setTimeout(() => {
         timers.delete(t);
         setBubbles((list) => list.filter((b) => b.key !== key));
@@ -108,7 +127,7 @@ export default function EmoteBubbles({
       sinkRef.current = () => {};
       for (const t of timers) clearTimeout(t);
     };
-  }, [apiRef, sinkRef]);
+  }, [apiRef, sinkRef, remotes]);
 
   return (
     <>
