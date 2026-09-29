@@ -162,11 +162,11 @@ Create a token, copy it once, and place it in `GITHUB_TOKEN` inside `.env.local`
 
 ## Making trailers
 
-Git City's trailers are played live in the engine and screen-recorded: a film is a timeline of takes on the music's beat grid, a studio page plays it, and a recorder captures one clean pass. Music and sound effects are synthesized, no samples. The kit ships inside the `game-trailer` Claude skill and is MIT licensed, so any web game can use it: `npx skills add srizzon/git-city --skill game-trailer`. See [`.claude/skills/game-trailer/kit/README.md`](.claude/skills/game-trailer/kit/README.md) for the kit, how to add a take, and the craft notes (story, cutting, end cards) from making the Towns teaser. The films run at `/trailer/minimal`, `/trailer/demo` and `/trailer/towns`.
+Git City's trailers are played live in the engine: a film is a timeline of takes on the music's beat grid, a studio page plays it, and the export renders it frame by frame to an mp4. Music and sound effects are synthesized, no samples. The kit ships inside the `gg` Claude skill ("You made a game. gg.") and is MIT licensed, so any web game can use it: `npx skills add srizzon/git-city --skill gg`. See [`.claude/skills/gg/kit/README.md`](.claude/skills/gg/kit/README.md) for the kit, how to add a take, and the craft notes (story, cutting, end cards) from making the Towns teaser. The films run at `/trailer/minimal`, `/trailer/demo` and `/trailer/towns`.
 
 ## License
 
-[AGPL-3.0](LICENSE) — You can use and modify Git City, but any public deployment must share the source code. The trailer kit (`.claude/skills/game-trailer/`) is [MIT](.claude/skills/game-trailer/kit/LICENSE).
+[AGPL-3.0](LICENSE) — You can use and modify Git City, but any public deployment must share the source code. The trailer kit (`.claude/skills/gg/`) is [MIT](.claude/skills/gg/kit/LICENSE).
 
 ---
 

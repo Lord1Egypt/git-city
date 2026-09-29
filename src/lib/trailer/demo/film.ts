@@ -1,5 +1,5 @@
 // ─── Demo film ──────────────────────────────────────────────
-// The trailer kit's complete example (.claude/skills/game-trailer/kit/README.md): a ~10s
+// The trailer kit's complete example (.claude/skills/gg/kit/README.md): a ~10s
 // teaser that needs no data, so it runs on any fork. A procedural street in
 // two worlds (day and night), the game's car, and the classic teaser shape:
 //

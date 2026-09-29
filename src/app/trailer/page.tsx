@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import KitPage from "./kit-page";
 
 // The trailer kit's landing page: the Towns teaser, the one command that
-// installs the game-trailer skill (which carries the kit), and what Claude
+// installs the gg skill (which carries the kit), and what Claude
 // does with it. The films themselves play under /trailer/minimal, /demo, /towns.
 
 const TITLE = "Trailer kit - Git City";
 const DESCRIPTION =
-  "Claude makes your game's trailer: played live in your engine, recorded in one take. One command installs the skill.";
+  "You made a game. gg. Claude makes its trailer, played live in your engine, and exports the mp4. One command installs the skill.";
 
 export const metadata: Metadata = {
   title: TITLE,
