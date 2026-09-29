@@ -54,16 +54,22 @@ const _pos = new THREE.Vector3();
 const _target = new THREE.Vector3();
 const _sph = new THREE.Spherical();
 
-/** The Golden Gate dolly at u (0..1): camera and look point. */
-function bridgePose(u: number, pos: THREE.Vector3, look: THREE.Vector3) {
+/**
+ * The Golden Gate dolly at u (0..1): camera and look point. `portrait` (0..1)
+ * moves it in toward the deck's line and looks farther down it, so on a phone
+ * the bridge runs up the tall frame with the south tower in the middle
+ * instead of sliding past the narrow one.
+ */
+function bridgePose(u: number, pos: THREE.Vector3, look: THREE.Vector3, portrait = 0) {
   const len = Math.hypot(GG_B[0] - GG_A[0], GG_B[1] - GG_A[1]);
   const ux = (GG_B[0] - GG_A[0]) / len, uz = (GG_B[1] - GG_A[1]) / len;
   const nx = uz, nz = -ux; // bay side
   const at = (s: number) => [GG_A[0] + ux * len * s, GG_A[1] + uz * len * s];
   const [cx, cz] = at(0.32 + 0.26 * u);
-  pos.set(cx + nx * 180, 55 + 20 * u, cz + nz * 180);
-  const [lx, lz] = at(0.44 + 0.26 * u);
-  look.set(lx, 90, lz);
+  const side = lerp(180, 45, portrait);
+  pos.set(cx + nx * side, lerp(55, 45, portrait) + 20 * u, cz + nz * side);
+  const [lx, lz] = at(lerp(0.44, 0.7, portrait) + 0.26 * u * (1 - 0.6 * portrait));
+  look.set(lx, lerp(90, 80, portrait), lz);
 }
 
 export function IntroColdOpen({ buildings, onEnd }: { buildings: CityBuilding[]; onEnd: () => void }) {
@@ -110,7 +116,8 @@ export function IntroColdOpen({ buildings, onEnd }: { buildings: CityBuilding[];
       _pos.set(L.x + Math.cos(a) * 380, 85 - 15 * u, L.z + Math.sin(a) * 380);
       _target.set(L.x, 35, L.z);
     } else if (t < COLD_OPEN.climb) {
-      bridgePose((t - COLD_OPEN.bridge) / (COLD_OPEN.climb - COLD_OPEN.bridge), _pos, _target);
+      const aspect = (camera as THREE.PerspectiveCamera).aspect;
+      bridgePose((t - COLD_OPEN.bridge) / (COLD_OPEN.climb - COLD_OPEN.bridge), _pos, _target, clamp01((1.3 - aspect) / 0.6));
     } else if (t < COLD_OPEN.zoom) {
       // Up the facade floor by floor, easing out as it clears the roof.
       const u = easeOut((t - COLD_OPEN.climb) / (COLD_OPEN.zoom - COLD_OPEN.climb));
