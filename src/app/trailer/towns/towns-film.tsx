@@ -153,7 +153,7 @@ export default function TownsFilm({
   };
 
   return (
-    <Studio film={FILM} clock={clock} onReset={reset}>
+    <Studio film={FILM} clock={clock} onReset={reset} title="Towns teaser">
       {(frame) => (
         <>
           {town("claude", frame)}

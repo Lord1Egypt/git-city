@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { beatOf, type Transport } from "./clock";
-import type { Film, Frame, Scene, SoundCue } from "./film";
+import type { Film, Frame, SoundCue } from "./film";
 import Titles, { TITLE_CSS } from "./Titles";
 
 // A small editor for a Film (./film), played live in the engine:
@@ -34,38 +34,52 @@ ${TITLE_CSS}
   min-height: 100vh; background: var(--tk-bg); color: var(--tk-text); text-transform: uppercase;
   font-family: var(--tk-font, ui-monospace, monospace);
 }
-.tk-studio button { font: inherit; color: inherit; background: none; cursor: pointer; text-transform: inherit; }
+.tk-studio button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-transform: inherit; }
 .tk-studio.tk-recording, .tk-studio.tk-recording * { cursor: none !important; }
-.tk-wrap { margin: 0 auto; display: flex; gap: 16px; max-width: 1500px; padding: 16px; }
+.tk-wrap { position: relative; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; padding: 16px;
+  max-width: min(1720px, calc((100vh - 148px) * 16 / 9 + 312px)); }
+.tk-body { display: flex; gap: 16px; align-items: flex-start; }
 .tk-main { display: flex; flex: 1; flex-direction: column; gap: 12px; min-width: 0; }
+.tk-side { display: flex; flex-direction: column; gap: 2px; width: 264px; flex-shrink: 0; max-height: calc(100vh - 88px); overflow-y: auto; }
+.tk-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; }
+.tk-title { color: var(--tk-muted); letter-spacing: 0.1em; }
+.tk-actions { display: flex; align-items: center; gap: 8px; }
+.tk-ghost { border: 2px solid var(--tk-line) !important; padding: 8px 12px !important; color: var(--tk-muted); }
+.tk-ghost:hover, .tk-ghost.tk-on { border-color: var(--tk-line-hi) !important; color: var(--tk-text); }
+.tk-ghost.tk-rec:hover { border-color: var(--tk-rec) !important; color: var(--tk-rec); }
+.tk-primary { background: var(--tk-accent) !important; color: var(--tk-bg) !important; padding: 10px 16px !important; }
+.tk-primary:hover { filter: brightness(1.1); }
+.tk-pop { position: absolute; top: 56px; right: 16px; z-index: 20; display: flex; flex-direction: column; gap: 8px; width: min(420px, calc(100% - 32px));
+  border: 2px solid var(--tk-line-hi); background: var(--tk-panel); padding: 12px; font-size: 10px; }
+.tk-pop-head { display: flex; justify-content: space-between; color: var(--tk-muted); }
+.tk-cmd { display: block; background: var(--tk-bg); padding: 8px; line-height: 1.5; text-transform: none; word-break: break-all; user-select: all; color: var(--tk-text); }
+.tk-keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; text-transform: none; color: var(--tk-muted); margin: 0; }
+.tk-keys dt { color: var(--tk-text); }
+.tk-keys dd { margin: 0; }
 .tk-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; container-type: inline-size; }
 .tk-recording .tk-stage { position: fixed; inset: 0; z-index: 50; aspect-ratio: auto; }
 .tk-flash { pointer-events: none; position: absolute; inset: 0; background: #fff; opacity: 0; }
-.tk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border: 2px solid var(--tk-line); background: var(--tk-panel); padding: 8px 12px; font-size: 11px; }
-.tk-btn { border: 2px solid var(--tk-line); padding: 6px 12px; }
-.tk-btn:hover { border-color: var(--tk-line-hi); }
-.tk-btn.tk-on { border-color: var(--tk-accent); color: var(--tk-accent); }
-.tk-play { width: 80px; border-color: var(--tk-accent); color: var(--tk-accent); }
-.tk-scrub { flex: 1; min-width: 160px; accent-color: var(--tk-accent); }
-.tk-time { width: 160px; text-align: right; font-variant-numeric: tabular-nums; color: var(--tk-muted); }
-.tk-rates { display: flex; }
-.tk-rates .tk-btn { padding: 6px 8px; color: var(--tk-muted); }
-.tk-rates .tk-btn.tk-on { color: var(--tk-accent); }
-.tk-side { display: flex; flex-direction: column; gap: 8px; width: 288px; flex-shrink: 0; }
-.tk-note { font-size: 10px; color: var(--tk-muted); }
-.tk-scene { display: flex; align-items: baseline; justify-content: space-between; border: 2px solid var(--tk-line); padding: 8px 12px; text-align: left; font-size: 11px; }
-.tk-scene:hover { border-color: var(--tk-line-hi); }
-.tk-scene.tk-on { border-color: var(--tk-accent); background: var(--tk-panel); color: var(--tk-accent); }
-.tk-scene span:last-child { font-variant-numeric: tabular-nums; color: var(--tk-muted); }
-.tk-rec { margin-top: 16px; border: 2px solid var(--tk-rec); padding: 12px; font-size: 12px; color: var(--tk-rec) !important; }
-.tk-export { border: 2px solid var(--tk-accent); padding: 12px; font-size: 12px; color: var(--tk-accent) !important; }
-.tk-cmd { display: block; border: 2px solid var(--tk-line); padding: 8px; font-size: 10px; line-height: 1.5; text-transform: none; word-break: break-all; user-select: all; color: var(--tk-text); }
-.tk-help { font-size: 10px; line-height: 1.6; text-transform: none; color: var(--tk-muted); }
-.tk-keys { margin-top: 8px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 10px; text-transform: none; color: var(--tk-muted); }
-.tk-keys dt { color: var(--tk-text); }
-.tk-keys dd { margin: 0; }
-.tk-recording .tk-bar, .tk-recording .tk-side { display: none; }
-@media (max-width: 1023px) { .tk-wrap { flex-direction: column; } .tk-side { width: 100%; } }
+.tk-transport { display: flex; align-items: center; gap: 16px; font-size: 11px; }
+.tk-play { width: 72px; border: 2px solid var(--tk-accent) !important; padding: 8px 0 !important; color: var(--tk-accent) !important; }
+.tk-time { flex: 1; font-variant-numeric: tabular-nums; color: var(--tk-muted); }
+.tk-time b { font-weight: inherit; color: var(--tk-text); }
+.tk-rates { display: flex; gap: 12px; }
+.tk-rates button { color: var(--tk-muted); }
+.tk-rates button.tk-on { color: var(--tk-accent); }
+.tk-timeline { position: relative; user-select: none; touch-action: none; }
+.tk-ruler { position: relative; height: 12px; background: var(--tk-panel); cursor: ew-resize; }
+.tk-loop { position: absolute; top: 0; bottom: 0; background: var(--tk-line-hi); }
+.tk-cut { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--tk-bg); }
+.tk-scene { display: flex; gap: 12px; justify-content: space-between; border: 2px solid transparent !important; padding: 10px 12px !important; text-align: left; font-size: 11px;
+  color: var(--tk-muted); }
+.tk-scene span:first-child { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tk-scene span:last-child { font-variant-numeric: tabular-nums; }
+.tk-scene.tk-all { margin-top: 8px; }
+.tk-scene:hover { border-color: var(--tk-line-hi) !important; color: var(--tk-text); }
+.tk-scene.tk-on { border-color: var(--tk-accent) !important; color: var(--tk-accent); }
+.tk-head { pointer-events: none; position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--tk-accent); }
+.tk-recording .tk-top, .tk-recording .tk-transport, .tk-recording .tk-timeline, .tk-recording .tk-pop, .tk-recording .tk-side { display: none; }
+@media (max-width: 900px) { .tk-body { flex-direction: column; align-items: stretch; } .tk-side { width: auto; max-height: none; } }
 `;
 
 const KEYS: [string, string][] = [
@@ -140,6 +154,7 @@ export default function Studio<S extends string>({
   clock,
   onReset,
   className = "",
+  title = "",
   exportCommand,
   children,
 }: {
@@ -149,6 +164,8 @@ export default function Studio<S extends string>({
   onReset: () => void;
   /** Added to the root, to set the --tk-* variables (colors, --tk-font). */
   className?: string;
+  /** The film's name, top left. */
+  title?: string;
   /** What the Export button copies. Default: `npm run trailer:export -- <this page>` (the kit README, "Export"). */
   exportCommand?: string;
   /** The pictures for the frame on screen. */
@@ -163,7 +180,6 @@ export default function Studio<S extends string>({
   const [frame, setFrame] = useState<Frame<S>>(() => film.frameAt(0));
   const [titles, setTitles] = useState<number[]>([]);
   const flash = useRef<HTMLDivElement>(null);
-  const scrub = useRef<HTMLInputElement>(null);
   const clockText = useRef<HTMLSpanElement>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const range = useRef<[number, number]>([0, LENGTH]);
@@ -171,6 +187,9 @@ export default function Studio<S extends string>({
   const rec = useRef(false);
   const exporting = useRef(false);
   const [command, setCommand] = useState<string | null>(null);
+  const [help, setHelp] = useState(false);
+  const track = useRef<HTMLDivElement>(null);
+  const head = useRef<HTMLDivElement>(null);
   const sfx = useSoundEffects(film.sounds);
   const reset = useRef(onReset);
   useEffect(() => {
@@ -279,6 +298,7 @@ export default function Studio<S extends string>({
   const exportFilm = () => {
     const url = window.location.origin + window.location.pathname;
     const cmd = exportCommand ?? `npm run trailer:export -- ${url}`;
+    setHelp(false);
     setCommand(cmd);
     void navigator.clipboard?.writeText(cmd).catch(() => {
       // no clipboard (http, or denied): the command stays on screen to select
@@ -302,6 +322,11 @@ export default function Studio<S extends string>({
     keys.current = (e) => {
       if (rec.current) {
         if (e.code === "Escape") stopRecord();
+        return;
+      }
+      if (e.code === "Escape") {
+        setHelp(false);
+        setCommand(null);
         return;
       }
       const [a, b] = range.current;
@@ -368,10 +393,9 @@ export default function Studio<S extends string>({
         setFrame(f);
         setTitles(on);
       }
-      if (scrub.current && document.activeElement !== scrub.current)
-        scrub.current.value = String(beat);
-      if (clockText.current)
-        clockText.current.textContent = `${Math.max(0, beat * BEAT).toFixed(2)}s · beat ${Math.max(0, beat).toFixed(1)}`;
+      if (head.current)
+        head.current.style.left = `${(Math.min(LENGTH, Math.max(0, beat)) / LENGTH) * 100}%`;
+      if (clockText.current) clockText.current.textContent = Math.max(0, beat * BEAT).toFixed(2);
       let k = 0;
       for (const x of film.flashes) {
         const since = (beat - x) * BEAT;
@@ -381,101 +405,146 @@ export default function Studio<S extends string>({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [clock, syncAudio, film, sfx, BEAT]);
+  }, [clock, syncAudio, film, sfx, BEAT, LENGTH]);
 
   const [r0, r1] = shownRange;
-  const sceneButton = (s: Scene | null, i: number | null) => (
-    <button
-      key={s?.name ?? "film"}
-      type="button"
-      onClick={() => pick(i)}
-      className={`tk-scene ${scene === i ? "tk-on" : ""}`}
-    >
-      <span>{s ? `${(i ?? 0) + 1}. ${s.name}` : "Whole film"}</span>
-      <span>{((s ? s.end - s.start : LENGTH) * BEAT).toFixed(1)}s</span>
-    </button>
-  );
+  // The ruler scrubs the whole film; scrubbing out of a picked scene goes back to the film.
+  const scrubTo = (e: PointerEvent<HTMLDivElement>) => {
+    const box = track.current?.getBoundingClientRect();
+    if (!box) return;
+    const beat = Math.min(
+      LENGTH - 0.001,
+      Math.max(0, ((e.clientX - box.left) / box.width) * LENGTH),
+    );
+    const [a, b] = range.current;
+    if (beat < a || beat >= b) {
+      setScene(null);
+      setRange([0, LENGTH]);
+    }
+    seek(beat, playing);
+  };
+  const pct = (beat: number) => `${(Math.max(0, beat) / LENGTH) * 100}%`;
 
   return (
     <main className={`tk-studio ${recording ? "tk-recording" : ""} ${className}`}>
       <style>{CSS}</style>
       <div className="tk-wrap">
-        <div className="tk-main">
-          <div className="tk-stage">
-            {children(frame)}
-            <Titles cues={titles.map((i) => film.titles[i])} />
-            <div ref={flash} className="tk-flash" />
+        <header className="tk-top">
+          <span className="tk-title">{title}</span>
+          <div className="tk-actions">
+            <button
+              type="button"
+              onClick={() => {
+                setCommand(null);
+                setHelp(!help);
+              }}
+              className={`tk-ghost ${help ? "tk-on" : ""}`}
+              aria-label="Keys"
+            >
+              ?
+            </button>
+            <button type="button" onClick={record} className="tk-ghost tk-rec">
+              ● Rec
+            </button>
+            <button type="button" onClick={exportFilm} className="tk-primary">
+              Export mp4
+            </button>
           </div>
-          <div className="tk-bar">
-            <button type="button" onClick={toggle} className="tk-btn tk-play">
-              {playing ? "Pause" : "Play"}
-            </button>
-            <button type="button" onClick={() => seek(r0, playing)} className="tk-btn">
-              Restart
-            </button>
-            <input
-              ref={scrub}
-              type="range"
-              min={Math.max(0, r0)}
-              max={r1}
-              step={0.01}
-              defaultValue={r0}
-              onChange={(e) => seek(Number(e.target.value), playing)}
-              aria-label="Scrub"
-              className="tk-scrub"
-            />
-            <span ref={clockText} className="tk-time" />
-            <div className="tk-rates">
-              {RATES.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => changeRate(r)}
-                  className={`tk-btn ${rate === r ? "tk-on" : ""}`}
-                >
-                  {r}×
-                </button>
+        </header>
+
+        {command && (
+          <div className="tk-pop">
+            <div className="tk-pop-head">
+              <span>Copied · run it in the project</span>
+              <button type="button" onClick={() => setCommand(null)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <code className="tk-cmd">{command}</code>
+          </div>
+        )}
+        {help && (
+          <div className="tk-pop">
+            <dl className="tk-keys">
+              {KEYS.map(([key, what]) => (
+                <div key={key} style={{ display: "contents" }}>
+                  <dt>{key}</dt>
+                  <dd>{what}</dd>
+                </div>
               ))}
+            </dl>
+          </div>
+        )}
+
+        <div className="tk-body">
+          <div className="tk-main">
+            <div className="tk-stage">
+              {children(frame)}
+              <Titles cues={titles.map((i) => film.titles[i])} />
+              <div ref={flash} className="tk-flash" />
+            </div>
+
+            <div className="tk-transport">
+              <button type="button" onClick={toggle} className="tk-play">
+                {playing ? "Pause" : "Play"}
+              </button>
+              <span className="tk-time">
+                <b ref={clockText}>0.00</b> / {(LENGTH * BEAT).toFixed(2)}s
+              </span>
+              <div className="tk-rates">
+                {RATES.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => changeRate(r)}
+                    className={rate === r ? "tk-on" : ""}
+                  >
+                    {String(r).replace(/^0/, "")}×
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="tk-timeline">
+              <div
+                ref={track}
+                className="tk-ruler"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  scrubTo(e);
+                }}
+                onPointerMove={(e) => {
+                  if (e.buttons) scrubTo(e);
+                }}
+              >
+                {SCENES.slice(1).map((sc) => (
+                  <div key={sc.name} className="tk-cut" style={{ left: pct(sc.start) }} />
+                ))}
+                {scene !== null && (
+                  <div
+                    className="tk-loop"
+                    style={{ left: pct(r0), width: pct(r1 - Math.max(0, r0)) }}
+                  />
+                )}
+              </div>
+              <div ref={head} className="tk-head" />
             </div>
           </div>
-        </div>
 
-        <aside className="tk-side">
-          <p className="tk-note">Scenes · a picked scene loops</p>
-          {SCENES.map((s, i) => sceneButton(s, i))}
-          {sceneButton(null, null)}
-          <button type="button" onClick={exportFilm} className="tk-export">
-            Export mp4
-          </button>
-          {command ? (
-            <>
-              <code className="tk-cmd">{command}</code>
-              <p className="tk-help">
-                Copied. Run it in the project (or ask Claude to): it renders every frame headless,
-                mixes the music and effects, and writes gg-output/trailer.mp4 and its poster.
-              </p>
-            </>
-          ) : (
-            <p className="tk-help">
-              Renders the film frame by frame to an mp4, no screen recorder.
-            </p>
-          )}
-          <button type="button" onClick={record} className="tk-rec">
-            ● Record
-          </button>
-          <p className="tk-help">
-            Record: full window, no cursor, 1s of black, then the whole film once. Start the screen
-            recorder first. Esc comes back.
-          </p>
-          <dl className="tk-keys">
-            {KEYS.map(([key, what]) => (
-              <div key={key} style={{ display: "contents" }}>
-                <dt>{key}</dt>
-                <dd>{what}</dd>
-              </div>
+          <nav className="tk-side" aria-label="Scenes">
+            {[...SCENES.map((sc, i) => [sc, i] as const), [null, null] as const].map(([sc, i]) => (
+              <button
+                key={sc?.name ?? "film"}
+                type="button"
+                onClick={() => pick(i)}
+                className={`tk-scene ${sc ? "" : "tk-all"} ${scene === i ? "tk-on" : ""}`}
+              >
+                <span>{sc ? `${i + 1}  ${sc.name}` : "Whole film"}</span>
+                <span>{((sc ? sc.end - sc.start : LENGTH) * BEAT).toFixed(1)}s</span>
+              </button>
             ))}
-          </dl>
-        </aside>
+          </nav>
+        </div>
       </div>
     </main>
   );

@@ -124,7 +124,7 @@ function DemoStage({
 export default function MinimalFilm() {
   const [clock] = useState(() => new Transport(BEAT));
   return (
-    <Studio film={FILM} clock={clock} onReset={() => {}}>
+    <Studio film={FILM} clock={clock} onReset={() => {}} title="Minimal film">
       {(frame) => (
         <>
           <DemoStage stage="day" clock={clock} frame={frame} />

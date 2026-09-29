@@ -51,7 +51,7 @@ export default function DemoFilm() {
 
   return (
     // Nothing in this world is destroyed, so there is nothing to put back on a reset.
-    <Studio film={FILM} clock={clock} onReset={() => {}}>
+    <Studio film={FILM} clock={clock} onReset={() => {}} title="Kit demo">
       {(frame) => (
         <>
           {stage("day", frame)}
