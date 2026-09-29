@@ -7,6 +7,7 @@ import type { CityBuilding } from "@/lib/github";
 import type { BuildingColors } from "./CityCanvas";
 import { wasAdPointerConsumed } from "./SkyAds";
 import { SMASH_SLOTS, type SmashStore } from "@/lib/league-city/smash";
+import { cityPower } from "@/lib/city-power";
 
 // ─── Atlas Constants (must match Building3D.tsx) ───────────────
 const ATLAS_SIZE = 2048;
@@ -35,6 +36,8 @@ const vertexShader = /* glsl */ `
   varying vec4 vTint;
   varying float vLive;
   varying float vInvited;
+  varying float vPowerDist;
+  uniform vec2 uPowerOrigin;
   #include <common>
   #include <logdepthbuf_pars_vertex>
 
@@ -46,6 +49,12 @@ const vertexShader = /* glsl */ `
     vTint = aTint;
     vLive = aLive;
     vInvited = aInvited;
+
+    // Distance to the intro's power-on origin, jittered per building so the
+    // wave front switches buildings on one by one instead of in a clean ring.
+    vec2 center = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
+    float jitter = fract(sin(aOwner * 12.9898) * 43758.5453);
+    vPowerDist = length(center - uPowerOrigin) * (0.85 + 0.3 * jitter);
 
     // Rise animation: modulate Y position by aRise (0 = underground, 1 = full height)
     vec3 localPos = position;
@@ -73,6 +82,7 @@ const fragmentShader = /* glsl */ `
   uniform float uDimEmissive;
   uniform float uCityEnergy;
   uniform float uInvitedOpacity;
+  uniform float uPowerRadius;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -83,6 +93,7 @@ const fragmentShader = /* glsl */ `
   varying vec4 vTint;
   varying float vLive;
   varying float vInvited;
+  varying float vPowerDist;
   #include <logdepthbuf_pars_fragment>
 
   void main() {
@@ -118,6 +129,11 @@ const fragmentShader = /* glsl */ `
     // Both ambient and emissive dim when city sleeps
     float ambientBase = 0.08 + 0.22 * uCityEnergy;
     vec3 emissive = wallColor * 1.8 * uCityEnergy;
+    // Intro power-on: dark past the wave front, a brief surge just behind it.
+    float powerIn = uPowerRadius - vPowerDist;
+    float power = clamp(powerIn / (60.0 + uPowerRadius * 0.04), 0.0, 1.0);
+    float surge = power * (1.0 - clamp(powerIn / (200.0 + uPowerRadius * 0.25), 0.0, 1.0));
+    emissive *= power * (1.0 + 1.2 * surge);
     vec3 wallFinal = wallColor * ambientBase + emissive;
 
     // Live building boost: pushes windows past bloom threshold
@@ -125,7 +141,7 @@ const fragmentShader = /* glsl */ `
     wallFinal = mix(wallFinal, wallFinal * liveBoost, vLive);
 
     // Roof: solid color with emissive, also scaled by city energy
-    vec3 roofFinal = uRoofColor * (0.4 + 1.4 * uCityEnergy);
+    vec3 roofFinal = uRoofColor * (0.4 + 1.4 * uCityEnergy) * mix(0.25, 1.0, power);
 
     vec3 color = mix(wallFinal, roofFinal, isRoof);
 
@@ -291,6 +307,8 @@ export default memo(function InstancedBuildings({
         uDimEmissive: { value: 0.5 },
         uCityEnergy: { value: 1.0 },
         uInvitedOpacity: { value: 0.35 },
+        uPowerOrigin: { value: new THREE.Vector2() },
+        uPowerRadius: { value: 1e9 },
       },
       vertexShader,
       fragmentShader,
@@ -478,6 +496,9 @@ export default memo(function InstancedBuildings({
         lastFogFar.current = fog.far;
       }
     }
+
+    material.uniforms.uPowerOrigin.value.set(cityPower.x, cityPower.z);
+    material.uniforms.uPowerRadius.value = Math.min(cityPower.radius, 1e9);
 
     // Smooth lerp city energy (transition over ~5 seconds)
     const current = material.uniforms.uCityEnergy.value;
