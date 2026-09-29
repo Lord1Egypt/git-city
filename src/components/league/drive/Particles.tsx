@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { FxSources } from "./fx";
+import { COUGHS } from "@/lib/league-city/drive/guest-gate";
 
 // Fixed particle pools: tire smoke while the rear slips, and a boost trail
 // from the exhaust while boosting. No allocation per frame.
@@ -137,3 +138,77 @@ export function BoostTrail({ sources }: { sources: FxSources }) {
   );
 }
 
+
+/**
+ * A guest's car running out of gas (lib drive/guest-gate): dark smoke from
+ * the hood, a thick puff and a thud (the impact sound and camera kick) on
+ * every cough, a thin trail in between.
+ */
+export function EngineSmoke({
+  car,
+  stallAt,
+  impact,
+}: {
+  car: React.MutableRefObject<{ group: THREE.Object3D } | null>;
+  stallAt: React.MutableRefObject<number | null>;
+  impact: React.MutableRefObject<{ strength: number; at: number }>;
+}) {
+  const COUNT = 96;
+  const poolRef = useRef<Particle[] | null>(null);
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const next = useRef(0);
+  const acc = useRef(0);
+  const coughed = useRef(0);
+  const geo = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+
+  useFrame((_, dt) => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    poolRef.current ??= makePool(COUNT);
+    const pool = poolRef.current;
+    const at = stallAt.current;
+    const c = car.current;
+    const puff = (n: number, big: boolean) => {
+      for (let i = 0; i < n && c; i++) {
+        // Out of the hood: front of the car, just above it.
+        _p.set((Math.random() - 0.5) * 2, 2.4, 2.6 + Math.random() * 1.2);
+        c.group.localToWorld(_p);
+        const p = pool[next.current];
+        p.pos.copy(_p);
+        p.vel.set((Math.random() - 0.5) * (big ? 4 : 1.5), (big ? 3 : 2) + Math.random() * 2, (Math.random() - 0.5) * (big ? 4 : 1.5));
+        p.age = 0;
+        p.life = (big ? 1.4 : 1) + Math.random() * 0.6;
+        p.size = (big ? 1.1 : 0.6) + Math.random() * 0.5;
+        next.current = (next.current + 1) % COUNT;
+      }
+    };
+    if (at == null) {
+      coughed.current = 0;
+    } else if (c) {
+      const t = performance.now() - at;
+      while (coughed.current < COUGHS.length && t >= COUGHS[coughed.current]) {
+        coughed.current++;
+        puff(12, true);
+        impact.current = { strength: 0.3, at: performance.now() };
+      }
+      acc.current += dt * 10;
+      const thin = Math.floor(acc.current);
+      acc.current -= thin;
+      puff(thin, false);
+    }
+    for (const p of pool) {
+      if (p.age >= p.life) continue;
+      p.age += dt;
+      p.pos.addScaledVector(p.vel, dt);
+      p.vel.multiplyScalar(1 - dt * 1.2);
+    }
+    draw(mesh, pool, true);
+  });
+
+  return (
+    <instancedMesh ref={ref} args={[geo, undefined, COUNT]} frustumCulled={false}>
+      <meshStandardMaterial color="#3a3a42" emissive="#15151a" transparent opacity={0.55} depthWrite={false} roughness={1} />
+    </instancedMesh>
+  );
+}

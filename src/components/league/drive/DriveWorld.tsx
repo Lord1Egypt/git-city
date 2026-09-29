@@ -28,7 +28,7 @@ import Battle from "./Battle";
 import CrownMode, { type CrownApi, type CrownView } from "./CrownMode";
 import HonkFlash from "./HonkFlash";
 import Lights from "./Lights";
-import { BoostTrail, Smoke } from "./Particles";
+import { BoostTrail, EngineSmoke, Smoke } from "./Particles";
 import SkidMarks from "./SkidMarks";
 import { useDrivePresence, type BattleEvent, type CarFeed } from "./useDrivePresence";
 import RemoteCars, { type BotTarget } from "./RemoteCars";
@@ -76,6 +76,8 @@ export interface DriveWorldProps {
   onEmoteLog?: (entry: EmoteLogEntry) => void;
   /** Esc: physics, input and sound stop. */
   paused: boolean;
+  /** A guest's car running out of gas since then (performance.now; lib drive/guest-gate). */
+  stallAt?: number | null;
   /** Rapier and the car are loaded. */
   onReady: () => void;
   /** Rapier or the models failed to load. */
@@ -271,6 +273,7 @@ export default function DriveWorld({
   emoteApi,
   onEmoteLog,
   paused,
+  stallAt = null,
   onReady,
   onFail,
   slug,
@@ -305,7 +308,11 @@ export default function DriveWorld({
   const dynamic = useMemo(() => specs.filter((s) => s.body === "dynamic"), [specs]);
   const spawn = useMemo(() => spawnPoint(objects, spawnDevId ?? viewerDevId, h), [objects, spawnDevId, viewerDevId, h]);
 
-  const input = useDriveInput(paused || cinematic, touch);
+  const stallRef = useRef<number | null>(stallAt);
+  useEffect(() => {
+    stallRef.current = stallAt;
+  }, [stallAt]);
+  const input = useDriveInput(paused || cinematic, touch, { at: stallRef, speed: () => telemetry.speed });
   const car = useRef<CarApi | null>(null);
   const impact = useRef({ strength: 0, at: 0 });
   const fx = useRef(new Map<string, FxSource>());
@@ -469,6 +476,7 @@ export default function DriveWorld({
           <SkidMarks sources={fx} />
           <Smoke sources={fx} />
           <BoostTrail sources={fx} />
+          <EngineSmoke car={car} stallAt={stallRef} impact={impact} />
           <DriveAudio car={car} input={input} impact={impact} muted={muted || paused} volume={volume} />
           <EmoteBubbles carRef={car} remotes={remotes} send={send} apiRef={emoteApi ?? ownEmoteApi} sinkRef={emoteSink} name={name} onLog={onEmoteLog} />
           <RadarFeed car={car} cars={cars} telemetryRef={telemetryRef} />

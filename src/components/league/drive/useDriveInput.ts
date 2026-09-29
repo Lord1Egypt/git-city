@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { readInput, type DriveInput, type GamepadLike } from "@/lib/league-city/drive/input";
 import { mergeTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
+import { stallInput } from "@/lib/league-city/drive/guest-gate";
 
 // Held keys from keyboard listeners plus the first connected gamepad, polled
 // every frame, plus the phone's touch controls when given (lib drive/touch). `input` is the level; `pressed` holds this frame's presses
@@ -25,7 +26,12 @@ export interface DriveInputRef {
   pressed: { camera: boolean; reset: boolean; horn: boolean; fire: boolean };
 }
 
-export function useDriveInput(paused = false, touch?: React.MutableRefObject<TouchDrive>): React.MutableRefObject<DriveInputRef> {
+export function useDriveInput(
+  paused = false,
+  touch?: React.MutableRefObject<TouchDrive>,
+  /** Running out of gas (lib drive/guest-gate): when it started (performance.now), and the car's speed. */
+  stall?: { at: React.MutableRefObject<number | null>; speed: () => number },
+): React.MutableRefObject<DriveInputRef> {
   const keys = useRef(new Set<string>());
   // Keys pressed since the last frame: a tap shorter than a frame still counts once.
   const taps = useRef(new Set<string>());
@@ -66,7 +72,9 @@ export function useDriveInput(paused = false, touch?: React.MutableRefObject<Tou
     const prev = ref.current.input;
     const held = taps.current.size > 0 ? new Set([...keys.current, ...taps.current]) : keys.current;
     taps.current.clear();
-    const next = typing() || paused ? NONE : touch ? mergeTouch(readInput(held, pad), touch.current) : readInput(held, pad);
+    let next = typing() || paused ? NONE : touch ? mergeTouch(readInput(held, pad), touch.current) : readInput(held, pad);
+    const stallAt = stall?.at.current;
+    if (stallAt != null && next !== NONE) next = stallInput(next, performance.now() - stallAt, stall!.speed());
     ref.current.pressed = {
       camera: next.camera && !prev.camera,
       reset: next.reset && !prev.reset,
