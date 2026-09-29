@@ -48,6 +48,7 @@ export default function DriveHud({
   muted,
   volume,
   paused,
+  gated = false,
   drivers,
   crown,
   map,
@@ -71,6 +72,8 @@ export default function DriveHud({
   /** Master volume 0…1 (lib drive/volume). */
   volume: number;
   paused: boolean;
+  /** A guest's car stalling or stopped by the sign-in terminal (GuestGate): no lessons over it. */
+  gated?: boolean;
   /** Everyone else driving in this city right now. */
   drivers: DriverInfo[];
   /** Crown Rush state from the drive room. */
@@ -261,7 +264,11 @@ export default function DriveHud({
         </div>
       )}
 
-      {ready && <DrivePrompt telemetry={telemetry} firstRun={firstRun} camera={camera} touchRef={touchRef} onDrive={() => setEntered(true)} onLesson={setLesson} />}
+      {ready && (
+        <div className={gated ? "hidden" : undefined}>
+          <DrivePrompt telemetry={telemetry} firstRun={firstRun} camera={camera} touchRef={touchRef} onDrive={() => setEntered(true)} onLesson={setLesson} />
+        </div>
+      )}
 
       {ready && entered && <CrownPanel crown={crown?.crown ?? null} offset={crown?.offset ?? 0} you={crown?.you ?? null} drivers={drivers} onStart={onStartCrown} />}
 

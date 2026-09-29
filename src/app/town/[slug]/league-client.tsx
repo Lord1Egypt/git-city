@@ -41,6 +41,10 @@ import type { CrownApi, CrownView } from "@/components/league/drive/CrownMode";
 import type { EmoteApi } from "@/components/league/drive/EmoteBubbles";
 import { createEmoteLog } from "@/lib/league-city/drive/emote-log";
 import { loadVolume, saveVolume } from "@/lib/league-city/drive/volume";
+import { gateDueMs, stallDone, type GateReason } from "@/lib/league-city/drive/guest-gate";
+import GuestGate from "@/components/league/hud/drive/GuestGate";
+import { signInWithGitHub } from "@/lib/sign-in";
+import { createBrowserSupabase } from "@/lib/supabase";
 import { createEditorStore } from "@/lib/league-city/editor/store";
 import { keyToAction } from "@/lib/league-city/editor/shortcuts";
 import { MAX_H, START_H } from "@/lib/league-city/grid";
@@ -394,6 +398,12 @@ export default function LeagueClient({
   // Your name in the drive room: your login, or a guest name for this visit.
   const [guest] = useState(() => `guest-${Math.random().toString(36).slice(2, 6).padEnd(4, "0")}`);
   const driverName = viewer?.login ?? guest;
+  // Guests get pulled over now and then (lib drive/guest-gate): the car runs out of gas, rolls to a stop,
+  // and the terminal holds it until they sign in or drive on.
+  const [gate, setGate] = useState<{ reason: GateReason; stops: number; drivenMs: number; stallAt: number; open: boolean } | null>(null);
+  const guestDriven = useRef(0);
+  const guestStops = useRef(0);
+  const gateClosedAt = useRef(0);
   const [muted, setMuted] = useState(false);
   const toggleMute = useCallback(() => {
     setMuted((m) => {
@@ -435,6 +445,7 @@ export default function LeagueClient({
     setDriveReady(false);
     setTelemetry(createTelemetry());
     setPaused(false);
+    setGate(null);
     try {
       setMuted(localStorage.getItem(MUTE_KEY) === "1");
       setVolume(loadVolume());
@@ -474,12 +485,61 @@ export default function LeagueClient({
       if (e.key !== "Escape") return;
       e.preventDefault();
       if (focused) return; // the building card closes itself
+      if (gate) return; // the gate answers Esc itself
+      // A held Esc (or a double tap) that just closed the gate doesn't go on to pause and leave.
+      if (e.repeat || performance.now() - gateClosedAt.current < 600) return;
       if (paused) exitDrive();
       else setPaused(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [driving, cinematic, paused, exitDrive, focused]);
+  }, [driving, cinematic, paused, exitDrive, focused, gate]);
+
+  // Guest driving time, counted only while actually driving (not paused, hidden or mid crown rush).
+  const crownLive = crownView?.crown.phase === "live" || crownView?.crown.phase === "countdown";
+  useEffect(() => {
+    if (viewer || !driving || !driveReady || cinematic || paused || gate || crownLive) return;
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      guestDriven.current += 1000;
+      if (guestDriven.current >= gateDueMs(guestStops.current)) {
+        setGate({ reason: "time", stops: guestStops.current, drivenMs: guestDriven.current, stallAt: performance.now(), open: false });
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [viewer, driving, driveReady, cinematic, paused, gate, crownLive]);
+
+  // A guest who wins a crown rush is stopped right after the win shows.
+  const crownWonAt = crownView && crownView.crown.phase === "over" && crownView.crown.winner && crownView.crown.winner === crownView.you ? crownView.crown.endsAt : null;
+  const creditedWin = useRef<number | null>(null);
+  useEffect(() => {
+    if (viewer || !driving || crownWonAt === null || creditedWin.current === crownWonAt) return;
+    creditedWin.current = crownWonAt;
+    const t = window.setTimeout(() => setGate((g) => g ?? { reason: "crown", stops: guestStops.current, drivenMs: guestDriven.current, stallAt: performance.now(), open: false }), 2500);
+    return () => window.clearTimeout(t);
+  }, [viewer, driving, crownWonAt]);
+
+  // Out of gas: the terminal opens once the car has rolled to a stop.
+  const stalling = !!gate && !gate.open;
+  useEffect(() => {
+    if (!stalling) return;
+    const id = window.setInterval(() => {
+      setGate((g) => (g && !g.open && stallDone(performance.now() - g.stallAt, telemetry.speed) ? { ...g, open: true } : g));
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [stalling, telemetry]);
+
+  const gateContinue = useCallback(() => {
+    guestStops.current += 1;
+    // The next stop is a full interval away from now, whatever stopped you.
+    guestDriven.current = Math.min(guestDriven.current, gateDueMs(guestStops.current - 1));
+    gateClosedAt.current = performance.now();
+    setGate(null);
+  }, []);
+  const gateSignIn = useCallback(() => {
+    const params = new URLSearchParams({ next: `/town/${league.slug}?drive=1` });
+    void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?${params.toString()}`);
+  }, [league.slug]);
 
   // Live city while driving: pick up an admin's changes (walls, buildings, props).
   useEffect(() => {
@@ -523,7 +583,8 @@ export default function LeagueClient({
             volume,
             emoteApi,
             onEmoteLog: emoteLog.push,
-            paused,
+            paused: paused || !!gate?.open,
+            stallAt: gate && !gate.open ? gate.stallAt : null,
             onReady: onDriveReady,
             onFail: onDriveFail,
             slug: league.slug,
@@ -534,7 +595,7 @@ export default function LeagueClient({
             onCrown: setCrownView,
           }
         : undefined,
-    [driving, viewerDevId, spawnDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, onDriveReady, onDriveFail, league.slug, driverName],
+    [driving, viewerDevId, spawnDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, gate, onDriveReady, onDriveFail, league.slug, driverName],
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
@@ -946,6 +1007,7 @@ export default function LeagueClient({
           muted={muted}
           volume={volume}
           paused={paused}
+          gated={!!gate}
           drivers={drivers}
           crown={crownView}
           map={driveMap}
@@ -957,6 +1019,17 @@ export default function LeagueClient({
           onCamera={toggleCamera}
           onMute={toggleMute}
           onExit={exitDrive}
+        />
+      )}
+      {driving && !cinematic && gate?.open && !viewer && (
+        <GuestGate
+          key={`${gate.reason}-${gate.stops}`}
+          reason={gate.reason}
+          stops={gate.stops}
+          guest={guest}
+          drivenMs={gate.drivenMs}
+          onSignIn={gateSignIn}
+          onContinue={gateContinue}
         />
       )}
 
