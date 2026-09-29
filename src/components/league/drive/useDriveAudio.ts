@@ -21,11 +21,14 @@ export function useDriveAudio({
   input,
   impact,
   muted,
+  volume = 1,
 }: {
   car: React.MutableRefObject<CarApi | null>;
   input: React.MutableRefObject<DriveInputRef>;
   impact: React.MutableRefObject<{ strength: number; at: number }>;
   muted: boolean;
+  /** Master volume 0…1 (lib drive/volume), on Howler's master gain: every car, horn and chime. */
+  volume?: number;
 }) {
   const sounds = useRef<{ engine: Howl; skid: Howl; impact: Howl } | null>(null);
   const hornStop = useRef<(() => void) | null>(null);
@@ -47,6 +50,11 @@ export function useDriveAudio({
       sounds.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    Howler.volume(volume);
+  }, [volume]);
+  useEffect(() => () => void Howler.volume(1), []);
 
   useEffect(() => {
     const apply = () => {
