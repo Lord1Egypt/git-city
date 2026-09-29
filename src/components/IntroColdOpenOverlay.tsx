@@ -1,32 +1,73 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
+import { TERMINAL_LIME } from "./Terminal";
 import { COLD_OPEN, coldOpen } from "./IntroColdOpen";
 
-// The DOM half of the home intro: letterbox bars that close in as it starts
-// and open as the UI lands, and one line of text per shot in the lower bar.
-// It follows the camera's clock (`coldOpen`), re-rendering only when a line
-// or the bars change. Any key, click or tap skips.
+// The DOM half of the home intro: the game's terminal (the Bay trailer's
+// panel) in the upper left, where every take has sky. Each take types one
+// line of a git log on its cut, behind the lime block cursor; earlier lines
+// stay above it, dimmed, like a real session. It reads the camera's clock
+// (`coldOpen`) every animation frame and writes straight to the DOM, so the
+// page never re-renders. Any key, click or tap skips.
 
-const LINES = ["Somewhere in the internet...", "Developers became buildings", "And commits became floors"];
+const TYPE_EVERY = 0.045; // s per letter
+const FADE = 0.25; // s
 
-export default function IntroColdOpenOverlay({ accent, onSkip }: { accent: string; onSkip: () => void }) {
-  const [line, setLine] = useState(-1);
-  const [bars, setBars] = useState(false);
+/** [typing starts, text], one per take, typed just after its cut. */
+function linesFor(total: number): [number, string][] {
+  return [
+    [0.4, "$ git init city"],
+    [COLD_OPEN.bridge + 0.15, "$ git add developers"],
+    [COLD_OPEN.climb + 0.15, "$ git commit --floors"],
+    [COLD_OPEN.zoom + 0.15, `${total.toLocaleString("en-US")} contributors.`],
+    [COLD_OPEN.dive + 0.15, "Welcome to Git City."],
+  ];
+}
+
+export default function IntroColdOpenOverlay({ total, onSkip }: { total: number; onSkip: () => void }) {
+  const panel = useRef<HTMLDivElement>(null);
+  const rows = useRef<(HTMLParagraphElement | null)[]>([]);
+  const texts = useRef<(HTMLSpanElement | null)[]>([]);
+  const cursors = useRef<(HTMLSpanElement | null)[]>([]);
+
+  const lines = linesFor(total);
 
   useEffect(() => {
     let raf = 0;
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
       const t = coldOpen.active ? coldOpen.t : 0;
-      let next = -1;
-      COLD_OPEN.lines.forEach((at, i) => { if (t >= at) next = i; });
-      setLine(next);
-      setBars(coldOpen.active && t < COLD_OPEN.barsOpen);
+      const all = linesFor(total);
+      if (panel.current) {
+        const show = Math.min(1, (t - all[0][0]) / FADE, (COLD_OPEN.land - t) / FADE);
+        panel.current.style.opacity = String(Math.max(0, show));
+      }
+      let current = -1;
+      all.forEach(([at, words], i) => {
+        const row = rows.current[i];
+        const text = texts.current[i];
+        if (!row || !text) return;
+        if (t < at) { row.style.display = "none"; return; }
+        current = i;
+        row.style.display = "block";
+        text.textContent = words.slice(0, Math.min(words.length, Math.floor((t - at) / TYPE_EVERY) + 1));
+      });
+      // Earlier lines dim; the cursor sits on the one being typed, blinking once done.
+      all.forEach((_, i) => {
+        const row = rows.current[i];
+        if (row) row.style.opacity = i === current ? "1" : "0.45";
+      });
+      all.forEach(([at, words], i) => {
+        const c = cursors.current[i];
+        if (!c) return;
+        const done = (t - at) / TYPE_EVERY >= words.length;
+        c.style.opacity = i === current && (!done || Math.floor((t - at) * 2) % 2 === 0) ? "1" : "0";
+      });
     };
-    raf = requestAnimationFrame(tick);
+    raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [total]);
 
   useEffect(() => {
     // Wait a beat so the click that started a replay doesn't skip it.
@@ -41,48 +82,28 @@ export default function IntroColdOpenOverlay({ accent, onSkip }: { accent: strin
     };
   }, [onSkip]);
 
-  // Text leaves with the bars.
-  const shown = bars ? line : -1;
   return (
     <div className="pointer-events-none fixed inset-0 z-50">
-      {/* Letterbox bars (transform: scaleY for composited-only GPU animation) */}
       <div
-        className="absolute inset-x-0 top-0 origin-top bg-black/80 transition-transform duration-1000"
-        style={{ height: "12%", transform: bars ? "scaleY(1)" : "scaleY(0)" }}
-      />
-      <div
-        className="absolute inset-x-0 bottom-0 origin-bottom bg-black/80 transition-transform duration-1000"
-        style={{ height: "18%", transform: bars ? "scaleY(1)" : "scaleY(0)" }}
-      />
-
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center" style={{ height: "18%" }}>
-        {LINES.map((text, i) => (
+        ref={panel}
+        className="absolute border-[3px] border-border bg-bg/90 font-pixel normal-case"
+        style={{ opacity: 0, left: "5%", top: "8%", padding: "0.8em 1.1em", fontSize: "clamp(0.75rem, 1.7vw, 1.3rem)" }}
+      >
+        {lines.map((_, i) => (
           <p
             key={i}
-            className="absolute text-center font-pixel normal-case text-cream"
-            style={{
-              fontSize: "clamp(0.85rem, 3vw, 1.5rem)",
-              letterSpacing: "0.05em",
-              opacity: shown === i ? 1 : 0,
-              transition: "opacity 0.7s ease-in-out",
-            }}
+            ref={(el) => { rows.current[i] = el; }}
+            style={{ display: "none", lineHeight: 1.7, color: TERMINAL_LIME, textShadow: `0 0 0.4em ${TERMINAL_LIME}55`, whiteSpace: "nowrap" }}
           >
-            {text}
+            <span ref={(el) => { texts.current[i] = el; }} className="tabular-nums" />
+            <span
+              ref={(el) => { cursors.current[i] = el; }}
+              className="inline-block align-middle"
+              style={{ opacity: 0, width: "0.55em", height: "1em", marginLeft: "0.2em", backgroundColor: TERMINAL_LIME }}
+            />
           </p>
         ))}
-        <p
-          className="absolute text-center font-pixel uppercase text-cream"
-          style={{
-            fontSize: "clamp(1.2rem, 5vw, 2.8rem)",
-            opacity: shown === 3 ? 1 : 0,
-            transform: shown === 3 ? "scale(1)" : "scale(0.95)",
-            transition: "opacity 0.8s ease-out, transform 0.8s ease-out",
-          }}
-        >
-          Welcome to <span style={{ color: accent }}>Git City</span>
-        </p>
       </div>
-
       <p className="absolute top-4 right-4 font-pixel text-[10px] uppercase text-cream/40 sm:text-xs">
         Skip &gt;
       </p>

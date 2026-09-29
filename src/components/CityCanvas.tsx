@@ -2285,7 +2285,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       {!sfHome && <ThemeSkyFX key={`sky-fx-${themeIndex}`} themeIndex={themeIndex as 0 | 1 | 2 | 3} theme={t} />}
 
       {introMode && (sfMap
-        ? <IntroColdOpen onEnd={onIntroEnd ?? (() => { })} />
+        ? <IntroColdOpen buildings={buildings} onEnd={onIntroEnd ?? (() => { })} />
         : <IntroFlyover onEnd={onIntroEnd ?? (() => { })} lookScale={1} target={introTarget} />)}
 
       {rabbitCinematic && rabbitCinematicTarget != null && (
