@@ -10,6 +10,7 @@ import { skyState } from "@/lib/sky";
 import { buildLandArray, buildParkArray, buildRoadArrays, upNormals } from "@/lib/map-geometry";
 import { loadMapGeometry } from "@/lib/city-snapshot-client";
 import type { MapGeometryArrays } from "@/lib/map-geometry.worker";
+import SFLandmarks from "./SFLandmarks";
 
 // Ground geometry arrays → BufferGeometries (built in a worker, see map-geometry.ts).
 function toGeometry(positions: Float32Array, bounds: SFRenderMap["bounds"]): THREE.BufferGeometry {
@@ -616,6 +617,7 @@ export default function SFMapLayers({ sfMap }: { sfMap: SFRenderMap }) {
           <Parks geo={ground.parks} />
         </>
       )}
+      <SFLandmarks />
       <Suspense fallback={null}><Trees sfMap={sfMap} /></Suspense>
       <GoldenGateBridge a={sfMap.goldenGate[0]} b={sfMap.goldenGate[1]} />
     </group>
