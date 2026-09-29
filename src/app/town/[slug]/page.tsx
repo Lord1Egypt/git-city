@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; join?: string; new?: string }>;
+  searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; at?: string; join?: string; new?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -53,7 +53,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function LeaguePage({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
-  const { invite, ref, t, edit, drive, join } = query;
+  const { invite, ref, t, edit, drive, at, join } = query;
   const justCreated = query.new === "1";
   const league = await getLeagueBySlug(slug);
   if (!league) {
@@ -114,6 +114,7 @@ export default async function LeaguePage({ params, searchParams }: Props) {
       refLogin={refLogin}
       startEditing={edit === "1" && data.viewer?.is_admin === true}
       startDriving={drive === "1"}
+      spawnAt={drive === "1" && typeof at === "string" && /^[a-z0-9_-]{1,39}$/i.test(at) ? at.toLowerCase() : null}
       startJoin={join === "1"}
       startQuest={justCreated && data.viewer?.is_admin === true}
       joinAction={joinAction}

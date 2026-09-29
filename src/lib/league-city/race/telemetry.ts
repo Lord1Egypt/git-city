@@ -2,7 +2,7 @@
 // What the race world reports to the HUD. RaceTelemetry is mutated every
 // frame and read in requestAnimationFrame, so driving never re-renders React.
 
-import type { DriveTelemetry } from "../drive/telemetry";
+import { createTelemetry, type DriveTelemetry } from "../drive/telemetry";
 import type { RaceServerMsg } from "./net";
 import type { RaceState } from "./race";
 import type { Launch } from "./trial";
@@ -42,7 +42,7 @@ export interface RaceTelemetry extends DriveTelemetry {
 }
 
 export function createRaceTelemetry(): RaceTelemetry {
-  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, rebuildFloors: 0, rebuildOf: 0, radar: { x: 0, z: 0, heading: 0, cars: [], crown: null }, driftLevel: 0, turbo: false, turboReady: false, split: null, turboFlash: null, pos: null, ghostPos: null, rivalPos: null, others: [], lapStart: null, offset: 0, wrongWay: false, lights: 0, runLap: 1, runStart: null, countdown: null, goAt: 0, launch: null, finalLapAt: 0 };
+  return { ...createTelemetry(), driftLevel: 0, turbo: false, turboReady: false, split: null, turboFlash: null, pos: null, ghostPos: null, rivalPos: null, others: [], lapStart: null, offset: 0, wrongWay: false, lights: 0, runLap: 1, runStart: null, countdown: null, goAt: 0, launch: null, finalLapAt: 0 };
 }
 
 /** Laps in a time trial run (like Mario Kart's time trials). */

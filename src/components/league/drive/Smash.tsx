@@ -11,16 +11,18 @@ import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
 import type { CarApi } from "./Car";
 import { Bursts, type VoxelBursts } from "./Voxels";
 
-// Your car against the rival town's buildings (lib/league-city/smash): every
-// frame at speed, the columns under the car lose their bottom floor, with a
-// burst of wall and window cubes, a shake and a thud. Your blasts (bombs,
-// missiles, shockwaves) go through `blast`. Hits show at once and go to the
-// drive room, which has the last word (DriveWorld applies its `damage`);
-// someone else's hits come back through `debris`. Without a side you can't
-// break anything: running into a rival building shows the "pick a side" hint.
+// Your car against the town's buildings (lib/league-city/smash), every one
+// but yours: every frame at speed, the columns under the car lose their
+// bottom floor, with a burst of wall and window cubes, a shake and a thud.
+// Your blasts (bombs, missiles, shockwaves) go through `blast`. Hits show at
+// once and go to the drive room, which has the last word (DriveWorld applies
+// its `damage`); someone else's hits come back through `debris`. Signed out
+// you can't break anything: running into a building shows the sign-in hint,
+// and a shielded one (it fell less than 12h ago) says how long it has left.
 // Parked against your own broken building, the HUD counts it back up.
 
-export type SmashSide = "rival" | "home" | "none";
+/** What the room said about you: signed in with a building (you smash), or not (yet). */
+export type SmashSide = "smash" | "none";
 
 export interface SmashApi {
   /** A blast at (x, z) meters with `reach` meters; `fx` is the attack (yours or not). */
@@ -33,7 +35,7 @@ const DEBRIS = ["#1c2233", "#2a3147", "#ffd76a", "#ffe9a8", "#8fa3c7", "#3a4462"
 const CHUNK = ["#141a2a"];
 /** How much of a blast's reach breaks floors. */
 const BLAST_REACH = 0.7;
-/** Running into a rival building without a side: the hint shows at most this often (ms). */
+/** Running into a building you can't break: the hint shows at most this often (ms). */
 const HINT_EVERY_MS = 8000;
 
 interface Props {
@@ -41,7 +43,7 @@ interface Props {
   car: React.MutableRefObject<CarApi | null>;
   impactRef: React.MutableRefObject<{ strength: number; at: number }>;
   muted: boolean;
-  /** What the room said about you: on the other side (you break), on this one (home), or neither yet. */
+  /** What the room said about you. */
   sideRef: React.MutableRefObject<SmashSide>;
   send: (msg: ClientMsg) => void;
   /** Your login (lowercase), for your own building. */
@@ -99,8 +101,8 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
   useImperativeHandle(ref, () => ({
     blast(x, z, reach, fx) {
       // Only your own attacks break floors from here; others' come back from the room.
-      if (!fx?.mine || sideRef.current !== "rival") return;
-      const hits = store.hitCircle(x * M_TO_UNIT, z * M_TO_UNIT, reach * BLAST_REACH * M_TO_UNIT, BLAST_ROWS, Date.now());
+      if (!fx?.mine || sideRef.current !== "smash") return;
+      const hits = store.hitCircle(x * M_TO_UNIT, z * M_TO_UNIT, reach * BLAST_REACH * M_TO_UNIT, BLAST_ROWS, Date.now(), 0, undefined, me);
       show(hits, 2);
       report(hits, "blast", fx.id);
     },
@@ -128,22 +130,25 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
       tele.rebuildOf = store.targets[mine].floors * store.rowsOf(mine).length;
     } else tele.rebuildOf = 0;
 
-    if (sideRef.current !== "rival") {
-      // Not the other side: the buildings are solid. Without a side, running into one shows the hint.
-      const now = performance.now();
-      if (sideRef.current === "none" && speed > 2 && now - lastHint.current > HINT_EVERY_MS) {
-        for (let i = 0; i < store.targets.length; i++) {
-          if (store.targets[i].login === me || toFootprint(store, i, x, z) > SMASH.carRadius) continue;
-          lastHint.current = now;
-          tele.sideHintAt = now;
-          break;
-        }
+    // Signed out the buildings are solid and running into one shows the hint;
+    // signed in, a shielded one says how long it has left.
+    const now = performance.now();
+    if (speed > 2 && now - lastHint.current > HINT_EVERY_MS) {
+      const epoch = Date.now();
+      for (let i = 0; i < store.targets.length; i++) {
+        if (store.targets[i].login === me || toFootprint(store, i, x, z) > SMASH.carRadius) continue;
+        if (sideRef.current === "none") tele.sideHintAt = now;
+        else if (store.isShielded(i, epoch)) {
+          tele.shieldHintAt = now;
+          tele.shieldHours = Math.ceil((store.shieldUntil[i] - epoch) / 3_600_000);
+        } else continue;
+        lastHint.current = now;
+        break;
       }
-      return;
     }
-    if (speed < SMASH.minSpeed) return;
+    if (sideRef.current !== "smash" || speed < SMASH.minSpeed) return;
     const n = c.state.boosting ? SMASH.boostRows : SMASH.rows;
-    const hits = store.hitCircle(x, z, SMASH.carRadius, n, Date.now(), SMASH.cooldownMs);
+    const hits = store.hitCircle(x, z, SMASH.carRadius, n, Date.now(), SMASH.cooldownMs, undefined, me);
     if (!hits.length) return;
     show(hits, c.state.boosting ? 1 : 0);
     report(hits, "car");
