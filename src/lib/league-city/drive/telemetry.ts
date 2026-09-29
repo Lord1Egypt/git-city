@@ -17,10 +17,29 @@ export interface DriveTelemetry {
   /** Rivalry smash: parked against your broken building, its floors standing and in all (0 = not rebuilding). */
   rebuildFloors: number;
   rebuildOf: number;
+  /** The minimap's feed (city units), written every frame by the drive world. */
+  radar: RadarFeed;
+}
+
+export interface RadarCar {
+  x: number;
+  z: number;
+  color: string;
+  bot: boolean;
+}
+
+export interface RadarFeed {
+  x: number;
+  z: number;
+  /** Where the car points, radians clockwise from north (-z). */
+  heading: number;
+  cars: RadarCar[];
+  /** Crown Rush: where the crown is while a match runs. */
+  crown: { x: number; z: number } | null;
 }
 
 export function createTelemetry(): DriveTelemetry {
-  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, rebuildFloors: 0, rebuildOf: 0 };
+  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, rebuildFloors: 0, rebuildOf: 0, radar: { x: 0, z: 0, heading: 0, cars: [], crown: null } };
 }
 
 export type DriveCameraMode = "chase" | "top";

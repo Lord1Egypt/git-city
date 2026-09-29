@@ -27,5 +27,5 @@ export interface DriftTelemetry extends DriveTelemetry {
 }
 
 export function createDriftTelemetry(): DriftTelemetry {
-  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, rebuildFloors: 0, rebuildOf: 0, drift: null, feed: [], split: null, carScreen: null, countdown: null, goAt: 0 };
+  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, rebuildFloors: 0, rebuildOf: 0, radar: { x: 0, z: 0, heading: 0, cars: [], crown: null }, drift: null, feed: [], split: null, carScreen: null, countdown: null, goAt: 0 };
 }

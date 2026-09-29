@@ -38,6 +38,9 @@ import { createTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
 import { createTelemetry, type DriveCameraMode, type DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import type { DriverInfo } from "@/lib/league-city/drive/net";
 import type { CrownApi, CrownView } from "@/components/league/drive/CrownMode";
+import type { EmoteApi } from "@/components/league/drive/EmoteBubbles";
+import { createEmoteLog } from "@/lib/league-city/drive/emote-log";
+import { loadVolume, saveVolume } from "@/lib/league-city/drive/volume";
 import { createEditorStore } from "@/lib/league-city/editor/store";
 import { keyToAction } from "@/lib/league-city/editor/shortcuts";
 import { MAX_H, START_H } from "@/lib/league-city/grid";
@@ -412,6 +415,23 @@ export default function LeagueClient({
       return !m;
     });
   }, []);
+  const [volume, setVolume] = useState(1);
+  // The slider: moving it while muted turns the sound back on.
+  const changeVolume = useCallback((v: number) => {
+    setVolume(v);
+    saveVolume(v);
+    if (v > 0) {
+      setMuted(false);
+      try {
+        localStorage.setItem(MUTE_KEY, "0");
+      } catch {
+        // storage blocked
+      }
+    }
+  }, []);
+  const emoteApi = useRef<EmoteApi | null>(null);
+  // Outside React state: a reaction must not re-render the town (lib drive/emote-log).
+  const [emoteLog] = useState(createEmoteLog);
   const toggleCamera = useCallback(() => setDriveCamera((c) => (c === "chase" ? "top" : "chase")), []);
   // The drive started from the intro: its HUD teaches the controls and comes in on your first move.
   const [firstDrive, setFirstDrive] = useState(false);
@@ -427,6 +447,7 @@ export default function LeagueClient({
     setPaused(false);
     try {
       setMuted(localStorage.getItem(MUTE_KEY) === "1");
+      setVolume(loadVolume());
     } catch {
       // storage blocked: sound stays on
     }
@@ -445,7 +466,8 @@ export default function LeagueClient({
     setFirstDrive(false);
     setDrivers([]);
     setCrownView(null);
-  }, []);
+    emoteLog.clear();
+  }, [emoteLog]);
   const onDriveReady = useCallback(() => setDriveReady(true), []);
   const onDriveFail = useCallback(() => {
     setMode((m) => (m === "drive" ? "view" : m));
@@ -491,6 +513,9 @@ export default function LeagueClient({
     };
   }, [driving, league.slug, store]);
 
+  // The drive minimap: the town and your building.
+  const viewerLogin = viewer?.login.toLowerCase() ?? null;
+  const driveMap = useMemo(() => ({ buildings, objects: sceneObjects, home: viewerLogin }), [buildings, sceneObjects, viewerLogin]);
   const driveProps = useMemo(
     () =>
       driving
@@ -504,6 +529,9 @@ export default function LeagueClient({
             camera: driveCamera,
             onCameraToggle: toggleCamera,
             muted,
+            volume,
+            emoteApi,
+            onEmoteLog: emoteLog.push,
             paused,
             onReady: onDriveReady,
             onFail: onDriveFail,
@@ -515,7 +543,7 @@ export default function LeagueClient({
             onCrown: setCrownView,
           }
         : undefined,
-    [driving, viewerDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, paused, onDriveReady, onDriveFail, league.slug, driverName],
+    [driving, viewerDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, onDriveReady, onDriveFail, league.slug, driverName],
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
@@ -925,9 +953,14 @@ export default function LeagueClient({
           ready={driveReady}
           camera={driveCamera}
           muted={muted}
+          volume={volume}
           paused={paused}
           drivers={drivers}
           crown={crownView}
+          map={driveMap}
+          emoteLog={emoteLog}
+          onVolume={changeVolume}
+          onEmote={(e) => emoteApi.current?.send(e)}
           onStartCrown={() => crownApi.current?.start()}
           onResume={() => setPaused(false)}
           onCamera={toggleCamera}

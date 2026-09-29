@@ -71,6 +71,8 @@ export type ClientMsg =
   | { t: "crown_grab" }
   | { t: "crown_hit"; victim: string; steal: boolean }
   | { t: "crown_drop" }
+  /** A quick reaction over your car (lib drive/emotes: the slot). */
+  | { t: "emote"; e: number }
   /** Rivalry smash (lib/league-city/smash-net): who you are, for the room to ask the site. */
   | { t: "auth"; token: string }
   /** Rivalry smash: your car (k "car") or your blast (k "blast", fx id) took floors off columns `c` of building `b`. */
@@ -95,6 +97,8 @@ export type ServerMsg =
   /** Spectators only: every driver's latest state, [id, ...11 numbers] each. */
   | { t: "cars"; cars: [string, ...number[]][] }
   | { t: "bump"; from: string; x: number; z: number }
+  /** Someone's quick reaction (not echoed to the sender). */
+  | { t: "emote"; from: string; e: number }
   /** Rivalry smash: whether your `auth` puts you on the other side (you may break this town) or on this one (home). */
   | { t: "smash_me"; can: boolean; home: boolean; login: string | null }
   /** Rivalry smash: a building's floors per column now; `by` took its last floor. */

@@ -35,6 +35,7 @@ import {
   stealCrown,
   tickCrown,
 } from "../src/lib/league-city/drive/crown";
+import { EMOTE_MIN_MS, validEmote } from "../src/lib/league-city/drive/emotes";
 import { parseSmash } from "../src/lib/league-city/smash-net";
 import { SmashRoom } from "./smash";
 
@@ -69,6 +70,7 @@ interface Driver {
   held: BattleItem | null;
   lastTake: number;
   lastUse: number;
+  lastEmote: number;
 }
 
 interface Box {
@@ -195,7 +197,17 @@ export default class DriveServer implements Party.Server {
     }
 
     if (!msg || typeof msg !== "object") return;
-    const { t, name, to, x, z, box, gen, item, dx, dz, id, target, victim, steal, token } = msg as Record<string, unknown>;
+    const { t, name, to, x, z, box, gen, item, dx, dz, id, target, victim, steal, token, e } = msg as Record<string, unknown>;
+
+    // A quick reaction: to everyone else driving (spectators don't draw cars' bubbles).
+    if (t === "emote") {
+      const d = this.drivers.get(sender.id);
+      const now = Date.now();
+      if (!d || !validEmote(e) || now - d.lastEmote < EMOTE_MIN_MS) return;
+      d.lastEmote = now;
+      this.room.broadcast(JSON.stringify({ t: "emote", from: sender.id, e } satisfies ServerMsg), [sender.id, ...this.watchers]);
+      return;
+    }
 
     // Rivalry smash: who you are (asked of the site), and your hits.
     if (t === "auth") {
@@ -294,7 +306,7 @@ export default class DriveServer implements Party.Server {
       sender.send(JSON.stringify({ t: "full" } satisfies ServerMsg));
       return;
     }
-    this.drivers.set(sender.id, { name, state: null, lastState: 0, lastBump: 0, held: null, lastTake: 0, lastUse: 0 });
+    this.drivers.set(sender.id, { name, state: null, lastState: 0, lastBump: 0, held: null, lastTake: 0, lastUse: 0, lastEmote: 0 });
     this.smash.join(sender.id);
     this.room.broadcast(JSON.stringify({ t: "join", id: sender.id, name } satisfies ServerMsg), [sender.id]);
   }

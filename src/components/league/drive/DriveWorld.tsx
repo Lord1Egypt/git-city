@@ -30,13 +30,15 @@ import HonkFlash from "./HonkFlash";
 import Lights from "./Lights";
 import { BoostTrail, Smoke } from "./Particles";
 import SkidMarks from "./SkidMarks";
-import { useDrivePresence, type BattleEvent } from "./useDrivePresence";
+import { useDrivePresence, type BattleEvent, type CarFeed } from "./useDrivePresence";
 import RemoteCars, { type BotTarget } from "./RemoteCars";
 import { useTownBots } from "./useTownBots";
 import type { FxSource } from "./fx";
 import { CameraKey, DriveAudio, LocalFx } from "./carFx";
-import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
+import { INTERP_MS, carColor, emptySnapshot, type DriverInfo } from "@/lib/league-city/drive/net";
 import { useDriveInput } from "./useDriveInput";
+import EmoteBubbles, { type EmoteApi } from "./EmoteBubbles";
+import type { EmoteLogEntry } from "@/lib/league-city/drive/emote-log";
 import Smash, { type SmashApi, type SmashSide } from "./Smash";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { createBrowserSupabase } from "@/lib/supabase";
@@ -64,6 +66,12 @@ export interface DriveWorldProps {
   camera: DriveCameraMode;
   onCameraToggle: () => void;
   muted: boolean;
+  /** Master volume 0…1 (lib drive/volume). */
+  volume?: number;
+  /** Quick reactions: the HUD's keys 1–6 and buttons call into this. */
+  emoteApi?: React.MutableRefObject<EmoteApi | null>;
+  /** Every reaction in the room, for the HUD's log. */
+  onEmoteLog?: (entry: EmoteLogEntry) => void;
   /** Esc: physics, input and sound stop. */
   paused: boolean;
   /** Rapier and the car are loaded. */
@@ -214,6 +222,33 @@ function DynamicProp({ spec }: { spec: ColliderSpec }) {
   );
 }
 
+// ─── Minimap feed ────────────────────────────────────────────
+
+const _fwd = new THREE.Vector3();
+
+/** Writes where you, the other cars and the bots are for the HUD's minimap. */
+function RadarFeed({ car, cars, telemetryRef }: { car: React.MutableRefObject<CarApi | null>; cars: CarFeed[]; telemetryRef: React.MutableRefObject<DriveTelemetry> }) {
+  const snaps = useRef<ReturnType<typeof emptySnapshot>[]>([]);
+  useFrame(() => {
+    const r = telemetryRef.current.radar;
+    const c = car.current;
+    if (c) {
+      r.x = c.group.position.x;
+      r.z = c.group.position.z;
+      // The chassis faces +z; heading is clockwise from north (-z).
+      _fwd.set(0, 0, 1).applyQuaternion(c.group.quaternion);
+      r.heading = Math.atan2(_fwd.x, -_fwd.z);
+    }
+    const t = performance.now() - INTERP_MS;
+    r.cars.length = 0;
+    cars.forEach((f, i) => {
+      const s = f.buffer.sample(t, (snaps.current[i] ??= emptySnapshot()));
+      if (s) r.cars.push({ x: s.x * M_TO_UNIT, z: s.z * M_TO_UNIT, color: f.color, bot: !!f.bot });
+    });
+  });
+  return null;
+}
+
 // ─── World ───────────────────────────────────────────────────
 
 export default function DriveWorld({
@@ -229,6 +264,9 @@ export default function DriveWorld({
   camera,
   onCameraToggle,
   muted,
+  volume = 1,
+  emoteApi,
+  onEmoteLog,
   paused,
   onReady,
   onFail,
@@ -280,6 +318,8 @@ export default function DriveWorld({
   const crownSink = useRef<(e: BattleEvent) => void>(() => {});
   const crownHit = useRef<(id: string) => void>(() => {});
   const crownKnock = useRef<() => void>(() => {});
+  const emoteSink = useRef<(from: string, e: number) => void>(() => {});
+  const ownEmoteApi = useRef<EmoteApi | null>(null);
   const telemetryRef = useRef(telemetry);
   useEffect(() => {
     telemetryRef.current = telemetry;
@@ -295,6 +335,7 @@ export default function DriveWorld({
       c.body.applyImpulse({ x: x * CHASSIS.mass, y: BUMP_HOP * CHASSIS.mass, z: z * CHASSIS.mass }, true);
       impact.current = { strength: Math.min(1, Math.hypot(x, z) / 12), at: performance.now() };
     },
+    onEmote: (from, e) => emoteSink.current(from, e),
     onBattle: (e) => (e.t === "crown" ? crownSink.current(e) : battleSink.current(e)),
     // Rivalry smash: the room asks the site who you are, and has the last word on the floors.
     auth: smash ? smashToken : undefined,
@@ -406,6 +447,7 @@ export default function DriveWorld({
             hitRef={crownHit}
             knockRef={crownKnock}
             onView={onCrown}
+            telemetryRef={telemetryRef}
           />
           {smash && (
             <Smash
@@ -424,7 +466,9 @@ export default function DriveWorld({
           <SkidMarks sources={fx} />
           <Smoke sources={fx} />
           <BoostTrail sources={fx} />
-          <DriveAudio car={car} input={input} impact={impact} muted={muted || paused} />
+          <DriveAudio car={car} input={input} impact={impact} muted={muted || paused} volume={volume} />
+          <EmoteBubbles carRef={car} remotes={remotes} send={send} apiRef={emoteApi ?? ownEmoteApi} sinkRef={emoteSink} name={name} onLog={onEmoteLog} />
+          <RadarFeed car={car} cars={cars} telemetryRef={telemetryRef} />
           {!cinematic && <DriveCamera mode={camera} car={car} impact={impact} seamless={seamless} />}
           <CameraKey input={input} onToggle={onCameraToggle} />
           <Ready onReady={onReady} />

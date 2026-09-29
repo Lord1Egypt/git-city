@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Volume2, VolumeX, X } from "lucide-react";
+import { Camera, Volume1, Volume2, VolumeX, X } from "lucide-react";
 import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
 import { HUD_BOX } from "../shared";
@@ -15,6 +15,11 @@ import CrownPanel from "./CrownPanel";
 import CopyLink from "./CopyLink";
 import SmashNotice from "./SmashNotice";
 import type { CrownState } from "@/lib/league-city/drive/crown";
+import type { CityBuilding } from "@/lib/github";
+import type { CityObject } from "@/lib/league-city/types";
+import Minimap from "./Minimap";
+import { ReactionBar, ReactionButton, ReactionLog } from "./Reactions";
+import type { EmoteLog } from "@/lib/league-city/drive/emote-log";
 
 // Drive mode HUD: the dash (bottom: item, speed, boost), camera, mute and exit
 // (top right), prompts that teach each move when it's useful (DrivePrompt), a
@@ -41,10 +46,15 @@ export default function DriveHud({
   ready,
   camera,
   muted,
+  volume,
   paused,
   drivers,
   crown,
+  map,
+  emoteLog,
   onStartCrown,
+  onVolume,
+  onEmote,
   onResume,
   onCamera,
   onMute,
@@ -58,12 +68,21 @@ export default function DriveHud({
   ready: boolean;
   camera: DriveCameraMode;
   muted: boolean;
+  /** Master volume 0…1 (lib drive/volume). */
+  volume: number;
   paused: boolean;
   /** Everyone else driving in this city right now. */
   drivers: DriverInfo[];
   /** Crown Rush state from the drive room. */
   crown: { crown: CrownState; offset: number; you: string | null } | null;
+  /** What the minimap draws: the town, and your login (lowercase) for your building. */
+  map: { buildings: CityBuilding[]; objects: CityObject[]; home: string | null };
+  /** The room's last reactions, oldest first. */
+  emoteLog: EmoteLog;
   onStartCrown: () => void;
+  onVolume: (v: number) => void;
+  /** A quick reaction (lib drive/emotes slot). */
+  onEmote: (e: number) => void;
   onResume: () => void;
   onCamera: () => void;
   onMute: () => void;
@@ -102,6 +121,7 @@ export default function DriveHud({
   }, [telemetry]);
 
   const touch = !!touchRef;
+  const silent = muted || volume === 0;
   // The prompt on screen: on a phone its button pulses (and the camera's gets a callout).
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const touchLesson = lesson === "boost" || lesson === "drift" || lesson === "attack" ? lesson : null;
@@ -161,16 +181,38 @@ export default function DriveHud({
               </span>
             )}
           </span>
-          <button
-            type="button"
-            onClick={onMute}
-            aria-label={muted ? "Sound on" : "Mute"}
-            aria-pressed={muted}
-            title={muted ? "Sound on" : "Mute"}
-            className={ICON_BTN}
-          >
-            {muted ? <VolumeX {...ICON} aria-hidden /> : <Volume2 {...ICON} aria-hidden />}
-          </button>
+          {touch && <ReactionButton onEmote={onEmote} className={ICON_BTN} />}
+          {/* Mute on click; the volume slider opens under it on hover or focus. */}
+          <span className="group relative flex">
+            <button
+              type="button"
+              onClick={onMute}
+              aria-label={silent ? "Sound on" : "Mute"}
+              aria-pressed={silent}
+              title={silent ? "Sound on" : "Mute"}
+              className={ICON_BTN}
+            >
+              {silent ? <VolumeX {...ICON} aria-hidden /> : volume < 0.5 ? <Volume1 {...ICON} aria-hidden /> : <Volume2 {...ICON} aria-hidden />}
+            </button>
+            {!touch && (
+              // pt-2, not mt-2: the pointer crosses the gap without closing it.
+              <span className="absolute right-[-3px] top-full hidden pt-2 group-focus-within:block group-hover:block">
+                <label className={`${HUD_BOX} flex items-center gap-3 px-3 py-2.5 text-[9px] text-muted`}>
+                  <span className="sr-only">Volume</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={Math.round((muted ? 0 : volume) * 100)}
+                    onChange={(e) => onVolume(Number(e.target.value) / 100)}
+                    className="h-1 w-28 cursor-pointer accent-lime"
+                  />
+                  <span className="w-7 text-right tabular-nums text-cream">{Math.round((muted ? 0 : volume) * 100)}</span>
+                </label>
+              </span>
+            )}
+          </span>
           <button type="button" onClick={onExit} className={`${SEG} gap-2 px-3 py-2 text-[10px] text-cream hover:text-lime`}>
             <X {...ICON} aria-hidden />
             <span>Exit</span>
@@ -189,13 +231,26 @@ export default function DriveHud({
         </div>
       )}
 
+      {ready && entered && !touch && (
+        <div className="absolute bottom-4 right-4 flex flex-col items-end gap-2" style={enter(0.2)}>
+          <ReactionLog log={emoteLog} />
+          <ReactionBar on={!paused} onEmote={onEmote} />
+          <Minimap telemetry={telemetry} buildings={map.buildings} objects={map.objects} home={map.home} size={150} />
+        </div>
+      )}
+      {ready && entered && touch && (
+        <div className="absolute left-4 top-[3.25rem]" style={enter(0.1)}>
+          <Minimap telemetry={telemetry} buildings={map.buildings} objects={map.objects} home={map.home} size={92} />
+        </div>
+      )}
+
       {ready && entered && <SmashNotice telemetry={telemetry} />}
 
       {ready && entered && !touch && <Dash telemetry={telemetry} style={enter(0.24)} />}
 
       {ready && entered && !touch && (
         <div
-          className={`absolute bottom-6 right-6 text-right text-[9px] leading-loose text-muted transition-opacity duration-700 ${hints ? "opacity-100" : "opacity-0"}`}
+          className={`absolute bottom-20 left-4 text-[9px] leading-loose text-muted transition-opacity duration-700 ${hints ? "opacity-100" : "opacity-0"}`}
         >
           {CONTROLS.map(([k, v]) => (
             <div key={k}>
