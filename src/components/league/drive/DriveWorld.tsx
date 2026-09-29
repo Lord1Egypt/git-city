@@ -37,7 +37,7 @@ import type { FxSource } from "./fx";
 import { CameraKey, DriveAudio, LocalFx } from "./carFx";
 import { INTERP_MS, carColor, emptySnapshot, type DriverInfo } from "@/lib/league-city/drive/net";
 import { useDriveInput } from "./useDriveInput";
-import EmoteBubbles, { type EmoteApi } from "./EmoteBubbles";
+import EmoteBubbles, { type EmoteApi, type EmoteLogEntry } from "./EmoteBubbles";
 import Smash, { type SmashApi, type SmashSide } from "./Smash";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { createBrowserSupabase } from "@/lib/supabase";
@@ -69,6 +69,8 @@ export interface DriveWorldProps {
   volume?: number;
   /** Quick reactions: the HUD's keys 1–6 and buttons call into this. */
   emoteApi?: React.MutableRefObject<EmoteApi | null>;
+  /** Every reaction in the room, for the HUD's log. */
+  onEmoteLog?: (entry: EmoteLogEntry) => void;
   /** Esc: physics, input and sound stop. */
   paused: boolean;
   /** Rapier and the car are loaded. */
@@ -263,6 +265,7 @@ export default function DriveWorld({
   muted,
   volume = 1,
   emoteApi,
+  onEmoteLog,
   paused,
   onReady,
   onFail,
@@ -463,7 +466,7 @@ export default function DriveWorld({
           <Smoke sources={fx} />
           <BoostTrail sources={fx} />
           <DriveAudio car={car} input={input} impact={impact} muted={muted || paused} volume={volume} />
-          <EmoteBubbles carRef={car} remotes={remotes} send={send} apiRef={emoteApi ?? ownEmoteApi} sinkRef={emoteSink} />
+          <EmoteBubbles carRef={car} remotes={remotes} send={send} apiRef={emoteApi ?? ownEmoteApi} sinkRef={emoteSink} name={name} onLog={onEmoteLog} />
           <RadarFeed car={car} cars={cars} telemetryRef={telemetryRef} />
           {!cinematic && <DriveCamera mode={camera} car={car} impact={impact} seamless={seamless} />}
           <CameraKey input={input} onToggle={onCameraToggle} />

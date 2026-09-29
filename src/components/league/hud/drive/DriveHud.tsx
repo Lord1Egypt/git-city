@@ -18,7 +18,8 @@ import type { CrownState } from "@/lib/league-city/drive/crown";
 import type { CityBuilding } from "@/lib/github";
 import type { CityObject } from "@/lib/league-city/types";
 import Minimap from "./Minimap";
-import { ReactionBar, ReactionButton } from "./Reactions";
+import { ReactionBar, ReactionButton, ReactionLog } from "./Reactions";
+import type { EmoteLogEntry } from "@/components/league/drive/EmoteBubbles";
 
 // Drive mode HUD: the dash (bottom: item, speed, boost), camera, mute and exit
 // (top right), prompts that teach each move when it's useful (DrivePrompt), a
@@ -50,6 +51,7 @@ export default function DriveHud({
   drivers,
   crown,
   map,
+  emoteLog,
   onStartCrown,
   onVolume,
   onEmote,
@@ -75,6 +77,8 @@ export default function DriveHud({
   crown: { crown: CrownState; offset: number; you: string | null } | null;
   /** What the minimap draws: the town, and your login (lowercase) for your building. */
   map: { buildings: CityBuilding[]; objects: CityObject[]; home: string | null };
+  /** The room's last reactions, oldest first. */
+  emoteLog: EmoteLogEntry[];
   onStartCrown: () => void;
   onVolume: (v: number) => void;
   /** A quick reaction (lib drive/emotes slot). */
@@ -229,6 +233,7 @@ export default function DriveHud({
 
       {ready && entered && !touch && (
         <div className="absolute bottom-4 right-4 flex flex-col items-end gap-2" style={enter(0.2)}>
+          <ReactionLog entries={emoteLog} />
           <ReactionBar on={!paused} onEmote={onEmote} />
           <Minimap telemetry={telemetry} buildings={map.buildings} objects={map.objects} home={map.home} size={150} />
         </div>

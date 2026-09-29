@@ -8,6 +8,8 @@ export const EMOTES = ["😂", "🔥", "👋", "😡", "👑", "💀"] as const;
 export const EMOTE_MS = 2200;
 /** One reaction per driver this often, at most (ms); the server drops the rest. */
 export const EMOTE_MIN_MS = 600;
+/** Lines in the HUD's reaction log. */
+export const LOG_LINES = 5;
 
 export function validEmote(e: unknown): e is number {
   return typeof e === "number" && Number.isInteger(e) && e >= 0 && e < EMOTES.length;

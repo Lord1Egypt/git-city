@@ -4,14 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import { Smile } from "lucide-react";
 import { EMOTES, emoteForKey } from "@/lib/league-city/drive/emotes";
 import { HUD_BOX } from "../shared";
+import { carColor } from "@/lib/league-city/drive/net";
+import type { EmoteLogEntry } from "@/components/league/drive/EmoteBubbles";
 
 // Quick reactions in the HUD (lib drive/emotes). On a keyboard: the six slots
 // in a row with their keys, 1–6 fires one and its slot flashes. On a phone:
-// a smile button that opens the six, a tap sends and closes it.
+// a smile button that opens the six, a tap sends and closes it. Over the
+// row on a keyboard, a small log of the room's last reactions.
 
 function typing(): boolean {
   const el = document.activeElement as HTMLElement | null;
-  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+  return (
+    !!el &&
+    (el.tagName === "INPUT" ||
+      el.tagName === "TEXTAREA" ||
+      el.tagName === "SELECT" ||
+      el.isContentEditable)
+  );
 }
 
 /** Keys 1–6 while driving. */
@@ -38,10 +47,23 @@ function useEmoteKeys(on: boolean, onEmote: (e: number) => void) {
 }
 
 /** Keyboard: the row of slots. */
-export function ReactionBar({ on, onEmote, style }: { on: boolean; onEmote: (e: number) => void; style?: React.CSSProperties }) {
+export function ReactionBar({
+  on,
+  onEmote,
+  style,
+}: {
+  on: boolean;
+  onEmote: (e: number) => void;
+  style?: React.CSSProperties;
+}) {
   const flash = useEmoteKeys(on, onEmote);
   return (
-    <div className={`${HUD_BOX} flex divide-x-2 divide-border`} style={style} role="toolbar" aria-label="Reactions">
+    <div
+      className={`${HUD_BOX} flex divide-x-2 divide-border`}
+      style={style}
+      role="toolbar"
+      aria-label="Reactions"
+    >
       {EMOTES.map((emoji, i) => (
         <button
           key={i}
@@ -68,11 +90,23 @@ export function ReactionBar({ on, onEmote, style }: { on: boolean; onEmote: (e: 
 }
 
 /** Phone: a smile that opens the six. */
-export function ReactionButton({ onEmote, className }: { onEmote: (e: number) => void; className: string }) {
+export function ReactionButton({
+  onEmote,
+  className,
+}: {
+  onEmote: (e: number) => void;
+  className: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <span className="relative flex">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-label="React" aria-expanded={open} className={`${className} ${open ? "text-lime" : ""}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="React"
+        aria-expanded={open}
+        className={`${className} ${open ? "text-lime" : ""}`}
+      >
         <Smile size={14} strokeWidth={2.5} aria-hidden />
       </button>
       {open && (
@@ -98,5 +132,29 @@ export function ReactionButton({ onEmote, className }: { onEmote: (e: number) =>
         </div>
       )}
     </span>
+  );
+}
+
+/** Keyboard: the last few reactions in the room, newest at the bottom, older ones fading. */
+export function ReactionLog({ entries }: { entries: EmoteLogEntry[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <ol
+      className="flex flex-col items-end gap-0.5 text-[8px] normal-case"
+      aria-label="Recent reactions"
+      aria-live="polite"
+    >
+      {entries.map((l, i) => (
+        <li key={l.key} style={{ opacity: 0.45 + (0.55 * (i + 1)) / entries.length }}>
+          <span className="flex animate-[fade-in_0.2s_ease-out_both] items-center gap-1.5 bg-bg/60 px-1.5 py-0.5">
+            <span className="h-1.5 w-1.5" style={{ background: carColor(l.name) }} aria-hidden />
+            <span className={l.mine ? "text-lime" : "text-muted"}>
+              {l.name.startsWith("guest-") ? "guest" : `@${l.name}`}
+            </span>
+            <span className="text-[11px] leading-none">{EMOTES[l.e]}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }

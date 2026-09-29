@@ -38,7 +38,8 @@ import { createTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
 import { createTelemetry, type DriveCameraMode, type DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import type { DriverInfo } from "@/lib/league-city/drive/net";
 import type { CrownApi, CrownView } from "@/components/league/drive/CrownMode";
-import type { EmoteApi } from "@/components/league/drive/EmoteBubbles";
+import type { EmoteApi, EmoteLogEntry } from "@/components/league/drive/EmoteBubbles";
+import { LOG_LINES } from "@/lib/league-city/drive/emotes";
 import { loadVolume, saveVolume } from "@/lib/league-city/drive/volume";
 import { createEditorStore } from "@/lib/league-city/editor/store";
 import { keyToAction } from "@/lib/league-city/editor/shortcuts";
@@ -429,6 +430,8 @@ export default function LeagueClient({
     }
   }, []);
   const emoteApi = useRef<EmoteApi | null>(null);
+  const [emoteLog, setEmoteLog] = useState<EmoteLogEntry[]>([]);
+  const onEmoteLog = useCallback((l: EmoteLogEntry) => setEmoteLog((list) => [...list, l].slice(-LOG_LINES)), []);
   const toggleCamera = useCallback(() => setDriveCamera((c) => (c === "chase" ? "top" : "chase")), []);
   // The drive started from the intro: its HUD teaches the controls and comes in on your first move.
   const [firstDrive, setFirstDrive] = useState(false);
@@ -463,6 +466,7 @@ export default function LeagueClient({
     setFirstDrive(false);
     setDrivers([]);
     setCrownView(null);
+    setEmoteLog([]);
   }, []);
   const onDriveReady = useCallback(() => setDriveReady(true), []);
   const onDriveFail = useCallback(() => {
@@ -527,6 +531,7 @@ export default function LeagueClient({
             muted,
             volume,
             emoteApi,
+            onEmoteLog,
             paused,
             onReady: onDriveReady,
             onFail: onDriveFail,
@@ -538,7 +543,7 @@ export default function LeagueClient({
             onCrown: setCrownView,
           }
         : undefined,
-    [driving, viewerDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, paused, onDriveReady, onDriveFail, league.slug, driverName],
+    [driving, viewerDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, onEmoteLog, paused, onDriveReady, onDriveFail, league.slug, driverName],
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
@@ -953,6 +958,7 @@ export default function LeagueClient({
           drivers={drivers}
           crown={crownView}
           map={driveMap}
+          emoteLog={emoteLog}
           onVolume={changeVolume}
           onEmote={(e) => emoteApi.current?.send(e)}
           onStartCrown={() => crownApi.current?.start()}
