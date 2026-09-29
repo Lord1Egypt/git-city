@@ -13,6 +13,7 @@ import { BATTLE_START, BATTLE_START_LABEL, timeUntil } from "@/lib/towns/rivalry
 import type { GridTown } from "@/lib/towns/discover";
 import { GridTownCard } from "./TownCard";
 import { useDesktop } from "./useDesktop";
+import type { TownLive } from "@/app/api/towns/live/route";
 
 const TownHero = dynamic(() => import("./TownHero"), { ssr: false });
 
@@ -49,6 +50,7 @@ export default function RivalryPoster({
 }) {
   const router = useRouter();
   const startsIn = useStartsIn();
+  const live = useTownsLive();
   const [busy, setBusy] = useState<0 | 1 | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,7 +127,7 @@ export default function RivalryPoster({
 
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 px-4 sm:gap-6 sm:px-6">
           {sides.map((s, i) => (
-            <SideCard key={s.slug} side={s} index={i as 0 | 1} mine={mine} busy={busy} onPick={pick} />
+            <SideCard key={s.slug} side={s} index={i as 0 | 1} mine={mine} busy={busy} onPick={pick} live={live[s.slug] ?? null} />
           ))}
         </div>
         {error && (
@@ -162,6 +164,38 @@ function useStartsIn(): string | null {
   return left;
 }
 
+const LIVE_MS = 15_000;
+
+/** Who is inside each rivalry town now, polled while the tab is visible. */
+function useTownsLive(): Record<string, TownLive | null> {
+  const [live, setLive] = useState<Record<string, TownLive | null>>({});
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const load = () =>
+      fetch("/api/towns/live")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => j && setLive(j))
+        .catch(() => {});
+    const start = () => {
+      if (timer) return;
+      void load();
+      timer = setInterval(load, LIVE_MS);
+    };
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const onVisibility = () => (document.hidden ? stop() : start());
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+  return live;
+}
+
 function leadLine(sides: Pair): string {
   const [a, b] = [sides[0].picked, sides[1].picked];
   if (a + b === 0) return "Nobody picked yet";
@@ -176,14 +210,17 @@ function SideCard({
   mine,
   busy,
   onPick,
+  live,
 }: {
   side: RivalSide;
+  live: TownLive | null;
   index: 0 | 1;
   mine: 0 | 1 | null;
   busy: 0 | 1 | null;
   onPick: (i: 0 | 1) => void;
 }) {
   const yours = mine === index;
+  const inTown = live ? live.driving + live.watching : 0;
   return (
     <article className="flex flex-col border-[3px] bg-bg-card" style={{ borderColor: yours ? side.color : "var(--color-border)" }}>
       <div className="relative aspect-[4/5] overflow-hidden border-b-[3px] border-border sm:aspect-[2/1]">
@@ -191,6 +228,15 @@ function SideCard({
         {yours && (
           <span className="absolute top-2 left-2 px-2 py-1 text-[10px] text-bg sm:text-xs" style={{ background: side.color }}>
             &#10003; Your side
+          </span>
+        )}
+        {live && inTown > 0 && (
+          <span className="absolute top-2 right-2 bg-bg/85 px-2 py-1 text-right text-[10px] leading-snug text-cream tabular-nums sm:text-xs">
+            <span className="flex items-center justify-end gap-1.5">
+              <span className="blink-dot inline-block h-1.5 w-1.5 bg-lime" aria-hidden />
+              {fmt(inTown)} in town
+            </span>
+            {live.driving > 0 && <span className="block text-muted">{fmt(live.driving)} driving</span>}
           </span>
         )}
       </div>
