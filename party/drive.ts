@@ -52,8 +52,8 @@ import { SmashRoom } from "./smash";
 // Crown Rush: the server runs the match (see crown.ts) and broadcasts its
 // state on every change and once a second while it's live.
 //
-// Rivalry smash (party/smash.ts): in the two rivalry towns the room is also
-// the authority on the buildings' floors; spectators get those changes too.
+// Smash (party/smash.ts): in every town the room is also the authority on the
+// buildings' floors; spectators get those changes too.
 //
 // Spectators connect with ?watch=1: people looking at the city without
 // driving. They get the welcome, joins and leaves, and every car batched in
@@ -209,7 +209,7 @@ export default class DriveServer implements Party.Server {
       return;
     }
 
-    // Rivalry smash: who you are (asked of the site), and your hits.
+    // Smash: who you are (asked of the site), and your hits.
     if (t === "auth") {
       if (this.drivers.has(sender.id) && typeof token === "string" && token.length < MAX_AUTH_BYTES) void this.smash.auth(sender.id, token, sender);
       return;
