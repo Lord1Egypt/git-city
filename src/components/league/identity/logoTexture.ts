@@ -114,6 +114,45 @@ export function wideTexture(logo: LogoImage | null, name: string): THREE.CanvasT
   return pixelTexture(c);
 }
 
+/**
+ * A person's flag (2:1, the rubble flag): their avatar small in the middle,
+ * the @login under it, shrunk to fit and cut with an ellipsis past that, so a
+ * long login never runs off the cloth.
+ */
+export function avatarFlagTexture(avatar: LogoImage | null, name: string): THREE.CanvasTexture {
+  const W = 256;
+  const H = 128;
+  const SIDE = 72;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = PLATE_BG;
+  ctx.fillRect(0, 0, W, H);
+  const x = (W - SIDE) / 2;
+  const y = 12;
+  if (avatar) {
+    // A photo, not pixel art: scale it down smoothly.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(avatar.image, x, y, SIDE, SIDE);
+  } else {
+    ctx.fillStyle = "#1f2533";
+    ctx.fillRect(x, y, SIDE, SIDE);
+  }
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = inkFor(PLATE_BG);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const maxW = W - 20;
+  fitText(ctx, name, maxW, 20, 12);
+  let label = name;
+  while (label.length > 2 && ctx.measureText(label).width > maxW) label = label.slice(0, -1);
+  if (label !== name) label = `${label.slice(0, -1)}…`;
+  ctx.fillText(label, W / 2, y + SIDE + 22);
+  return pixelTexture(c);
+}
+
 /** Flag cloth (3:2): the logo centered on its edge color; the name without a logo. */
 export function clothTexture(logo: LogoImage | null, name: string): THREE.CanvasTexture {
   const c = document.createElement("canvas");

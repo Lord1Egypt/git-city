@@ -5,11 +5,11 @@ import { useFrame } from "@react-three/fiber";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { Flag } from "./identity/IdentityPieces";
 import { useFontReady, useLogo } from "./identity/IdentityLayer";
-import { wideTexture } from "./identity/logoTexture";
+import { avatarFlagTexture } from "./identity/logoTexture";
 
 // Smash: the attacker's flag, planted in each building lying in rubble. The
 // town's own flag piece (pole, gold ball, waving cloth), its cloth the GitHub
-// avatar and @login of whoever took the last floor (they may come from any
+// avatar (small, centered) with the @login under it of whoever took the last floor (they may come from any
 // town, or none).
 // Re-reads the store only when its version moves (a building falls or heals).
 
@@ -32,7 +32,7 @@ function Planted({ flag, phase }: { flag: Planted; phase: number }) {
   const logo = useLogo(avatarOf(flag.by));
   const fontReady = useFontReady();
   // fontReady: redraw once Silkscreen is in.
-  const tex = useMemo(() => wideTexture(logo, `@${flag.by}`), [logo, flag.by, fontReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tex = useMemo(() => avatarFlagTexture(logo, `@${flag.by}`), [logo, flag.by, fontReady]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => tex.dispose(), [tex]);
   return <Flag position={[flag.x, flag.z]} rot={0} map={tex} phase={phase} cloth={CLOTH} height={POLE} />;
 }
