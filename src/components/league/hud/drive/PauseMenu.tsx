@@ -15,6 +15,7 @@ export const CONTROLS: [string, string][] = [
   ["C", "camera"],
   ["R", "reset"],
   ["F", "attack (from ? boxes)"],
+  ["1 – 6", "react"],
   ["Esc", "pause"],
 ];
 
@@ -26,6 +27,7 @@ export const TOUCH_CONTROLS: [string, string][] = [
   ["Hold Brake", "brake, then reverse"],
   ["Hold Boost", "boost"],
   ["Tap the item", "attack (from ? boxes)"],
+  ["Tap the smile", "react"],
 ];
 
 type Item = { id: "resume" | "camera" | "sound" | "menu" | "exit"; label: string };

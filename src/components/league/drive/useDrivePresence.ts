@@ -66,6 +66,7 @@ export function useDrivePresence({
   party = "drive",
   onOther,
   auth,
+  onEmote,
 }: {
   slug: string;
   name: string;
@@ -79,18 +80,22 @@ export function useDrivePresence({
   /** Every message this hook doesn't handle itself, plus the welcome (the race track's). */
   onOther?: (msg: { t: string } & Record<string, unknown>) => void;
   /** Rivalry smash: your access token, sent after hello so the room can ask the site who you are. */
+  /** Someone else's quick reaction (lib drive/emotes slot). */
+  onEmote?: (from: string, e: number) => void;
   auth?: () => Promise<string | null>;
 }) {
   const onBumpRef = useRef(onBump);
   const onBattleRef = useRef(onBattle);
   const onOtherRef = useRef(onOther);
   const authRef = useRef(auth);
+  const onEmoteRef = useRef(onEmote);
   const selfId = useRef<string | null>(null);
   useEffect(() => {
     onBumpRef.current = onBump;
     onBattleRef.current = onBattle;
     onOtherRef.current = onOther;
     authRef.current = auth;
+    onEmoteRef.current = onEmote;
   });
   const remotes = useRef(new Map<string, RemoteDriver>());
   const [drivers, setDrivers] = useState<DriverInfo[]>([]);
@@ -152,6 +157,8 @@ export function useDrivePresence({
       } else if (msg.t === "bump") {
         const v = validBump(msg.x, msg.z);
         if (v && map.has(msg.from)) onBumpRef.current(msg.from, v.x, v.z);
+      } else if (msg.t === "emote") {
+        if (map.has(msg.from)) onEmoteRef.current?.(msg.from, msg.e);
       } else if (msg.t === "leave") {
         map.delete(msg.id);
         publish();
