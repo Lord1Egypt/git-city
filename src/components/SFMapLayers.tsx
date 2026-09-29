@@ -11,6 +11,7 @@ import { buildLandArray, buildParkArray, buildRoadArrays, upNormals } from "@/li
 import { loadMapGeometry } from "@/lib/city-snapshot-client";
 import type { MapGeometryArrays } from "@/lib/map-geometry.worker";
 import SFLandmarks from "./SFLandmarks";
+import BayBridge from "./BayBridge";
 
 // Ground geometry arrays → BufferGeometries (built in a worker, see map-geometry.ts).
 function toGeometry(positions: Float32Array, bounds: SFRenderMap["bounds"]): THREE.BufferGeometry {
@@ -620,6 +621,8 @@ export default function SFMapLayers({ sfMap }: { sfMap: SFRenderMap }) {
       <SFLandmarks />
       <Suspense fallback={null}><Trees sfMap={sfMap} /></Suspense>
       <GoldenGateBridge a={sfMap.goldenGate[0]} b={sfMap.goldenGate[1]} />
+      {/* The Bay Area map reaches Oakland: the Bay Bridge crosses to it. */}
+      {sfMap.bounds[2] > 7000 && <BayBridge />}
     </group>
   );
 }
