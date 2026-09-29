@@ -5,7 +5,8 @@
     "lobby": "party/lobby.ts",
     "fly": "party/fly.ts",
     "drive": "party/drive.ts",
-    "race": "party/race.ts"
+    "race": "party/race.ts",
+    "townlive": "party/townlive.ts"
   },
   "compatibilityDate": "2025-06-01"
 }

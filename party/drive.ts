@@ -38,6 +38,7 @@ import {
 import { EMOTE_MIN_MS, validEmote } from "../src/lib/league-city/drive/emotes";
 import { parseSmash } from "../src/lib/league-city/smash-net";
 import { SmashRoom } from "./smash";
+import { LIVE_SECRET_HEADER, createReporter, type TownLive } from "../src/lib/towns/live";
 
 // ─── League city driving ────────────────────────────────────
 // One room per league city (room id = league slug). A relay: each driver says
@@ -60,6 +61,9 @@ import { SmashRoom } from "./smash";
 // one "cars" message each WATCH_MS instead of each car's 15 Hz stream, so a
 // crowd watching costs a few messages a second, not drivers × watchers × 15.
 // They never count toward MAX_DRIVERS and nothing they send is read.
+//
+// Live count: how many drive and watch here goes to the town tally
+// (party/townlive) on every change, batched, for the /towns cards.
 
 interface Driver {
   name: string;
@@ -136,6 +140,27 @@ export default class DriveServer implements Party.Server {
   }
 
   private smash: SmashRoom;
+  private live = createReporter((l) => void this.reportLive(l));
+
+  /** Tell the town tally who's here (best effort). */
+  private async reportLive(l: TownLive) {
+    const secret = (this.room.env.LIVE_SECRET as string | undefined)?.trim();
+    const tally = this.room.context.parties.townlive;
+    if (!secret || !tally) return;
+    try {
+      await tally.get("main").fetch("/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", [LIVE_SECRET_HEADER]: secret },
+        body: JSON.stringify({ slug: this.room.id, ...l }),
+      });
+    } catch {
+      // the next change or heartbeat tries again
+    }
+  }
+
+  private countChanged() {
+    this.live.update({ driving: this.drivers.size, watching: this.watchers.size });
+  }
 
   constructor(readonly room: Party.Room) {
     this.smash = new SmashRoom(room, (id) => {
@@ -152,6 +177,7 @@ export default class DriveServer implements Party.Server {
     if (new URL(ctx.request.url).searchParams.get("watch") === "1") {
       this.watchers.add(conn.id);
       this.runWatchClock();
+      this.countChanged();
     }
     const msg: ServerMsg = {
       t: "welcome",
@@ -308,14 +334,19 @@ export default class DriveServer implements Party.Server {
     }
     this.drivers.set(sender.id, { name, state: null, lastState: 0, lastBump: 0, held: null, lastTake: 0, lastUse: 0, lastEmote: 0 });
     this.smash.join(sender.id);
+    this.countChanged();
     this.room.broadcast(JSON.stringify({ t: "join", id: sender.id, name } satisfies ServerMsg), [sender.id]);
   }
 
   onClose(conn: Connection) {
-    this.watchers.delete(conn.id);
+    const watched = this.watchers.delete(conn.id);
     this.smash.leave(conn.id);
     const at = this.where(conn.id) ?? [this.crown.x, this.crown.z];
-    if (!this.drivers.delete(conn.id)) return;
+    if (!this.drivers.delete(conn.id)) {
+      if (watched) this.countChanged();
+      return;
+    }
+    this.countChanged();
     if (leaveCrown(this.crown, conn.id, Date.now(), at[0], at[1])) this.sendCrown();
     this.room.broadcast(JSON.stringify({ t: "leave", id: conn.id } satisfies ServerMsg));
   }
