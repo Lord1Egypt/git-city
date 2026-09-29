@@ -9,7 +9,8 @@ import Titles, { TITLE_CSS } from "./Titles";
 // the film in a 16:9 stage, its scenes to pick from (a picked scene loops),
 // play, pause, scrub, slow motion, editor keys, and Record, which plays the
 // whole film full window with no cursor and no panel after a second of
-// black, for a screen recorder to capture. The film's pictures come from
+// black, for a screen recorder to capture. Opened with ?export, it waits for
+// tools/export.mjs to drive it frame by frame instead (window.__gg). The film's pictures come from
 // `children`, called with the frame on screen; they read the same clock.
 //
 // The tree never changes shape between editing and recording, so canvases
@@ -57,6 +58,8 @@ ${TITLE_CSS}
 .tk-scene.tk-on { border-color: var(--tk-accent); background: var(--tk-panel); color: var(--tk-accent); }
 .tk-scene span:last-child { font-variant-numeric: tabular-nums; color: var(--tk-muted); }
 .tk-rec { margin-top: 16px; border: 2px solid var(--tk-rec); padding: 12px; font-size: 12px; color: var(--tk-rec) !important; }
+.tk-export { border: 2px solid var(--tk-accent); padding: 12px; font-size: 12px; color: var(--tk-accent) !important; }
+.tk-cmd { display: block; border: 2px solid var(--tk-line); padding: 8px; font-size: 10px; line-height: 1.5; text-transform: none; word-break: break-all; user-select: all; color: var(--tk-text); }
 .tk-help { font-size: 10px; line-height: 1.6; text-transform: none; color: var(--tk-muted); }
 .tk-keys { margin-top: 8px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 10px; text-transform: none; color: var(--tk-muted); }
 .tk-keys dt { color: var(--tk-text); }
@@ -137,6 +140,7 @@ export default function Studio<S extends string>({
   clock,
   onReset,
   className = "",
+  exportCommand,
   children,
 }: {
   film: Film<S>;
@@ -145,6 +149,8 @@ export default function Studio<S extends string>({
   onReset: () => void;
   /** Added to the root, to set the --tk-* variables (colors, --tk-font). */
   className?: string;
+  /** What the Export button copies. Default: `npm run trailer:export -- <this page>` (the kit README, "Export"). */
+  exportCommand?: string;
   /** The pictures for the frame on screen. */
   children: (frame: Frame<S>) => ReactNode;
 }) {
@@ -163,6 +169,8 @@ export default function Studio<S extends string>({
   const range = useRef<[number, number]>([0, LENGTH]);
   const [shownRange, setShownRange] = useState<[number, number]>([0, LENGTH]);
   const rec = useRef(false);
+  const exporting = useRef(false);
+  const [command, setCommand] = useState<string | null>(null);
   const sfx = useSoundEffects(film.sounds);
   const reset = useRef(onReset);
   useEffect(() => {
@@ -181,7 +189,7 @@ export default function Studio<S extends string>({
     (beat: number, on: boolean) => {
       const a = audio.current;
       if (!a) return;
-      if (!on || clock.rate !== 1) return a.pause();
+      if (!on || clock.rate !== 1 || exporting.current) return a.pause();
       const go = () => {
         a.currentTime = (film.song?.offset ?? 0) + Math.max(0, beatOf(clock)) * BEAT;
         a.volume = 1;
@@ -238,6 +246,45 @@ export default function Studio<S extends string>({
     setPlaying(true);
     seek(-preroll, true);
   };
+  // Export mode: tools/export.mjs stops the page's clocks, calls start(), and
+  // steps the film frame by frame. The sound is mixed from info(), so none plays here.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("export")) return;
+    const w = window as unknown as { __gg?: unknown };
+    w.__gg = {
+      info: () => ({
+        beat: film.beat,
+        length: film.length,
+        song: film.song ?? null,
+        sounds: film.sounds,
+      }),
+      start: () => {
+        exporting.current = true;
+        rec.current = true;
+        setRecording(true);
+        setScene(null);
+        setRange([0, LENGTH]);
+        clock.speed(1);
+        setRate(1);
+        reset.current();
+        setPlaying(true);
+        clock.play(0);
+      },
+    };
+    return () => {
+      delete w.__gg;
+    };
+  }, [film, clock, LENGTH]);
+
+  const exportFilm = () => {
+    const url = window.location.origin + window.location.pathname;
+    const cmd = exportCommand ?? `npm run trailer:export -- ${url}`;
+    setCommand(cmd);
+    void navigator.clipboard?.writeText(cmd).catch(() => {
+      // no clipboard (http, or denied): the command stays on screen to select
+    });
+  };
+
   const stopRecord = useCallback(() => {
     rec.current = false;
     setRecording(false);
@@ -298,7 +345,7 @@ export default function Studio<S extends string>({
       raf = requestAnimationFrame(tick);
       let beat = beatOf(clock);
       const [a, b] = range.current;
-      if (clock.held === null && clock.rate === 1 && beat > last)
+      if (clock.held === null && clock.rate === 1 && beat > last && !exporting.current)
         for (const c of film.sounds) if (last < c.beat && beat >= c.beat) sfx.current?.(c);
       last = beat;
       if (clock.held === null && beat >= b) {
@@ -397,6 +444,22 @@ export default function Studio<S extends string>({
           <p className="tk-note">Scenes · a picked scene loops</p>
           {SCENES.map((s, i) => sceneButton(s, i))}
           {sceneButton(null, null)}
+          <button type="button" onClick={exportFilm} className="tk-export">
+            Export mp4
+          </button>
+          {command ? (
+            <>
+              <code className="tk-cmd">{command}</code>
+              <p className="tk-help">
+                Copied. Run it in the project (or ask Claude to): it renders every frame headless,
+                mixes the music and effects, and writes gg-output/trailer.mp4 and its poster.
+              </p>
+            </>
+          ) : (
+            <p className="tk-help">
+              Renders the film frame by frame to an mp4, no screen recorder.
+            </p>
+          )}
           <button type="button" onClick={record} className="tk-rec">
             ● Record
           </button>

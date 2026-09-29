@@ -33,6 +33,7 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "trailer:export": "node .claude/skills/gg/kit/tools/export.mjs",
     "trailer:audio": "node .claude/skills/gg/kit/tools/music.mjs public/trailer/towns-teaser.wav soon && node .claude/skills/gg/kit/tools/music.mjs public/trailer/demo.wav demo && node .claude/skills/gg/kit/tools/sfx.mjs public/trailer/sfx"
   },
   "dependencies": {
@@ -85,6 +86,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",
+    "playwright": "^1.63.0",
     "portless": "^0.15.1",
     "prettier": "^3.8.1",
     "tailwindcss": "^4",
