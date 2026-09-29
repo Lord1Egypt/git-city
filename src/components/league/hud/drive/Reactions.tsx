@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Smile } from "lucide-react";
 import { EMOTES, emoteForKey } from "@/lib/league-city/drive/emotes";
 import { HUD_BOX } from "../shared";
 import { carColor } from "@/lib/league-city/drive/net";
-import type { EmoteLogEntry } from "@/components/league/drive/EmoteBubbles";
+import type { EmoteLog } from "@/lib/league-city/drive/emote-log";
 
 // Quick reactions in the HUD (lib drive/emotes). On a keyboard: the six slots
 // in a row with their keys, 1–6 fires one and its slot flashes. On a phone:
@@ -68,6 +68,8 @@ export function ReactionBar({
         <button
           key={i}
           type="button"
+          // No focus on click: Space (the handbrake) would press it again.
+          onMouseDown={(ev) => ev.preventDefault()}
           onClick={() => onEmote(i)}
           aria-label={`React ${emoji} (${i + 1})`}
           title={`React (${i + 1})`}
@@ -136,7 +138,8 @@ export function ReactionButton({
 }
 
 /** Keyboard: the last few reactions in the room, newest at the bottom, older ones fading. */
-export function ReactionLog({ entries }: { entries: EmoteLogEntry[] }) {
+export function ReactionLog({ log }: { log: EmoteLog }) {
+  const entries = useSyncExternalStore(log.subscribe, log.get, log.get);
   if (entries.length === 0) return null;
   return (
     <ol

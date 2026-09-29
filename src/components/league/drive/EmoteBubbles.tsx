@@ -19,13 +19,7 @@ export interface EmoteApi {
   send: (e: number) => void;
 }
 
-/** One line of the HUD's reaction log. */
-export interface EmoteLogEntry {
-  key: number;
-  name: string;
-  e: number;
-  mine: boolean;
-}
+import type { EmoteLogEntry } from "@/lib/league-city/drive/emote-log";
 
 interface Bubble {
   key: number;
@@ -35,8 +29,8 @@ interface Bubble {
 }
 
 /** Over the name tag (RemoteCars draws it at 7.5); yours, with no tag, just over the roof. */
-const LIFT = 9.5;
-const SELF_LIFT = 5;
+const LIFT = 11;
+const SELF_LIFT = 6.5;
 
 function EmoteBubble({ bubble, carRef, remotes }: { bubble: Bubble; carRef: React.MutableRefObject<CarApi | null>; remotes: React.MutableRefObject<Map<string, RemoteDriver>> }) {
   const group = useRef<THREE.Group>(null);
