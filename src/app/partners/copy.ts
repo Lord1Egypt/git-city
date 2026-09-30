@@ -51,6 +51,28 @@ export const PLAY_VIDEOS: Record<string, { src: string; poster: string } | undef
   raids: { src: "/partners/videos/raids.mp4", poster: "/partners/videos/raids.jpg" },
 };
 
+// A logo shows when the brand has one in public/partners/sponsors; the rest are names.
+export const SPONSORS: { name: string; logo?: string }[] = [
+  { name: "Firecrawl" },
+  { name: "NodeOps" },
+  { name: "Superteam Brasil" },
+  { name: "Context.dev" },
+  { name: "Kodus" },
+  { name: "AbacatePay" },
+  { name: "Himetrica" },
+  { name: "Acelera Dev" },
+  { name: "UltraContext" },
+  { name: "Guara Cloud" },
+  { name: "Viral Day" },
+  { name: "Git Trophy" },
+];
+
+export const ABOUT_LINKS = [
+  { name: "GitHub", href: "https://github.com/srizzon" },
+  { name: "X", href: "https://x.com/samuelrizzondev" },
+  { name: "samuelrizzon.dev", href: "https://www.samuelrizzon.dev" },
+];
+
 export const PRESS = [
   {
     name: "The Next Web",
@@ -233,6 +255,15 @@ export const COPY = {
           text: "Give a prize to the town that codes the most in a week, and your name goes on its monument.",
         },
       ],
+    },
+    sponsors: {
+      kicker: "Previous sponsors",
+      title: "Brands that were in the city",
+    },
+    about: {
+      kicker: "Who builds it",
+      name: "Samuel Rizzon",
+      text: "Product engineer from Brazil, coding for ten years. He built the first version of Git City alone in a day and keeps it open source. He also made ZardUI, an open-source component library for Angular.",
     },
     contact: {
       title: "Become a partner",
@@ -425,6 +456,15 @@ export const COPY = {
           text: "Dê um prêmio pra town que mais codar na semana, e seu nome vai no monumento dela.",
         },
       ],
+    },
+    sponsors: {
+      kicker: "Parceiros anteriores",
+      title: "Marcas que já estiveram na cidade",
+    },
+    about: {
+      kicker: "Quem faz",
+      name: "Samuel Rizzon",
+      text: "Product engineer brasileiro, programando há dez anos. Fez a primeira versão do Git City sozinho em um dia e mantém o projeto open source. Também criou o ZardUI, uma biblioteca de componentes open source pra Angular.",
     },
     contact: {
       title: "Seja parceiro",

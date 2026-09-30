@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { COPY, PRESS, langFromAcceptLanguage, type Copy, type Lang } from "./copy";
+import {
+  ABOUT_LINKS,
+  COPY,
+  PRESS,
+  SPONSORS,
+  langFromAcceptLanguage,
+  type Copy,
+  type Lang,
+} from "./copy";
 import GithubCarousel from "./GithubCarousel";
 import PlayCarousel from "./PlayCarousel";
 import BrandPreview from "./BrandPreview";
@@ -126,7 +134,9 @@ export default async function PartnersPage() {
                 />
                 <p className="text-xs tracking-widest text-muted">{item.date}</p>
                 <h3 className="mt-2 text-xl text-cream sm:text-2xl">{item.title}</h3>
-                <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted normal-case">{item.text}</p>
+                <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted normal-case">
+                  {item.text}
+                </p>
               </li>
             ))}
           </ol>
@@ -146,6 +156,65 @@ export default async function PartnersPage() {
       <section className="border-t-[3px] border-border">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <BrandPreview t={t.formats} />
+        </div>
+      </section>
+
+      <section className="border-t-[3px] border-border">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <p className="text-xs tracking-widest text-muted sm:text-sm">{t.sponsors.kicker}</p>
+          <h2 className="mt-4 text-3xl leading-tight text-cream sm:text-4xl">{t.sponsors.title}</h2>
+          <ul className="mt-10 grid grid-cols-2 border-t-[3px] border-l-[3px] border-border sm:grid-cols-3 lg:grid-cols-4">
+            {SPONSORS.map((sponsor) => (
+              <li
+                key={sponsor.name}
+                className="flex h-24 items-center justify-center border-r-[3px] border-b-[3px] border-border px-6 text-center text-sm text-warm sm:h-28 sm:text-base"
+              >
+                {sponsor.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- small static logos, tinted with CSS
+                  <img
+                    src={sponsor.logo}
+                    alt={sponsor.name}
+                    className="max-h-8 max-w-[70%] object-contain opacity-80 brightness-0 invert sm:max-h-9"
+                  />
+                ) : (
+                  sponsor.name
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="border-t-[3px] border-border">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-16 sm:flex-row sm:items-center sm:gap-12 sm:px-6 sm:py-20">
+          {/* eslint-disable-next-line @next/next/no-img-element -- GitHub avatar, fixed size */}
+          <img
+            src="https://avatars.githubusercontent.com/srizzon?s=320"
+            alt={t.about.name}
+            width={160}
+            height={160}
+            className="h-32 w-32 shrink-0 border-[3px] border-lime object-cover sm:h-40 sm:w-40"
+          />
+          <div className="flex max-w-2xl flex-col gap-4">
+            <p className="text-xs tracking-widest text-muted sm:text-sm">{t.about.kicker}</p>
+            <h2 className="text-3xl leading-tight text-cream sm:text-4xl">{t.about.name}</h2>
+            <p className="text-sm leading-relaxed text-warm normal-case sm:text-base">
+              {t.about.text}
+            </p>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+              {ABOUT_LINKS.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-lime underline decoration-2 underline-offset-4 transition-colors hover:text-cream"
+                >
+                  {link.name} &#8599;
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
