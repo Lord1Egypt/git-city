@@ -40,45 +40,64 @@ export default async function RateCardPage() {
         <h1 className="mt-4 text-4xl text-cream sm:text-6xl">{t.title}</h1>
         <p className="mt-5 text-base text-lime normal-case sm:text-lg">{t.sub}</p>
 
-        <table className="mt-12 w-full border-collapse text-left">
-          <thead>
-            <tr className="border-b-[3px] border-border text-xs tracking-widest text-muted">
-              <th scope="col" className="pb-3 font-normal">
-                {t.cols.what}
-              </th>
-              <th scope="col" className="pb-3 font-normal">
-                {t.cols.prize}
-              </th>
-              <th scope="col" className="pb-3 text-right font-normal">
-                {t.cols.length}
-              </th>
-            </tr>
-          </thead>
+        <div className="mt-12 flex flex-col gap-4">
           {t.rows.map((row) => (
-            <tbody key={row.what} className="border-b-[3px] border-border">
-              <tr>
-                <th scope="row" className="pt-6 text-xl font-normal text-cream sm:text-2xl">
-                  {row.what}
-                </th>
-                <td className="pt-6 text-sm text-lime sm:text-base">{row.prize}</td>
-                <td className="pt-6 text-right text-sm text-cream sm:text-base">{row.length}</td>
-              </tr>
-              <tr>
-                <td
-                  colSpan={3}
-                  className="pt-3 pb-6 text-sm leading-relaxed text-muted normal-case"
-                >
-                  {row.gets}
-                </td>
-              </tr>
-            </tbody>
+            <section key={row.what} className="border-[3px] border-border bg-bg-raised">
+              <header className="flex items-baseline justify-between gap-4 border-b-[3px] border-border px-5 py-4 sm:px-6">
+                <h2 className="text-2xl text-cream sm:text-3xl">{row.what}</h2>
+                <span className="text-sm text-muted">{row.length}</span>
+              </header>
+              <div className="grid sm:grid-cols-[2fr_3fr]">
+                <div className="flex flex-col gap-2 border-b-[3px] border-border px-5 py-5 sm:border-r-[3px] sm:border-b-0 sm:px-6">
+                  <p className="text-xs tracking-widest text-muted">{t.cost}</p>
+                  <p className="text-3xl text-lime">{row.cost}</p>
+                  <p className="text-sm leading-relaxed text-muted normal-case">{row.costNote}</p>
+                </div>
+                <div className="flex flex-col gap-3 px-5 py-5 sm:px-6">
+                  <p className="text-xs tracking-widest text-muted">{t.gets}</p>
+                  <ul className="flex flex-col gap-2">
+                    {row.gets.map((line) => (
+                      <li
+                        key={line}
+                        className="flex gap-2 text-sm leading-relaxed text-cream normal-case"
+                      >
+                        <span className="text-lime" aria-hidden="true">
+                          +
+                        </span>
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </section>
           ))}
-        </table>
+        </div>
 
-        <div className="mt-8 flex flex-col gap-2 text-sm leading-relaxed normal-case">
-          <p className="text-cream">{t.bonus}</p>
+        <div className="mt-6 flex flex-col gap-2 text-sm leading-relaxed normal-case">
+          <p className="text-cream">
+            <span className="text-lime">{t.bonus.label}:</span> {t.bonus.text}
+          </p>
           <p className="text-muted">{t.prizeNote}</p>
         </div>
+
+        <section className="mt-14 border-t-[3px] border-border pt-10">
+          <h2 className="text-2xl text-cream sm:text-3xl">{t.how.title}</h2>
+          <ol className="mt-6 flex flex-col gap-4">
+            {t.how.steps.map((step, i) => (
+              <li
+                key={step}
+                className="flex gap-4 text-sm leading-relaxed text-cream normal-case sm:text-base"
+              >
+                <span className="w-6 shrink-0 text-lime">{i + 1}</span>
+                {step}
+              </li>
+            ))}
+          </ol>
+          <p className="mt-5 pl-10 text-sm leading-relaxed text-muted normal-case">
+            {t.how.delivery}
+          </p>
+        </section>
 
         <a
           href="/partners#contact"

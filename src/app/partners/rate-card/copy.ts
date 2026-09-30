@@ -9,24 +9,48 @@ export const RATE_COPY = {
     back: "Partners",
     kicker: "Git City",
     title: "Rate card",
-    sub: "Pay in prizes for developers, not money.",
-    cols: { what: "Sponsorship", prize: "Prize", length: "Length" },
+    sub: "Your audience: 50,900 developers signed in with GitHub. You pay in prizes, not money.",
+    cost: "Cost to your brand",
+    gets: "You get",
     rows: [
       {
         what: "Event",
-        prize: "Top 5 developers",
         length: "1 week",
-        gets: "Powered by on the event, the monument and the launch email to 31,000+ developers.",
+        cost: "5 prizes",
+        costNote:
+          "One for each of the 5 developers who code the most in the event. You pick the prize.",
+        gets: [
+          "“Powered by YOUR BRAND” on the event page",
+          "Your brand on the plaza monument",
+          "Your brand in the launch email to 31,000+ developers",
+          "Your brand in the winner announcement",
+        ],
       },
       {
         what: "Town",
-        prize: "Top developer, every week",
         length: "4 weeks",
-        gets: "Powered by on the town, its billboards, plane and blimp.",
+        cost: "4 prizes",
+        costNote:
+          "One a week for the developer who codes the most in the town. You pick the prize.",
+        gets: [
+          "“Powered by YOUR BRAND” on the town page",
+          "Your brand on the town's billboards, plane and blimp",
+          "A mention every time the town wins the week",
+        ],
       },
     ],
-    bonus: "On the house: your brand in the main city while you sponsor.",
+    bonus: { label: "On the house", text: "Your brand in the main city while you sponsor." },
     prizeNote: "Prizes: merch, months of your plan, credits or licenses.",
+    how: {
+      title: "How it works",
+      steps: [
+        "Pick an event or a town.",
+        "Send your logo, your link and the prizes you'll give.",
+        "We launch it. At the end you get the winners' GitHub profiles and a report of views and clicks.",
+      ],
+      delivery:
+        "You send the prizes to the winners. If the prize is a code or a link, we hand it to them for you.",
+    },
     cta: "Sponsor",
   },
   pt: {
@@ -38,24 +62,46 @@ export const RATE_COPY = {
     back: "Parceiros",
     kicker: "Git City",
     title: "Rate card",
-    sub: "Pague em prêmios pros devs, não em dinheiro.",
-    cols: { what: "Patrocínio", prize: "Prêmio", length: "Duração" },
+    sub: "Seu público: 50.900 devs logados com GitHub. Você paga em prêmios, não em dinheiro.",
+    cost: "Custo pra sua marca",
+    gets: "Você recebe",
     rows: [
       {
         what: "Evento",
-        prize: "Top 5 devs",
         length: "1 semana",
-        gets: "Powered by no evento, no monumento e no email de lançamento pra 31 mil devs.",
+        cost: "5 prêmios",
+        costNote: "Um pra cada um dos 5 devs que mais codarem no evento. Você escolhe o prêmio.",
+        gets: [
+          "“Powered by SUA MARCA” na página do evento",
+          "Sua marca no monumento da praça",
+          "Sua marca no email de lançamento pra 31 mil devs",
+          "Sua marca no anúncio do vencedor",
+        ],
       },
       {
         what: "Town",
-        prize: "Top 1 dev por semana",
         length: "4 semanas",
-        gets: "Powered by na town, nos billboards, no avião e no balão dela.",
+        cost: "4 prêmios",
+        costNote: "Um por semana pro dev que mais codar na town. Você escolhe o prêmio.",
+        gets: [
+          "“Powered by SUA MARCA” na página da town",
+          "Sua marca nos billboards, no avião e no balão da town",
+          "Menção toda vez que a town vencer a semana",
+        ],
       },
     ],
-    bonus: "De brinde: sua marca na cidade principal enquanto patrocina.",
+    bonus: { label: "De brinde", text: "Sua marca na cidade principal enquanto patrocina." },
     prizeNote: "Prêmios: brindes, meses do seu plano, créditos ou licenças.",
+    how: {
+      title: "Como funciona",
+      steps: [
+        "Escolha um evento ou uma town.",
+        "Mande seu logo, seu link e os prêmios que vai dar.",
+        "A gente lança. No fim você recebe o GitHub de quem ganhou e um relatório de views e cliques.",
+      ],
+      delivery:
+        "Você envia os prêmios aos vencedores. Se o prêmio for um código ou link, a gente entrega por você.",
+    },
     cta: "Patrocinar",
   },
 } as const satisfies Record<Lang, unknown>;
