@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Volume1, Volume2, VolumeX, X } from "lucide-react";
+import { Camera, Plus, Volume1, Volume2, VolumeX, X } from "lucide-react";
 import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
 import { HUD_BOX } from "../shared";
@@ -49,6 +49,8 @@ export default function DriveHud({
   volume,
   paused,
   gated = false,
+  held = false,
+  join,
   drivers,
   crown,
   map,
@@ -74,6 +76,10 @@ export default function DriveHud({
   paused: boolean;
   /** A guest's car stalling or stopped by the sign-in terminal (GuestGate): no lessons over it. */
   gated?: boolean;
+  /** The intro's arrival choice is up (ArrivalChoice): the first lesson and the HUD wait for it. */
+  held?: boolean;
+  /** Not in this town yet: a button to put your building here. */
+  join?: { label: string; onClick: () => void };
   /** Everyone else driving in this city right now. */
   drivers: DriverInfo[];
   /** Crown Rush state from the drive room. */
@@ -99,10 +105,10 @@ export default function DriveHud({
   const enter = firstRun ? (delay: number) => ({ animation: `fade-in 0.45s ease-out ${delay}s both` }) : () => undefined;
 
   useEffect(() => {
-    if (entered) return;
+    if (entered || held) return;
     const t = setTimeout(() => setEntered(true), ENTER_ANYWAY_MS);
     return () => clearTimeout(t);
-  }, [entered]);
+  }, [entered, held]);
 
   useEffect(() => {
     if (!ready || !entered) return;
@@ -216,6 +222,12 @@ export default function DriveHud({
               </span>
             )}
           </span>
+          {join && (
+            <button type="button" onClick={join.onClick} className={`${SEG} gap-2 px-3 py-2 text-[10px] text-lime`}>
+              <Plus {...ICON} aria-hidden />
+              <span>{touch ? "Join" : join.label}</span>
+            </button>
+          )}
           <button type="button" onClick={onExit} className={`${SEG} gap-2 px-3 py-2 text-[10px] text-cream hover:text-lime`}>
             <X {...ICON} aria-hidden />
             <span>Exit</span>
@@ -264,7 +276,7 @@ export default function DriveHud({
         </div>
       )}
 
-      {ready && (
+      {ready && !held && (
         <div className={gated ? "hidden" : undefined}>
           <DrivePrompt telemetry={telemetry} firstRun={firstRun} camera={camera} touchRef={touchRef} onDrive={() => setEntered(true)} onLesson={setLesson} />
         </div>

@@ -23,7 +23,7 @@ import ActionBar from "@/components/league/hud/ActionBar";
 import HallOfFamePanel from "@/components/league/hud/HallOfFamePanel";
 import StandingsPanel from "@/components/league/hud/StandingsPanel";
 import InvitePanel from "@/components/league/hud/InvitePanel";
-import JoinPanel from "@/components/league/hud/JoinPanel";
+import JoinPanel, { signInToJoin } from "@/components/league/hud/JoinPanel";
 import BuildingCard from "@/components/league/hud/BuildingCard";
 import EditorTopBar from "@/components/league/hud/editor/EditorTopBar";
 import Hotbar, { CameraHints, toolForSlot } from "@/components/league/hud/editor/Hotbar";
@@ -43,6 +43,7 @@ import { createEmoteLog } from "@/lib/league-city/drive/emote-log";
 import { loadVolume, saveVolume } from "@/lib/league-city/drive/volume";
 import { gateDueMs, stallDone, type GateReason } from "@/lib/league-city/drive/guest-gate";
 import GuestGate from "@/components/league/hud/drive/GuestGate";
+import ArrivalChoice from "@/components/league/hud/drive/ArrivalChoice";
 import { signInWithGitHub } from "@/lib/sign-in";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { createEditorStore } from "@/lib/league-city/editor/store";
@@ -435,6 +436,16 @@ export default function LeagueClient({
   const toggleCamera = useCallback(() => setDriveCamera((c) => (c === "chase" ? "top" : "chase")), []);
   // The drive started from the intro: its HUD teaches the controls and comes in on your first move.
   const [firstDrive, setFirstDrive] = useState(false);
+  // Newcomers: the intro's handoff stops on a choice (ArrivalChoice), put your building here or just drive.
+  const offerJoin = !isMember && (joinAction === "join" || joinAction === "ask" || joinAction === "verify");
+  const joinLabel = joinAction === "ask" ? "Ask to move in" : joinAction === "verify" ? "Work here? Move in" : "Add your building";
+  const joinDetail =
+    joinAction === "verify"
+      ? "Show you're in the org on GitHub and your building moves in."
+      : joinAction === "ask"
+        ? `${viewer ? "Ask" : "Sign in with GitHub and ask"} the admin to let your building in.`
+        : `${viewer ? "Move" : "Sign in with GitHub and move"} into the skyline. Race with the town every week.`;
+  const [arriving, setArriving] = useState(false);
   // Phone controls (lib drive/touch): on screen on touch devices, read by the car.
   const touchRef = useRef<TouchDrive>(createTouch());
   const touchUi = useTouch();
@@ -442,6 +453,7 @@ export default function LeagueClient({
     setFocused(null);
     setPanel(null);
     setFirstDrive(false);
+    setArriving(false);
     setDriveReady(false);
     setTelemetry(createTelemetry());
     setPaused(false);
@@ -465,6 +477,7 @@ export default function LeagueClient({
   const exitDrive = useCallback(() => {
     setMode((m) => (m === "drive" ? "view" : m));
     setFirstDrive(false);
+    setArriving(false);
     setDrivers([]);
     setCrownView(null);
     emoteLog.clear();
@@ -485,7 +498,7 @@ export default function LeagueClient({
       if (e.key !== "Escape") return;
       e.preventDefault();
       if (focused) return; // the building card closes itself
-      if (gate) return; // the gate answers Esc itself
+      if (gate || arriving) return; // the gate and the arrival choice answer Esc themselves
       // A held Esc (or a double tap) that just closed the gate doesn't go on to pause and leave.
       if (e.repeat || performance.now() - gateClosedAt.current < 600) return;
       if (paused) exitDrive();
@@ -493,12 +506,12 @@ export default function LeagueClient({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [driving, cinematic, paused, exitDrive, focused, gate]);
+  }, [driving, cinematic, paused, exitDrive, focused, gate, arriving]);
 
   // Guest driving time, counted only while actually driving (not paused, hidden or mid crown rush).
   const crownLive = crownView?.crown.phase === "live" || crownView?.crown.phase === "countdown";
   useEffect(() => {
-    if (viewer || !driving || !driveReady || cinematic || paused || gate || crownLive) return;
+    if (viewer || !driving || !driveReady || cinematic || arriving || paused || gate || crownLive) return;
     const id = window.setInterval(() => {
       if (document.hidden) return;
       guestDriven.current += 1000;
@@ -507,7 +520,7 @@ export default function LeagueClient({
       }
     }, 1000);
     return () => window.clearInterval(id);
-  }, [viewer, driving, driveReady, cinematic, paused, gate, crownLive]);
+  }, [viewer, driving, driveReady, cinematic, arriving, paused, gate, crownLive]);
 
   // A guest who wins a crown rush is stopped right after the win shows.
   const crownWonAt = crownView && crownView.crown.phase === "over" && crownView.crown.winner && crownView.crown.winner === crownView.you ? crownView.crown.endsAt : null;
@@ -537,9 +550,25 @@ export default function LeagueClient({
     setGate(null);
   }, []);
   const gateSignIn = useCallback(() => {
+    // A town you can move into: come back to the join panel, not the car.
+    if (joinAction === "join" || joinAction === "ask") {
+      void signInToJoin({ leagueSlug: league.slug, refLogin, inviteToken, invitee: invite });
+      return;
+    }
     const params = new URLSearchParams({ next: `/town/${league.slug}?drive=1` });
     void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?${params.toString()}`);
-  }, [league.slug]);
+  }, [league.slug, joinAction, refLogin, inviteToken, invite]);
+  // Put your building here, from the arrival choice or the drive HUD: a guest
+  // signs in straight away (and comes back to the join panel); anyone else
+  // leaves the car for the join panel.
+  const joinFromCar = useCallback(() => {
+    if (!viewer && (joinAction === "join" || joinAction === "ask")) {
+      void signInToJoin({ leagueSlug: league.slug, refLogin, inviteToken, invitee: invite });
+      return;
+    }
+    exitDrive();
+    setPanel("join");
+  }, [viewer, joinAction, league.slug, refLogin, inviteToken, invite, exitDrive]);
 
   // Live city while driving: pick up an admin's changes (walls, buildings, props).
   useEffect(() => {
@@ -583,7 +612,8 @@ export default function LeagueClient({
             volume,
             emoteApi,
             onEmoteLog: emoteLog.push,
-            paused: paused || !!gate?.open,
+            // The arrival choice freezes the game: nobody drives before choosing.
+            paused: paused || !!gate?.open || arriving,
             stallAt: gate && !gate.open ? gate.stallAt : null,
             onReady: onDriveReady,
             onFail: onDriveFail,
@@ -595,7 +625,7 @@ export default function LeagueClient({
             onCrown: setCrownView,
           }
         : undefined,
-    [driving, viewerDevId, spawnDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, gate, onDriveReady, onDriveFail, league.slug, driverName],
+    [driving, viewerDevId, spawnDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, gate, arriving, onDriveReady, onDriveFail, league.slug, driverName],
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
@@ -699,11 +729,12 @@ export default function LeagueClient({
       setHudEnter(true);
     }, OUTRO_MS);
     if (cur.drive) {
-      // Your turn: the car is already yours and rolling.
+      // Your turn: the car is already yours and rolling (a newcomer's stops on the arrival choice).
       setCinematic(false);
       setFirstDrive(true);
+      if (offerJoin) setArriving(true);
     }
-  }, [intro]);
+  }, [intro, offerJoin]);
   const skipIntro = useCallback(() => {
     if (intro?.drive) setIntro({ ...intro, skip: intro.skip + 1 });
     else endIntro();
@@ -721,7 +752,8 @@ export default function LeagueClient({
   );
   const introChecked = useRef(false);
   useEffect(() => {
-    if (introChecked.current || startEditing || startDriving || showJoinCta) return;
+    // Back from sign-in to join (?join=1): straight to the join panel, no intro and no car.
+    if (introChecked.current || startEditing || startDriving || showJoinCta || startJoin) return;
     introChecked.current = true;
     let seen = false;
     try {
@@ -734,7 +766,7 @@ export default function LeagueClient({
     if (document.documentElement.dataset.capture === "1") seen = false;
     // After the first paint, from a callback: the scene mounts first.
     if (!seen) window.setTimeout(playIntro, 0);
-  }, [league.slug, playIntro, startEditing, startDriving, showJoinCta]);
+  }, [league.slug, playIntro, startEditing, startDriving, showJoinCta, startJoin]);
   useEffect(() => {
     if (!intro) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1008,6 +1040,8 @@ export default function LeagueClient({
           volume={volume}
           paused={paused}
           gated={!!gate}
+          held={arriving}
+          join={offerJoin && !arriving ? { label: joinLabel, onClick: joinFromCar } : undefined}
           drivers={drivers}
           crown={crownView}
           map={driveMap}
@@ -1020,6 +1054,17 @@ export default function LeagueClient({
           onMute={toggleMute}
           onExit={exitDrive}
         />
+      )}
+      {driving && !cinematic && arriving && (
+        <div className="pointer-events-none fixed inset-0 z-30 font-pixel uppercase">
+          <ArrivalChoice
+            town={townDisplayName(league.name)}
+            label={joinLabel}
+            detail={joinDetail}
+            onJoin={joinFromCar}
+            onDrive={() => setArriving(false)}
+          />
+        </div>
       )}
       {driving && !cinematic && gate?.open && !viewer && (
         <GuestGate
