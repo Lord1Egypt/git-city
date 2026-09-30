@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { isoDay, townDays, weekEnd, weekStart, type TownScore } from "@/lib/leagues/scoring";
 import { loadStandings } from "@/lib/leagues/standings";
 import { BATTLE_START, RIVALRY } from "./rivalry";
+import { leagueAssetUrl } from "@/lib/league-city/identity";
 import { SIDES, battlePhase, battleWeekNumber, dayWinners, finishedDays, seriesRecord, weekWinner, type Side } from "./battle-rules";
 
 export interface BattleCoder {
@@ -157,4 +158,36 @@ export async function getBattleState(now: Date = new Date()): Promise<BattleStat
     lastWeek: last,
     series: seriesRecord(closed.map((w) => w.winner)),
   };
+}
+
+/** A closed battle week as the Monday close froze it. Null when it isn't closed (or isn't a battle week). */
+export async function getWeekResult(startDay: string): Promise<{ winner: Side | null; claude: TownScore | null; codex: TownScore | null } | null> {
+  if (Date.parse(`${startDay}T00:00:00Z`) < BATTLE_START) return null;
+  const ids = await rivalryIds();
+  const { data, error } = await getSupabaseAdmin()
+    .from("league_weeks")
+    .select("league_id, standings")
+    .in("league_id", SIDES.flatMap((s) => (ids[s] ? [ids[s] as string] : [])))
+    .eq("week_start", startDay);
+  if (error) throw error;
+  if (!data?.length) return null;
+  const town = (s: Side) => ((data.find((r) => r.league_id === ids[s])?.standings as { town?: TownScore | null } | null)?.town ?? null);
+  const [claude, codex] = [town("claude"), town("codex")];
+  return { winner: weekWinner(claude, codex), claude, codex };
+}
+
+/** Each rivalry town's logo (its active league_assets logo), for the battle images. */
+export async function getRivalryLogos(): Promise<Record<Side, string | null>> {
+  const ids = await rivalryIds();
+  const { data, error } = await getSupabaseAdmin()
+    .from("league_cities")
+    .select("league_id, logo:league_assets!league_cities_logo_asset_id_fkey(path, status)")
+    .in("league_id", SIDES.flatMap((s) => (ids[s] ? [ids[s] as string] : [])))
+    .returns<{ league_id: string; logo: { path: string; status: string } | null }[]>();
+  if (error) throw error;
+  const logo = (s: Side) => {
+    const l = data?.find((r) => r.league_id === ids[s])?.logo;
+    return l?.status === "active" ? leagueAssetUrl(l.path) : null;
+  };
+  return { claude: logo("claude"), codex: logo("codex") };
 }
