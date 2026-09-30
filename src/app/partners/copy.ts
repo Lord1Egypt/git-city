@@ -120,6 +120,42 @@ export const COPY = {
         },
       ],
     },
+    story: {
+      kicker: "The story",
+      title: "From one post to a city",
+      items: [
+        {
+          date: "Feb 19, 2026",
+          title: "The idea",
+          text: "Samuel posts on X: a 3D site where your GitHub history builds your building.",
+        },
+        {
+          date: "Feb 20",
+          title: "First version live",
+          text: "Built solo in a day and open source from the start.",
+        },
+        {
+          date: "Feb 22",
+          title: "The first brand",
+          text: "Two days after launch, the first ad blimp flies over the city.",
+        },
+        {
+          date: "Mar 4",
+          title: "24,598 visitors in one day",
+          text: "Git City becomes a trending story on X.",
+        },
+        {
+          date: "Jun 22",
+          title: "Git City 2",
+          text: "The city moves onto the real map of San Francisco, and later the whole Bay Area.",
+        },
+        {
+          date: "Sep 26",
+          title: "Towns",
+          text: "Dev communities start competing on commits every week.",
+        },
+      ],
+    },
     contact: {
       title: "Become a partner",
       sub: "Tell us who you are. Samuel replies within 2 business days.",
@@ -203,6 +239,42 @@ export const COPY = {
           detail: "DevRel da Supabase, o backend onde o Git City roda",
           cta: "Ver o post",
           imageAlt: "Post do Tyler Shukert sobre o Git City no X",
+        },
+      ],
+    },
+    story: {
+      kicker: "A história",
+      title: "De um post a uma cidade",
+      items: [
+        {
+          date: "19 fev 2026",
+          title: "A ideia",
+          text: "O Samuel posta no X: um site 3D onde seu histórico no GitHub constrói seu prédio.",
+        },
+        {
+          date: "20 fev",
+          title: "Primeira versão no ar",
+          text: "Feita sozinho em um dia e open source desde o início.",
+        },
+        {
+          date: "22 fev",
+          title: "A primeira marca",
+          text: "Dois dias depois do lançamento, o primeiro blimp de anúncio sobrevoa a cidade.",
+        },
+        {
+          date: "4 mar",
+          title: "24.598 visitantes em um dia",
+          text: "O Git City vira história em alta no X.",
+        },
+        {
+          date: "22 jun",
+          title: "Git City 2",
+          text: "A cidade passa pro mapa real de San Francisco, e depois pra Bay Area inteira.",
+        },
+        {
+          date: "26 set",
+          title: "Towns",
+          text: "Comunidades de devs começam a competir em commits toda semana.",
         },
       ],
     },

@@ -94,6 +94,30 @@ export default async function PartnersPage() {
         </div>
       </section>
 
+      <section className="border-t-[3px] border-border">
+        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1fr_2fr] lg:gap-16">
+          <div className="lg:sticky lg:top-8 lg:self-start">
+            <p className="text-xs tracking-widest text-muted sm:text-sm">{t.story.kicker}</p>
+            <h2 className="mt-4 text-3xl leading-tight text-cream sm:text-4xl">{t.story.title}</h2>
+          </div>
+          <ol className="relative flex flex-col gap-8 border-l-[3px] border-border pl-8">
+            {t.story.items.map((item, i) => (
+              <li key={item.date} className="relative">
+                <span
+                  aria-hidden="true"
+                  className={`absolute top-1 -left-[calc(2rem+9px)] h-4 w-4 ${
+                    i === t.story.items.length - 1 ? "bg-lime" : "border-[3px] border-border-light bg-bg"
+                  }`}
+                />
+                <p className="text-xs tracking-widest text-muted">{item.date}</p>
+                <h3 className="mt-2 text-lg text-cream sm:text-xl">{item.title}</h3>
+                <p className="mt-1 font-sans text-base text-warm normal-case tracking-normal">{item.text}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
       <section id="contact" className="scroll-mt-6 border-t-[3px] border-border">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <h2 className="text-2xl text-cream sm:text-4xl">{t.contact.title}</h2>
