@@ -10,6 +10,8 @@ import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
 import { Avatar, fmt } from "@/components/league/hud/shared";
 import { BATTLE_START, BATTLE_START_LABEL, timeUntil } from "@/lib/towns/rivalry";
+import type { BattleSide, BattleState } from "@/lib/towns/battle";
+import { SIDES } from "@/lib/towns/battle-rules";
 import type { GridTown } from "@/lib/towns/discover";
 import { GridTownCard } from "./TownCard";
 import { useDesktop } from "./useDesktop";
@@ -31,13 +33,17 @@ export interface RivalSide {
 
 type Pair = [RivalSide, RivalSide];
 
-// /towns before the first battle week: Claude vs Codex, pick a side.
-// The names are the headline; each town sits in its own window with its
-// count and button on a solid bar, so no text ever sits on the sky.
+// /towns: Claude vs Codex. Before the first battle week, pick a side; from
+// it on, the week's score (per dev), the days won and the top coders; all
+// Monday, last week's final and who won it. The names are the headline; each
+// town sits in its own window with its number and button on a solid bar, so
+// no text ever sits on the sky.
 export default function RivalryPoster({
   sides,
   mine,
   signedIn,
+  login,
+  battle,
   pickOnLoad,
   others,
 }: {
@@ -46,11 +52,17 @@ export default function RivalryPoster({
   others: GridTown[];
   mine: 0 | 1 | null;
   signedIn: boolean;
+  /** The viewer's login, for the invite link. */
+  login: string | null;
+  /** Null when it failed to load: the pick-phase poster still works. */
+  battle: BattleState | null;
   /** Back from sign-in with ?pick=<slug>: finish that pick. */
   pickOnLoad: string | null;
 }) {
   const router = useRouter();
-  const startsIn = useStartsIn();
+  const b = battle?.phase === "live" ? battle : null;
+  const startsIn = useCountdown(BATTLE_START);
+  const endsIn = useCountdown(b ? Date.parse(`${b.current.end}T00:00:00Z`) : 0);
   const live = useTownsLive();
   const [busy, setBusy] = useState<0 | 1 | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +104,9 @@ export default function RivalryPoster({
   }, [pickOnLoad]);
 
   const total = sides[0].picked + sides[1].picked;
-  const share = total === 0 ? 0.5 : sides[0].picked / total;
+  const share = b ? perDevShare(b) : total === 0 ? 0.5 : sides[0].picked / total;
+  const lead = b ? battleLead(b, sides) : leadLine(sides);
+  const result = b?.showing === "result" ? resultLine(b, sides) : null;
 
   return (
     <main className="min-h-screen bg-bg pb-24 font-pixel uppercase text-warm">
@@ -115,11 +129,31 @@ export default function RivalryPoster({
             <span className="text-xl text-dim sm:text-3xl">vs</span>
             <span style={{ color: sides[1].color }}>{sides[1].name}</span>
           </h1>
-          <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-cream normal-case sm:text-lg">
-            {mine === null ? "Which side codes more? Pick yours." : `You're on ${sides[mine].name}. Bring your friends before ${BATTLE_START_LABEL}.`}
+          <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-balance text-cream normal-case sm:text-lg">
+            {result ??
+              (mine === null
+                ? "Which side codes more? Pick yours."
+                : b
+                  ? `You're on ${sides[mine].name}.`
+                  : `You're on ${sides[mine].name}. Bring your friends before ${BATTLE_START_LABEL}.`)}
           </p>
           <p className="mt-5 inline-block border-[3px] border-border bg-bg-raised px-4 py-2 text-xs text-cream sm:text-sm">
-            {startsIn === "" ? (
+            {b ? (
+              <>
+                {result && (
+                  <>
+                    <span className="whitespace-nowrap">
+                      {sides[0].name} {b.series.claude} – {b.series.codex} {sides[1].name}
+                    </span>
+                    <span className="max-sm:hidden"> · </span>
+                    <br className="sm:hidden" />
+                  </>
+                )}
+                <span className="whitespace-nowrap">
+                  Week {b.current.number} ends in <span className="text-lime tabular-nums">{endsIn ?? "…"}</span>
+                </span>
+              </>
+            ) : startsIn === "" ? (
               "The battle is on"
             ) : (
               <>
@@ -131,7 +165,17 @@ export default function RivalryPoster({
 
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 px-4 sm:gap-6 sm:px-6">
           {sides.map((s, i) => (
-            <SideCard key={s.slug} side={s} index={i as 0 | 1} mine={mine} busy={busy} onPick={pick} live={live[s.slug] ?? null} />
+            <SideCard
+              key={s.slug}
+              side={s}
+              index={i as 0 | 1}
+              mine={mine}
+              busy={busy}
+              onPick={pick}
+              live={live[s.slug] ?? null}
+              score={b ? b.sides[SIDES[i]] : null}
+              login={login}
+            />
           ))}
         </div>
         {error && (
@@ -141,31 +185,95 @@ export default function RivalryPoster({
         )}
 
         <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
-          <div className="flex h-4" role="img" aria-label={leadLine(sides)}>
+          <div className="flex h-4" role="img" aria-label={lead}>
             <div className="h-full transition-[width] duration-700" style={{ width: `${share * 100}%`, background: sides[0].color }} />
             <div className="h-full w-[3px] bg-cream" />
             <div className="h-full flex-1" style={{ background: sides[1].color }} />
           </div>
-          <p className="mt-3 text-center text-sm text-cream sm:text-base">{leadLine(sides)}</p>
+          {!result && <p className="mt-3 text-center text-sm text-cream sm:text-base">{lead}</p>}
+          {b && <DaySquares battle={b} sides={sides} />}
         </div>
       </section>
 
-      <WhoPicked sides={sides} />
+      {b ? <TopCoders battle={b} sides={sides} /> : <WhoPicked sides={sides} />}
       <OtherTowns towns={sortByLive(others, live)} live={live} />
     </main>
   );
 }
 
-/** Time to the first battle, ticking; null before the first client render (no hydration mismatch). */
-function useStartsIn(): string | null {
+/** Time to `target`, ticking; null before the first client render (no hydration mismatch). */
+function useCountdown(target: number): string | null {
   const [left, setLeft] = useState<string | null>(null);
   useEffect(() => {
-    const tick = () => setLeft(timeUntil(BATTLE_START, Date.now()));
+    const tick = () => setLeft(timeUntil(target, Date.now()));
     tick();
     const id = setInterval(tick, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [target]);
   return left;
+}
+
+function perDevShare(b: BattleState): number {
+  const [a, c] = [b.sides.claude.perDev ?? 0, b.sides.codex.perDev ?? 0];
+  return a + c === 0 ? 0.5 : a / (a + c);
+}
+
+/** "Claude leads · 84 vs 61 per dev", or who can't score yet (3 coding). */
+function battleLead(b: BattleState, sides: Pair): string {
+  const [a, c] = [b.sides.claude.perDev, b.sides.codex.perDev];
+  if (a === null && c === null) return "Nobody has 3 coding yet";
+  if (a === null) return `${sides[0].name} needs 3 coding to score`;
+  if (c === null) return `${sides[1].name} needs 3 coding to score`;
+  if (a === c) return `Dead even · ${a} per dev`;
+  const [top, low] = a > c ? [0, 1] : [1, 0];
+  const n = [a, c];
+  const verb = b.showing === "result" ? "won" : "leads";
+  return `${sides[top].name} ${verb} · ${n[top]} vs ${n[low]} per dev`;
+}
+
+/** "Claude won week 1 · 84 vs 61 per dev" */
+function resultLine(b: BattleState, sides: Pair): string | null {
+  const w = b.lastWeek;
+  if (!w) return null;
+  const score = (t: { perDev: number } | null) => (t ? String(t.perDev) : "–");
+  // The dot stays on the first line when it wraps.
+  if (w.winner === null) return `Week ${w.number} was a tie\u00a0· ${score(w.claude)} vs ${score(w.codex)} per dev`;
+  const i = SIDES.indexOf(w.winner);
+  const [hi, lo] = i === 0 ? [w.claude, w.codex] : [w.codex, w.claude];
+  return `${sides[i].name} won week ${w.number}\u00a0· ${score(hi)} vs ${score(lo)} per dev`;
+}
+
+const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+
+/** The week's 7 days, filled with who won each; outlined until the day is over. */
+function DaySquares({ battle, sides }: { battle: BattleState; sides: Pair }) {
+  const color = (w: BattleState["dayWinners"][number]) => (w === "open" || w === null ? null : sides[SIDES.indexOf(w)].color);
+  return (
+    <div className="mt-6">
+      <ol className="flex justify-center gap-1.5 sm:gap-2" aria-label="Who won each day">
+        {battle.dayWinners.map((w, i) => {
+          const c = color(w);
+          const label = w === "open" ? "not over" : w === null ? "tie" : `${sides[SIDES.indexOf(w)].name} won`;
+          return (
+            <li key={i} className="flex flex-col items-center gap-1">
+              <span
+                className="block h-6 w-6 border-[3px] sm:h-8 sm:w-8"
+                style={{ background: c ?? (w === null ? "var(--color-border)" : "transparent"), borderColor: c ?? "var(--color-border)" }}
+                aria-label={`${DAY_LABELS[i]}: ${label}`}
+              />
+              <span className="text-[10px] text-dim" aria-hidden="true">
+                {DAY_LABELS[i]}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-2 text-center text-xs text-muted">
+        Days won <span className="tabular-nums" style={{ color: sides[0].color }}>{battle.sides.claude.daysWon}</span> –{" "}
+        <span className="tabular-nums" style={{ color: sides[1].color }}>{battle.sides.codex.daysWon}</span>
+      </p>
+    </div>
+  );
 }
 
 function leadLine(sides: Pair): string {
@@ -183,9 +291,14 @@ function SideCard({
   busy,
   onPick,
   live,
+  score,
+  login,
 }: {
   side: RivalSide;
   live: TownLive | null;
+  /** The battle's numbers once it's on; null before: the card shows picks. */
+  score: BattleSide | null;
+  login: string | null;
   index: 0 | 1;
   mine: 0 | 1 | null;
   busy: 0 | 1 | null;
@@ -206,16 +319,25 @@ function SideCard({
       <div className="flex flex-1 flex-col justify-between gap-4 p-3 sm:flex-row sm:items-center sm:p-5">
         <div>
           <p className="text-3xl leading-none tabular-nums sm:text-5xl" style={{ color: side.color }}>
-            {fmt(side.picked)}
+            {score ? (score.perDev ?? "–") : fmt(side.picked)}
           </p>
           <p className="mt-2 text-xs text-muted sm:text-sm">
-            picked<span className="max-sm:hidden"> {side.name}</span>
+            {score ? (
+              `per dev · ${fmt(score.coding)} coding`
+            ) : (
+              <>
+                picked<span className="max-sm:hidden"> {side.name}</span>
+              </>
+            )}
           </p>
         </div>
         {yours ? (
-          <Link href={`/town/${side.slug}?drive=1`} className="btn-press block px-4 py-3 text-center text-xs tracking-widest text-bg sm:text-sm" style={{ background: side.color }}>
-            &#9654; Drive in
-          </Link>
+          <div className="flex flex-col gap-2">
+            <Link href={`/town/${side.slug}?drive=1`} className="btn-press block px-4 py-3 text-center text-xs tracking-widest text-bg sm:text-sm" style={{ background: side.color }}>
+              &#9654; Drive in
+            </Link>
+            {login && <InviteButton login={login} color={side.color} />}
+          </div>
         ) : mine !== null ? (
           <Link href={`/town/${side.slug}`} className="btn-press block border-[3px] border-border px-4 py-2.5 text-center text-xs tracking-widest text-muted hover:text-cream sm:text-sm">
             Visit
@@ -248,6 +370,77 @@ function TownView({ side, focus }: { side: RivalSide; focus: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={side.cover} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: focus }} />
+  );
+}
+
+/** Copies /towns?ref=<login>: a pick from it credits the viewer (town_joined.ref). */
+function InviteButton({ login, color }: { login: string; color: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    const url = `${window.location.origin}/towns?ref=${encodeURIComponent(login)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      window.prompt("Copy your invite link", url);
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className="btn-press block border-[3px] px-4 py-2.5 text-center text-xs tracking-widest sm:text-sm"
+      style={{ borderColor: color, color }}
+    >
+      {copied ? (
+        "✓ Copied"
+      ) : (
+        <>
+          <span className="sm:hidden">Invite</span>
+          <span className="max-sm:hidden">Copy invite link</span>
+        </>
+      )}
+    </button>
+  );
+}
+
+function TopCoders({ battle, sides }: { battle: BattleState; sides: Pair }) {
+  return (
+    <section className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+      <h2 className="text-lg text-cream sm:text-xl">{battle.showing === "result" ? `Top coders, week ${battle.week.number}` : "Top coders this week"}</h2>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-6">
+        {sides.map((side, s) => {
+          const top = battle.sides[SIDES[s]].top;
+          const right = s === 1;
+          return (
+            <div key={side.slug} className="border-[3px] border-border bg-bg-card p-3 sm:p-4" style={{ borderTopColor: side.color }}>
+              <p className={`text-xs ${right ? "text-right" : ""}`} style={{ color: side.color }}>
+                {side.name}
+              </p>
+              {top.length === 0 ? (
+                <p className={`mt-3 text-xs text-muted normal-case ${right ? "text-right" : ""}`}>Nobody coded yet</p>
+              ) : (
+                <ol className="mt-3 flex flex-col gap-2">
+                  {top.map((c, r) => (
+                    <li key={c.login} className={`flex items-center gap-2 ${right ? "flex-row-reverse text-right" : ""}`}>
+                      <span className="w-3 shrink-0 text-xs text-dim tabular-nums">{r + 1}</span>
+                      <Link href={`/dev/${c.login}`} className="flex min-w-0 flex-1 items-center gap-2 hover:text-cream" style={{ flexDirection: right ? "row-reverse" : "row" }}>
+                        <Avatar src={c.avatar_url} size={24} />
+                        <span className="min-w-0 truncate text-xs text-cream normal-case">@{c.login}</span>
+                      </Link>
+                      <span className="shrink-0 text-xs tabular-nums" style={{ color: side.color }}>
+                        {fmt(c.total)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

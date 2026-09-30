@@ -7,6 +7,8 @@ import { renderRaceChallengeEmail, renderRacePassedEmail } from "../../notificat
 import { renderJoinRequestEmail, renderRequestApprovedEmail } from "../../notification-senders/league-requests";
 import { renderLeagueWeeklyEmail, type LeagueWeeklyEmailData } from "../../notification-senders/league-weekly";
 import { renderGiftSentEmail, renderPurchaseEmail } from "../../notification-senders/purchase";
+import { renderBattleResultEmail, renderBattleStartEmail, type BattleResultEmailData } from "../../notification-senders/towns-battle";
+import { EMAIL_BASE_URL } from "../components";
 import { PREVIEW_LINKS, TRANSACTIONAL_PREVIEW_LINKS, type EmailPreviews } from "./types";
 
 const TOWN = { leagueSlug: "ship-city", leagueName: "Ship City" };
@@ -28,8 +30,22 @@ const WEEK: LeagueWeeklyEmailData = {
   townLine: "Ship City finished 4th of 12 towns, with 144 contributions per dev.",
 };
 
+const BATTLE: BattleResultEmailData = {
+  week: 1,
+  winner: "claude",
+  claude: 84,
+  codex: 61,
+  side: "codex",
+  mine: 42,
+  heroUrl: `${EMAIL_BASE_URL}/towns/battle-image?sample=1`,
+};
+
 // Sample renders for the admin preview (?template=<key>) and test sends.
 export const TOWNS_PREVIEWS: EmailPreviews = {
+  "battle-start": () => renderBattleStartEmail({ side: "claude", heroUrl: `${EMAIL_BASE_URL}/towns/battle-image` }, PREVIEW_LINKS),
+  "battle-result-lost": () => renderBattleResultEmail(BATTLE, PREVIEW_LINKS),
+  "battle-result-won": () => renderBattleResultEmail({ ...BATTLE, side: "claude", mine: 131 }, PREVIEW_LINKS),
+  "battle-result-tie": () => renderBattleResultEmail({ ...BATTLE, winner: null, codex: 84, mine: 0 }, PREVIEW_LINKS),
   "town-joined": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: true }, PREVIEW_LINKS),
   "town-joined-no-emblem": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: false }, PREVIEW_LINKS),
   "town-overtaken": () =>

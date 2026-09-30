@@ -3,6 +3,8 @@ import { weekStart } from "@/lib/leagues/scoring";
 import { closeWeek } from "@/lib/leagues/close";
 import { sendLeagueWeeklyResults } from "@/lib/notification-senders/league-weekly";
 import { closeTownWeek, type TownWeekResult } from "@/lib/towns/weekly";
+import { BATTLE_START, isRivalry } from "@/lib/towns/rivalry";
+import { sendBattleResults, sendBattleStart } from "@/lib/notification-senders/towns-battle";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -41,9 +43,26 @@ export async function GET(request: NextRequest) {
     }
     const townOfWeek = "featured" in towns ? towns.featured : null;
 
-    // Results emails (awaited).
+    // Results emails (awaited). From the first battle week on, the two
+    // rivalry towns get the battle's result instead of their town race.
     let emailed = 0;
+    const battleWeek = start.getTime() >= BATTLE_START;
+    const rivalry = battleWeek ? closed.filter((c) => isRivalry(c.league.slug)) : [];
+    try {
+      emailed += await sendBattleResults(rivalry);
+    } catch (err) {
+      console.error("[league-close] battle result emails:", err);
+    }
+    // The week opening now is the first battle week: tell both sides.
+    if (start.getTime() + 7 * 86_400_000 === BATTLE_START) {
+      try {
+        emailed += await sendBattleStart();
+      } catch (err) {
+        console.error("[league-close] battle start emails:", err);
+      }
+    }
     for (const c of closed) {
+      if (rivalry.includes(c)) continue;
       try {
         emailed += await sendLeagueWeeklyResults(c, townOfWeek);
       } catch (err) {

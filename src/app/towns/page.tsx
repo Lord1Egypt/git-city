@@ -7,12 +7,13 @@ import { getCityNorms, getLeagueCityDevs, getLeagueMembers } from "@/lib/leagues
 import { getCachedCity } from "@/lib/league-city/service";
 import { getDiscover } from "@/lib/towns/discover";
 import { RIVALRY } from "@/lib/towns/rivalry";
+import { getBattleState } from "@/lib/towns/battle";
 import RivalryPoster, { type RivalSide } from "@/components/towns/RivalryPoster";
 
 export const dynamic = "force-dynamic";
 
 const TITLE = "Claude vs Codex - Git City";
-const DESCRIPTION = "Pick your side. From Monday, the side whose devs code more wins the week.";
+const DESCRIPTION = "Pick your side. Every week, the side whose devs code more wins.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -28,7 +29,15 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
   // Old "create" links (emails, sign-in returns) open the new town screen.
   if (create === "1") redirect("/towns/new");
 
-  const [viewer, discover, norms] = await Promise.all([getViewer(), getDiscover(null), getCityNorms()]);
+  const [viewer, discover, norms, battle] = await Promise.all([
+    getViewer(),
+    getDiscover(null),
+    getCityNorms(),
+    getBattleState().catch((err) => {
+      console.error("[towns] battle failed:", err);
+      return null;
+    }),
+  ]);
   const load = (r: (typeof RIVALRY)[number]) => loadSide(r, discover.all, norms, viewer?.id ?? null);
   const sides = await Promise.all([load(RIVALRY[0]), load(RIVALRY[1])]);
   const mineIndex = sides.findIndex((s) => s.mine);
@@ -39,6 +48,8 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
       sides={sides}
       mine={mineIndex === -1 ? null : (mineIndex as 0 | 1)}
       signedIn={!!viewer}
+      login={viewer?.github_login ?? null}
+      battle={battle}
       pickOnLoad={RIVALRY.some((r) => r.slug === pick) ? (pick as string) : null}
       others={others}
     />
