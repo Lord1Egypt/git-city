@@ -13,6 +13,29 @@ import {
 import GithubCarousel from "./GithubCarousel";
 import PlayCarousel from "./PlayCarousel";
 import BrandPreview from "./BrandPreview";
+import type { PreviewTown } from "./TownBrandPreview";
+import { getLeagueBySlug } from "@/lib/leagues/service";
+import { getCityNorms, getLeagueCityDevs, getLeagueMembers } from "@/lib/leagues/queries";
+import { getCachedCity } from "@/lib/league-city/service";
+
+// The town the drive preview dresses in the typed brand: a full set of flags,
+// billboards, plane and blimp, and no rivalry pieces.
+const PREVIEW_TOWN = "usa-town";
+
+async function loadPreviewTown(): Promise<PreviewTown | null> {
+  try {
+    const league = await getLeagueBySlug(PREVIEW_TOWN);
+    if (!league) return null;
+    const [members, city, norms] = await Promise.all([
+      getLeagueMembers(league.id),
+      getCachedCity(league.id),
+      getCityNorms(),
+    ]);
+    return { slug: league.slug, city, norms, cityDevs: await getLeagueCityDevs(members) };
+  } catch {
+    return null;
+  }
+}
 import ContactForm from "./ContactForm";
 
 async function getLang(): Promise<Lang> {
@@ -41,6 +64,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PartnersPage() {
   const lang = await getLang();
   const t = COPY[lang];
+  const town = await loadPreviewTown();
   return (
     <main className="min-h-screen bg-bg pb-24 font-pixel uppercase text-warm">
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
@@ -155,7 +179,7 @@ export default async function PartnersPage() {
 
       <section className="border-t-[3px] border-border">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-          <BrandPreview t={t.formats} />
+          <BrandPreview t={t.formats} town={town} />
         </div>
       </section>
 
@@ -163,22 +187,25 @@ export default async function PartnersPage() {
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <p className="text-xs tracking-widest text-muted sm:text-sm">{t.sponsors.kicker}</p>
           <h2 className="mt-4 text-3xl leading-tight text-cream sm:text-4xl">{t.sponsors.title}</h2>
-          <ul className="mt-10 grid grid-cols-2 border-t-[3px] border-l-[3px] border-border sm:grid-cols-3 lg:grid-cols-4">
+          <ul className="mt-10 grid grid-cols-2 border-t-[3px] border-l-[3px] border-border sm:grid-cols-4">
             {SPONSORS.map((sponsor) => (
               <li
                 key={sponsor.name}
-                className="flex h-24 items-center justify-center border-r-[3px] border-b-[3px] border-border px-6 text-center text-sm text-warm sm:h-28 sm:text-base"
+                className={`h-24 items-center justify-center border-r-[3px] border-b-[3px] border-border px-6 text-sm text-warm sm:h-28 ${
+                  sponsor.icon ? "hidden sm:flex" : "flex"
+                }`}
               >
-                {sponsor.logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- small static logos, tinted with CSS
+                <span className="flex h-8 items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- small static logos, tinted to one color */}
                   <img
                     src={sponsor.logo}
-                    alt={sponsor.name}
-                    className="max-h-8 max-w-[70%] object-contain opacity-80 brightness-0 invert sm:max-h-9"
+                    alt={sponsor.icon ? "" : sponsor.name}
+                    className={`object-contain opacity-80 brightness-0 invert ${
+                      sponsor.icon ? "h-7 w-7" : "h-7 w-[140px] sm:h-8 sm:w-[160px]"
+                    }`}
                   />
-                ) : (
-                  sponsor.name
-                )}
+                  {sponsor.icon && <span>{sponsor.name}</span>}
+                </span>
               </li>
             ))}
           </ul>

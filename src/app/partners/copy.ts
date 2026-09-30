@@ -52,24 +52,23 @@ export const PLAY_VIDEOS: Record<string, { src: string; poster: string } | undef
 };
 
 // A logo shows when the brand has one in public/partners/sponsors; the rest are names.
-export const SPONSORS: { name: string; logo?: string }[] = [
-  { name: "Firecrawl" },
-  { name: "NodeOps" },
-  { name: "Superteam Brasil" },
-  { name: "Context.dev" },
-  { name: "Kodus" },
-  { name: "AbacatePay" },
-  { name: "Himetrica" },
-  { name: "Acelera Dev" },
-  { name: "UltraContext" },
-  { name: "Guara Cloud" },
-  { name: "Viral Day" },
-  { name: "Git Trophy" },
+// Official logos, tinted to one color. Icon-only ones show with the name, desktop only.
+export const SPONSORS: { name: string; logo: string; icon?: boolean }[] = [
+  { name: "Firecrawl", logo: "/partners/sponsors/firecrawl.svg" },
+  { name: "NodeOps", logo: "/partners/sponsors/nodeops.svg" },
+  { name: "Context.dev", logo: "/partners/sponsors/contextdev.svg" },
+  { name: "Kodus", logo: "/partners/sponsors/kodus.png" },
+  { name: "AbacatePay", logo: "/partners/sponsors/abacatepay.svg" },
+  { name: "Himetrica", logo: "/partners/sponsors/himetrica.svg" },
+  { name: "UltraContext", logo: "/partners/sponsors/ultracontext.svg", icon: true },
+  { name: "Guara Cloud", logo: "/partners/sponsors/guaracloud.png", icon: true },
 ];
 
 export const ABOUT_LINKS = [
   { name: "GitHub", href: "https://github.com/srizzon" },
   { name: "X", href: "https://x.com/samuelrizzondev" },
+  { name: "Instagram", href: "https://www.instagram.com/samuelrizzondev" },
+  { name: "YouTube", href: "https://www.youtube.com/@samuelrizzondev" },
   { name: "samuelrizzon.dev", href: "https://www.samuelrizzon.dev" },
 ];
 
@@ -223,6 +222,14 @@ export const COPY = {
       cityLabel: "Git City",
       showLabel: "Show a placement",
       showAll: "Everything",
+      townLabel: "In the towns",
+      inboxLabel: "In the inbox",
+      inboxText:
+        "Git City's update email reaches 31,000+ developers. Each one can carry a line for your brand:",
+      poweredBy: "Powered by",
+      drive: "Drive through it",
+      driveHint: "WASD or arrows · Space to drift · Esc to stop",
+      loading: "Starting the car...",
       prevPlacement: "Previous placement",
       nextPlacement: "Next placement",
       placeholder: "Your brand",
@@ -424,6 +431,14 @@ export const COPY = {
       cityLabel: "Git City",
       showLabel: "Mostrar um placement",
       showAll: "Tudo",
+      townLabel: "Nas towns",
+      inboxLabel: "No email",
+      inboxText:
+        "O email de novidades do Git City chega em mais de 31 mil devs. Cada envio pode levar uma linha da sua marca:",
+      poweredBy: "Powered by",
+      drive: "Dirigir por ela",
+      driveHint: "WASD ou setas · Espaço pro drift · Esc pra parar",
+      loading: "Ligando o carro...",
       prevPlacement: "Placement anterior",
       nextPlacement: "Próximo placement",
       placeholder: "Sua marca",
