@@ -43,6 +43,14 @@ export const SOCIAL_SLIDES = [
   },
 ];
 
+// Drop the files in public/partners/videos and list them here as they arrive.
+export const PLAY_VIDEOS: Record<string, { src: string; poster: string } | undefined> = {
+  fly: undefined,
+  towns: { src: "/partners/videos/towns.mp4", poster: "/partners/videos/towns.jpg" },
+  drive: undefined,
+  raids: undefined,
+};
+
 export const PRESS = [
   {
     name: "The Next Web",
@@ -153,6 +161,33 @@ export const COPY = {
           date: "Sep 26",
           title: "Towns",
           text: "Dev communities start competing on commits every week.",
+        },
+      ],
+    },
+    play: {
+      kicker: "Inside the game",
+      title: "What developers do here",
+      videoLabel: "Gameplay video:",
+      items: [
+        {
+          id: "fly",
+          title: "Fly",
+          text: "Search any username and fly to their building, with other developers in the air live.",
+        },
+        {
+          id: "towns",
+          title: "Towns",
+          text: "The town with the most commits per developer each week takes the plaza monument.",
+        },
+        {
+          id: "drive",
+          title: "Drive",
+          text: "Cars with drift and turbo, timed laps on real tracks, and rival buildings to knock down.",
+        },
+        {
+          id: "raids",
+          title: "Raids",
+          text: "17,100 raids so far, developers attacking each other's buildings.",
         },
       ],
     },
@@ -275,6 +310,33 @@ export const COPY = {
           date: "26 set",
           title: "Towns",
           text: "Comunidades de devs começam a competir em commits toda semana.",
+        },
+      ],
+    },
+    play: {
+      kicker: "Dentro do jogo",
+      title: "O que os devs fazem aqui",
+      videoLabel: "Vídeo do jogo:",
+      items: [
+        {
+          id: "fly",
+          title: "Voar",
+          text: "Busque qualquer usuário e voe até o prédio dele, com outros devs no ar ao vivo.",
+        },
+        {
+          id: "towns",
+          title: "Towns",
+          text: "A town com mais commits por dev na semana fica com o monumento da praça.",
+        },
+        {
+          id: "drive",
+          title: "Dirigir",
+          text: "Carros com drift e turbo, voltas cronometradas em pistas reais e prédios rivais pra derrubar.",
+        },
+        {
+          id: "raids",
+          title: "Raids",
+          text: "17.100 raids até agora, com devs atacando os prédios uns dos outros.",
         },
       ],
     },

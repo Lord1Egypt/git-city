@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { COPY, PRESS, langFromAcceptLanguage, type Copy, type Lang } from "./copy";
+import { COPY, PLAY_VIDEOS, PRESS, langFromAcceptLanguage, type Copy, type Lang } from "./copy";
 import GithubCarousel from "./GithubCarousel";
+import PlayVideo from "./PlayVideo";
 import ContactForm from "./ContactForm";
 
 async function getLang(): Promise<Lang> {
@@ -115,6 +116,28 @@ export default async function PartnersPage() {
               </li>
             ))}
           </ol>
+        </div>
+      </section>
+
+      <section className="border-t-[3px] border-border">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <p className="text-xs tracking-widest text-muted sm:text-sm">{t.play.kicker}</p>
+          <h2 className="mt-4 text-3xl leading-tight text-cream sm:text-4xl">{t.play.title}</h2>
+          <ul className="mt-10 grid gap-4 md:grid-cols-2">
+            {t.play.items.map((item) => (
+              <li key={item.id} className="flex flex-col border-[3px] border-border bg-bg-raised">
+                <PlayVideo
+                  src={PLAY_VIDEOS[item.id]?.src}
+                  poster={PLAY_VIDEOS[item.id]?.poster}
+                  label={`${t.play.videoLabel} ${item.title}`}
+                />
+                <div className="flex flex-col gap-3 p-6">
+                  <h3 className="text-lg text-lime sm:text-xl">{item.title}</h3>
+                  <p className="font-sans text-base text-warm normal-case tracking-normal">{item.text}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
