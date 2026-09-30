@@ -2,21 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// The town intro hands a newcomer the car and stops on a choice, where a
-// member gets the "W Drive" prompt: put your building here, or just drive.
-// It sits where the drive prompt sits, in the same key caps. Enter (or the
-// gamepad's A) takes the building, W / ↑ (or Esc, or B) drives on; on a
-// phone both are buttons. The car brakes to a stop underneath (DriveWorld held).
+// The town intro hands a newcomer the car and the game freezes on a choice
+// before anyone drives: put your building here, or just drive. Two big
+// options side by side (stacked on a phone). Enter (or the gamepad's A) takes
+// the building, Esc (or B) drives on.
 
-const THROTTLE = new Set(["KeyW", "ArrowUp"]);
 const PAD_A = 0;
 const PAD_B = 1;
 
-function Key({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+function KeyHint({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
   return (
-    <span
-      className={`flex h-9 items-center justify-center border-[3px] border-cream bg-bg px-2 text-sm text-cream shadow-[3px_3px_0_0_rgba(0,0,0,0.5)] ${wide ? "min-w-[4.5rem]" : "min-w-9"}`}
-    >
+    <span className={`border-2 px-1.5 py-0.5 text-[9px] max-sm:hidden ${dark ? "border-bg/40 text-bg/70" : "border-border text-muted"}`}>
       {children}
     </span>
   );
@@ -25,7 +21,7 @@ function Key({ children, wide = false }: { children: React.ReactNode; wide?: boo
 export default function ArrivalChoice({
   town,
   label,
-  touch = false,
+  detail,
   onJoin,
   onDrive,
 }: {
@@ -33,7 +29,8 @@ export default function ArrivalChoice({
   town: string;
   /** The main action: "Add your building", "Ask to move in"… */
   label: string;
-  touch?: boolean;
+  /** One line on what the main action does. */
+  detail: string;
   onJoin: () => void;
   onDrive: () => void;
 }) {
@@ -55,11 +52,9 @@ export default function ArrivalChoice({
       if (e.key === "Enter") {
         e.preventDefault();
         actions.current.join();
-      } else if (e.key === "Escape" || THROTTLE.has(e.code)) {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         actions.current.onDrive();
       }
     };
@@ -88,35 +83,44 @@ export default function ArrivalChoice({
   }, []);
 
   return (
-    <div className={`pointer-events-none absolute inset-x-0 flex justify-center px-4 ${touch ? "top-[24%]" : "bottom-[22%]"}`}>
-      {/* Waits for the intro's title to fade and its bars to pull back, like the drive prompt. */}
-      <div role="dialog" aria-label={`Want your building in ${town}?`} className="flex animate-[fade-in_0.4s_ease-out_0.5s_both] flex-col items-center gap-4">
-        <p className="text-center text-[11px] tracking-widest sm:text-[13px] text-cream [text-shadow:2px_2px_0_rgba(0,0,0,0.6)]">
-          Want your building in {town}?
-        </p>
-        {touch ? (
-          <div className="pointer-events-auto flex flex-col items-stretch gap-2">
-            <button type="button" onClick={join} disabled={busy} className="btn-press bg-lime px-6 py-3 text-[11px] tracking-widest text-bg disabled:opacity-60">
-              {busy ? "Opening..." : label}
-            </button>
-            <button type="button" onClick={onDrive} className="btn-press border-[3px] border-cream bg-bg/70 px-6 py-2.5 text-[11px] tracking-widest text-cream">
-              Just drive
-            </button>
-          </div>
-        ) : (
-          <div className="pointer-events-auto flex items-center gap-8">
-            <button type="button" onClick={join} disabled={busy} className="group flex items-center gap-3 disabled:opacity-60">
-              <Key wide>Enter</Key>
-              <span className="text-lg tracking-widest text-lime [text-shadow:2px_2px_0_rgba(0,0,0,0.6)] group-hover:underline">
-                {busy ? "Opening..." : label}
-              </span>
-            </button>
-            <button type="button" onClick={onDrive} className="group flex items-center gap-3">
-              <Key>W</Key>
-              <span className="text-lg tracking-widest text-cream [text-shadow:2px_2px_0_rgba(0,0,0,0.6)] group-hover:underline">Just drive</span>
-            </button>
-          </div>
-        )}
+    <div
+      role="dialog"
+      aria-label={`Want your building in ${town}?`}
+      // Waits for the intro's title to fade and its bars to pull back.
+      className="pointer-events-auto absolute inset-0 flex animate-[fade-in_0.4s_ease-out_0.4s_both] items-center justify-center bg-bg/70 px-4 backdrop-blur-sm"
+    >
+      <div className="flex w-full max-w-[720px] flex-col gap-6 sm:gap-8">
+        <div className="flex flex-col gap-3 text-center">
+          <p className="text-[10px] tracking-widest text-lime sm:text-xs">Welcome to {town}</p>
+          <h2 className="text-xl leading-snug text-cream sm:text-3xl">Want your building here?</h2>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+          <button
+            type="button"
+            onClick={join}
+            disabled={busy}
+            className="btn-press flex flex-col gap-3 border-[3px] border-lime bg-lime p-4 text-left text-bg disabled:opacity-70 sm:p-6"
+          >
+            <span className="text-sm tracking-widest sm:text-base">{busy ? "Opening..." : label}</span>
+            <span className="text-[11px] leading-relaxed normal-case text-bg/80 sm:text-xs">{detail}</span>
+            <span className="mt-auto pt-1">
+              <KeyHint dark>Enter</KeyHint>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onDrive}
+            className="btn-press flex flex-col gap-3 border-[3px] border-border bg-bg-card p-4 text-left text-cream transition-colors hover:border-cream sm:p-6"
+          >
+            <span className="text-sm tracking-widest sm:text-base">Just drive</span>
+            <span className="text-[11px] leading-relaxed normal-case text-muted sm:text-xs">Look around first. Add your building anytime from the top bar.</span>
+            <span className="mt-auto pt-1">
+              <KeyHint>Esc</KeyHint>
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );

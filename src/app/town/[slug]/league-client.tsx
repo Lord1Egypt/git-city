@@ -439,6 +439,12 @@ export default function LeagueClient({
   // Newcomers: the intro's handoff stops on a choice (ArrivalChoice), put your building here or just drive.
   const offerJoin = !isMember && (joinAction === "join" || joinAction === "ask" || joinAction === "verify");
   const joinLabel = joinAction === "ask" ? "Ask to move in" : joinAction === "verify" ? "Work here? Move in" : "Add your building";
+  const joinDetail =
+    joinAction === "verify"
+      ? "Show you're in the org on GitHub and your building moves in."
+      : joinAction === "ask"
+        ? `${viewer ? "Ask" : "Sign in with GitHub and ask"} the admin to let your building in.`
+        : `${viewer ? "Move" : "Sign in with GitHub and move"} into the skyline. Race with the town every week.`;
   const [arriving, setArriving] = useState(false);
   // Phone controls (lib drive/touch): on screen on touch devices, read by the car.
   const touchRef = useRef<TouchDrive>(createTouch());
@@ -606,9 +612,9 @@ export default function LeagueClient({
             volume,
             emoteApi,
             onEmoteLog: emoteLog.push,
-            paused: paused || !!gate?.open,
+            // The arrival choice freezes the game: nobody drives before choosing.
+            paused: paused || !!gate?.open || arriving,
             stallAt: gate && !gate.open ? gate.stallAt : null,
-            held: arriving,
             onReady: onDriveReady,
             onFail: onDriveFail,
             slug: league.slug,
@@ -1053,7 +1059,7 @@ export default function LeagueClient({
           <ArrivalChoice
             town={townDisplayName(league.name)}
             label={joinLabel}
-            touch={touchUi}
+            detail={joinDetail}
             onJoin={joinFromCar}
             onDrive={() => setArriving(false)}
           />
