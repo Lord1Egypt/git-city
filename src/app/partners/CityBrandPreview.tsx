@@ -1,8 +1,9 @@
 "use client";
 
 import "@/lib/silenceThreeClockWarning";
-import { Suspense, useEffect, useMemo } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { BannerPlane, Blimp } from "@/components/SkyAds";
@@ -117,7 +118,100 @@ function City() {
   );
 }
 
-export default function CityBrandPreview({ brand }: { brand: string }) {
+export type CityFocus = "all" | "billboard" | "sign" | "plane" | "blimp";
+
+const HOME_CAM = new THREE.Vector3(130, 150, 210);
+const HOME_TARGET = new THREE.Vector3(0, 115, 0);
+const FOCUS_DIST: Record<Exclude<CityFocus, "all">, number> = {
+  billboard: 60,
+  sign: 60,
+  plane: 95,
+  blimp: 85,
+};
+
+// Scratch vectors reused every frame.
+const tmp = new THREE.Vector3();
+const dir = new THREE.Vector3();
+const want = new THREE.Vector3();
+const side = new THREE.Vector3();
+
+type Meshes = Partial<Record<Exclude<CityFocus, "all">, THREE.Mesh | null>>;
+
+// Flies the camera to the picked placement, then rides along with it (plane and
+// blimp keep moving) while leaving the visitor free to orbit around it.
+function FocusRig({
+  focus,
+  meshes,
+  controls,
+}: {
+  focus: CityFocus;
+  meshes: React.RefObject<Meshes>;
+  controls: React.RefObject<OrbitControlsImpl | null>;
+}) {
+  const { camera } = useThree();
+  const moving = useRef(true);
+  const last = useRef<THREE.Vector3 | null>(null);
+
+  useEffect(() => {
+    moving.current = true;
+    last.current = null;
+  }, [focus]);
+
+  useFrame((_, delta) => {
+    const c = controls.current;
+    if (!c) return;
+    let point: THREE.Vector3;
+    if (focus === "all") {
+      point = HOME_TARGET;
+    } else {
+      const mesh = meshes.current?.[focus];
+      if (!mesh) return;
+      point = mesh.getWorldPosition(tmp);
+    }
+    const k = 1 - Math.exp(-delta * 3);
+    if (moving.current) {
+      if (focus === "all") want.copy(HOME_CAM);
+      else {
+        // Face the ad's screen: its plane normal, on the side the camera is already on.
+        const mesh = meshes.current?.[focus];
+        if (mesh) mesh.getWorldDirection(dir);
+        else dir.copy(camera.position).sub(c.target);
+        side.copy(camera.position).sub(point);
+        // The billboard only has a front; two-sided ads keep the side the camera is on.
+        if (focus !== "billboard" && dir.dot(side) < 0) dir.negate();
+        dir.y = Math.max(dir.y, 0) + 0.25;
+        dir.normalize();
+        want.copy(point).addScaledVector(dir, FOCUS_DIST[focus]);
+      }
+      c.target.lerp(point, k);
+      camera.position.lerp(want, k);
+      if (c.target.distanceTo(point) < 0.5 && camera.position.distanceTo(want) < 1)
+        moving.current = false;
+    } else if (focus !== "all") {
+      if (last.current) {
+        const d = tmp.clone().sub(last.current);
+        camera.position.add(d);
+        c.target.add(d);
+      }
+      last.current = (last.current ?? new THREE.Vector3()).copy(point);
+    }
+    c.update();
+  });
+  return null;
+}
+
+export default function CityBrandPreview({
+  brand,
+  focus = "all",
+}: {
+  brand: string;
+  focus?: CityFocus;
+}) {
+  const meshes = useRef<Meshes>({});
+  const controls = useRef<OrbitControlsImpl | null>(null);
+  const grab = (key: Exclude<CityFocus, "all">) => (el: THREE.Mesh | null) => {
+    meshes.current[key] = el;
+  };
   const base: SkyAd = useMemo(
     () => ({
       id: "preview",
@@ -139,15 +233,15 @@ export default function CityBrandPreview({ brand }: { brand: string }) {
       <fog attach="fog" args={[THEME.fogColor, THEME.fogNear, THEME.fogFar]} />
       <ThemeLights theme={THEME} themeIndex={0} />
       <City />
-      <AdBillboard ad={base} building={HERO} />
+      <AdBillboard ad={base} building={HERO} meshRef={grab("billboard")} />
       <AdRooftopSign
-       
+        meshRef={grab("sign")}
         ad={{ ...base, vehicle: "rooftop_sign" }}
         building={SIGN_TOWER}
       />
       <Suspense fallback={null}>
         <BannerPlane
-         
+          meshRef={grab("plane")}
           ad={{ ...base, vehicle: "plane" }}
           index={0}
           total={1}
@@ -156,7 +250,7 @@ export default function CityBrandPreview({ brand }: { brand: string }) {
           path={{ cx: 0, cz: 0, r: 120, altitude: 142 }}
         />
         <Blimp
-         
+          screenRef={grab("blimp")}
           ad={{ ...base, vehicle: "blimp" }}
           index={0}
           total={1}
@@ -165,14 +259,16 @@ export default function CityBrandPreview({ brand }: { brand: string }) {
           path={{ cx: -40, cz: -30, r: 16, altitude: 158 }}
         />
       </Suspense>
+      <FocusRig focus={focus} meshes={meshes} controls={controls} />
       <OrbitControls
+        ref={controls}
         target={[0, 115, 0]}
         enablePan
         screenSpacePanning
         minDistance={40}
         maxDistance={520}
         maxPolarAngle={Math.PI * 0.49}
-        autoRotate
+        autoRotate={focus === "all"}
         autoRotateSpeed={0.35}
       />
     </Canvas>

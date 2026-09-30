@@ -197,7 +197,8 @@ export const COPY = {
       note: "Every placement is clickable, and you get a report of views and clicks.",
       inputLabel: "Type your brand",
       cityLabel: "Git City",
-      hint: "Drag to orbit · scroll to zoom",
+      showLabel: "Show a placement",
+      showAll: "Everything",
       placeholder: "Your brand",
       winner: "Winner",
       prizeBy: "Prize by",
@@ -205,22 +206,22 @@ export const COPY = {
         {
           id: "billboard",
           title: "Billboards",
-          text: "Your logo on billboards across the city's buildings, one click from your site.",
+          text: "A screen on the side of a tower. Clicking it opens your site.",
         },
         {
           id: "sign",
           title: "Rooftop signs",
-          text: "A lit sign spinning on top of a tower, seen from anywhere in the skyline.",
+          text: "A lit sign spinning on a rooftop, above the skyline.",
         },
         {
           id: "plane",
           title: "Planes",
-          text: "A plane tows your banner across the skyline, in the city and in the towns.",
+          text: "A plane tows your banner in circles over the city.",
         },
         {
           id: "blimp",
           title: "Blimps",
-          text: "A blimp with your brand circles the city's landmarks.",
+          text: "A blimp floats over the city with your brand on its screens.",
         },
         {
           id: "prize",
@@ -384,7 +385,8 @@ export const COPY = {
       note: "Todo placement é clicável, e você recebe um relatório de views e cliques.",
       inputLabel: "Digite sua marca",
       cityLabel: "Git City",
-      hint: "Arraste pra girar · role pra dar zoom",
+      showLabel: "Mostrar um placement",
+      showAll: "Tudo",
       placeholder: "Sua marca",
       winner: "Vencedora",
       prizeBy: "Prêmio de",
@@ -392,22 +394,22 @@ export const COPY = {
         {
           id: "billboard",
           title: "Billboards",
-          text: "Sua marca em billboards nos prédios da cidade, a um clique do seu site.",
+          text: "Uma tela na lateral de uma torre. Clicar nela abre o seu site.",
         },
         {
           id: "sign",
           title: "Letreiros",
-          text: "Um letreiro aceso girando no topo de uma torre, visto de qualquer ponto do skyline.",
+          text: "Um letreiro aceso girando no topo de um prédio, acima do skyline.",
         },
         {
           id: "plane",
           title: "Aviões",
-          text: "Um avião leva sua faixa pelo skyline, na cidade e nas towns.",
+          text: "Um avião dá voltas sobre a cidade puxando sua faixa.",
         },
         {
           id: "blimp",
           title: "Balões",
-          text: "Um balão com sua marca circula pelos landmarks da cidade.",
+          text: "Um balão flutua sobre a cidade com sua marca nas telas.",
         },
         {
           id: "prize",

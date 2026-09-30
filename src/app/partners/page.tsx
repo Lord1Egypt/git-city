@@ -163,11 +163,7 @@ export default async function PartnersPage() {
 
       <section className="border-t-[3px] border-border">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-          <p className="text-xs tracking-widest text-muted sm:text-sm">{t.formats.kicker}</p>
-          <h2 className="mt-4 text-3xl leading-tight text-cream sm:text-4xl">{t.formats.title}</h2>
-          <div className="mt-10">
-            <BrandPreview t={t.formats} />
-          </div>
+          <BrandPreview t={t.formats} />
         </div>
       </section>
 
