@@ -98,7 +98,6 @@ export const COPY = {
       titleAccent: "developers built",
       sub: "87,600 GitHub developers live here as buildings. Sponsor a town war, light up a billboard or fly a plane or blimp over the skyline.",
       cta: "Become a partner",
-      secondary: "How to sponsor",
     },
     proof: {
       stats: [
@@ -272,6 +271,12 @@ export const COPY = {
       name: "Samuel Rizzon",
       text: "Product engineer from Brazil, coding for ten years. He built the first version of Git City alone in a day and keeps it open source. He also made ZardUI, an open-source component library for Angular.",
     },
+    rateCard: {
+      kicker: "Rate card",
+      title: "Sponsor an event or a town",
+      sub: "You pay in prizes for developers, not money.",
+      cta: "See the rate card",
+    },
     contact: {
       title: "Become a partner",
       sub: "Tell us who you are. Samuel replies within 2 business days.",
@@ -307,7 +312,6 @@ export const COPY = {
       titleAccent: "os devs construíram",
       sub: "87.600 devs do GitHub vivem aqui como prédios. Patrocine uma guerra de towns, acenda um billboard ou voe com um avião ou balão sobre o skyline.",
       cta: "Seja parceiro",
-      secondary: "Como patrocinar",
     },
     proof: {
       stats: [
@@ -480,6 +484,12 @@ export const COPY = {
       kicker: "Quem faz",
       name: "Samuel Rizzon",
       text: "Product engineer brasileiro, programando há dez anos. Fez a primeira versão do Git City sozinho em um dia e mantém o projeto open source. Também criou o ZardUI, uma biblioteca de componentes open source pra Angular.",
+    },
+    rateCard: {
+      kicker: "Rate card",
+      title: "Patrocine um evento ou uma town",
+      sub: "Você paga em prêmios pros devs, não em dinheiro.",
+      cta: "Ver o rate card",
     },
     contact: {
       title: "Seja parceiro",

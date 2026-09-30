@@ -90,12 +90,6 @@ export default async function PartnersPage() {
             >
               {t.hero.cta}
             </a>
-            <Link
-              href="/partners/sponsor"
-              className="btn-press border-[3px] border-border px-6 py-2.5 text-sm tracking-widest text-muted transition-colors hover:text-cream sm:text-base"
-            >
-              {t.hero.secondary}
-            </Link>
           </div>
         </div>
       </header>
@@ -242,6 +236,22 @@ export default async function PartnersPage() {
               ))}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="border-t-[3px] border-border">
+        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-16 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-20">
+          <div className="flex flex-col gap-3">
+            <p className="text-xs tracking-widest text-muted sm:text-sm">{t.rateCard.kicker}</p>
+            <h2 className="text-3xl leading-tight text-cream sm:text-4xl">{t.rateCard.title}</h2>
+            <p className="text-sm text-lime normal-case sm:text-base">{t.rateCard.sub}</p>
+          </div>
+          <Link
+            href="/partners/rate-card"
+            className="btn-press shrink-0 bg-lime px-6 py-3 text-sm tracking-widest text-bg sm:text-base"
+          >
+            {t.rateCard.cta}
+          </Link>
         </div>
       </section>
 
