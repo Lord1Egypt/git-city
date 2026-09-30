@@ -9,8 +9,14 @@ export default function GithubCarousel({ t }: { t: Copy["social"] }) {
   const [index, setIndex] = useState(0);
   const count = SOCIAL_SLIDES.length;
   const slide = SOCIAL_SLIDES[index];
-  const text: { source: string; big: string; quote: string; detail?: string; cta?: string; imageAlt: string } =
-    t.slides[index];
+  const text: {
+    source: string;
+    big: string;
+    quote: string;
+    detail?: string;
+    cta?: string;
+    imageAlt: string;
+  } = t.slides[index];
   const go = (next: number) => setIndex((next + count) % count);
 
   return (
@@ -22,7 +28,9 @@ export default function GithubCarousel({ t }: { t: Copy["social"] }) {
           &ldquo;{text.quote}&rdquo;
         </blockquote>
         {text.detail && (
-          <p className="mt-4 font-sans text-base text-muted normal-case tracking-normal">{text.detail}</p>
+          <p className="mt-4 font-sans text-base text-muted normal-case tracking-normal">
+            {text.detail}
+          </p>
         )}
         <div className="mt-8 flex flex-wrap gap-2">
           {slide.links.map((link) => (
@@ -39,7 +47,12 @@ export default function GithubCarousel({ t }: { t: Copy["social"] }) {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-col gap-4" role="region" aria-roledescription="carousel" aria-label={t.carouselLabel}>
+      <div
+        className="flex min-w-0 flex-col gap-4"
+        role="region"
+        aria-roledescription="carousel"
+        aria-label={t.carouselLabel}
+      >
         <a
           href={slide.imageHref}
           target="_blank"

@@ -4,7 +4,15 @@ import { useEffect, useRef } from "react";
 
 // A muted 16:9 loop that plays only while on screen and never for reduced motion.
 // With no `src` yet it keeps the frame, so the grid is ready for the videos.
-export default function PlayVideo({ src, poster, label }: { src?: string; poster?: string; label: string }) {
+export default function PlayVideo({
+  src,
+  poster,
+  label,
+}: {
+  src?: string;
+  poster?: string;
+  label: string;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {

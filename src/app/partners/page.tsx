@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { COPY, PLAY_VIDEOS, PRESS, langFromAcceptLanguage, type Copy, type Lang } from "./copy";
 import GithubCarousel from "./GithubCarousel";
 import PlayVideo from "./PlayVideo";
+import BrandPreview from "./BrandPreview";
 import ContactForm from "./ContactForm";
 
 async function getLang(): Promise<Lang> {
@@ -20,7 +21,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t.meta.title,
     description: t.meta.description,
-    openGraph: { title: t.meta.title, description: t.meta.description, siteName: "Git City", type: "website" },
+    openGraph: {
+      title: t.meta.title,
+      description: t.meta.description,
+      siteName: "Git City",
+      type: "website",
+    },
   };
 }
 
@@ -42,7 +48,9 @@ export default async function PartnersPage() {
           <h1 className="mt-5 max-w-4xl text-4xl leading-[1.25] text-cream sm:text-6xl">
             {t.hero.titleStart} <span className="text-lime">{t.hero.titleAccent}</span>
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-cream normal-case sm:text-lg">{t.hero.sub}</p>
+          <p className="mt-6 max-w-2xl text-base leading-relaxed text-cream normal-case sm:text-lg">
+            {t.hero.sub}
+          </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <a
               href="#contact"
@@ -65,8 +73,14 @@ export default async function PartnersPage() {
           <dl className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
             {t.proof.stats.map((stat, i) => (
               <div key={stat.label} className="flex flex-col-reverse justify-end gap-2">
-                <dt className="font-sans text-sm text-muted normal-case tracking-normal sm:text-base">{stat.label}</dt>
-                <dd className={`text-3xl tabular-nums sm:text-5xl ${i === 0 ? "text-lime" : "text-cream"}`}>{stat.value}</dd>
+                <dt className="font-sans text-sm text-muted normal-case tracking-normal sm:text-base">
+                  {stat.label}
+                </dt>
+                <dd
+                  className={`text-3xl tabular-nums sm:text-5xl ${i === 0 ? "text-lime" : "text-cream"}`}
+                >
+                  {stat.value}
+                </dd>
               </div>
             ))}
           </dl>
@@ -107,12 +121,16 @@ export default async function PartnersPage() {
                 <span
                   aria-hidden="true"
                   className={`absolute top-1 -left-[calc(2rem+9px)] h-4 w-4 ${
-                    i === t.story.items.length - 1 ? "bg-lime" : "border-[3px] border-border-light bg-bg"
+                    i === t.story.items.length - 1
+                      ? "bg-lime"
+                      : "border-[3px] border-border-light bg-bg"
                   }`}
                 />
                 <p className="text-xs tracking-widest text-muted">{item.date}</p>
                 <h3 className="mt-2 text-lg text-cream sm:text-xl">{item.title}</h3>
-                <p className="mt-1 font-sans text-base text-warm normal-case tracking-normal">{item.text}</p>
+                <p className="mt-1 font-sans text-base text-warm normal-case tracking-normal">
+                  {item.text}
+                </p>
               </li>
             ))}
           </ol>
@@ -133,11 +151,23 @@ export default async function PartnersPage() {
                 />
                 <div className="flex flex-col gap-3 p-6">
                   <h3 className="text-lg text-lime sm:text-xl">{item.title}</h3>
-                  <p className="font-sans text-base text-warm normal-case tracking-normal">{item.text}</p>
+                  <p className="font-sans text-base text-warm normal-case tracking-normal">
+                    {item.text}
+                  </p>
                 </div>
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      <section className="border-t-[3px] border-border">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <p className="text-xs tracking-widest text-muted sm:text-sm">{t.formats.kicker}</p>
+          <h2 className="mt-4 text-3xl leading-tight text-cream sm:text-4xl">{t.formats.title}</h2>
+          <div className="mt-10">
+            <BrandPreview t={t.formats} />
+          </div>
         </div>
       </section>
 

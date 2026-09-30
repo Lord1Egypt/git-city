@@ -88,7 +88,9 @@ export default function ContactForm({ t, lang }: { t: Copy["contact"]; lang: Lan
     return (
       <div className="border-[3px] border-lime bg-bg-raised p-6" role="status" aria-live="polite">
         <p className="text-lg text-lime">{t.sentTitle}</p>
-        <p className="mt-2 font-sans text-base text-cream normal-case tracking-normal">{t.sentText}</p>
+        <p className="mt-2 font-sans text-base text-cream normal-case tracking-normal">
+          {t.sentText}
+        </p>
       </div>
     );
   }
@@ -100,9 +102,19 @@ export default function ContactForm({ t, lang }: { t: Copy["contact"]; lang: Lan
   ];
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} noValidate autoComplete="off" {...NO_FILL} className="flex flex-col gap-5">
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      noValidate
+      autoComplete="off"
+      {...NO_FILL}
+      className="flex flex-col gap-5"
+    >
       <p className="text-xs tracking-widest text-muted">
-        <span className="text-lime" aria-hidden="true">*</span> {t.requiredNote}
+        <span className="text-lime" aria-hidden="true">
+          *
+        </span>{" "}
+        {t.requiredNote}
       </p>
       <div className="grid gap-5 sm:grid-cols-3">
         {fields.map((f) => {
@@ -110,7 +122,10 @@ export default function ContactForm({ t, lang }: { t: Copy["contact"]; lang: Lan
           return (
             <div key={f.id} className="flex flex-col gap-2">
               <label htmlFor={`partner-${f.key}`} className="text-xs tracking-widest text-warm">
-                {f.label} <span className="text-lime" aria-hidden="true">*</span>
+                {f.label}{" "}
+                <span className="text-lime" aria-hidden="true">
+                  *
+                </span>
               </label>
               <input
                 id={`partner-${f.key}`}
@@ -130,7 +145,10 @@ export default function ContactForm({ t, lang }: { t: Copy["contact"]; lang: Lan
                 className={`${inputBase} ${error ? "border-red-400 focus-visible:border-red-400" : "border-border hover:border-border-light"}`}
               />
               {error && (
-                <p id={`partner-${f.key}-error`} className="font-sans text-sm text-red-400 normal-case tracking-normal">
+                <p
+                  id={`partner-${f.key}-error`}
+                  className="font-sans text-sm text-red-400 normal-case tracking-normal"
+                >
                   {error}
                 </p>
               )}
