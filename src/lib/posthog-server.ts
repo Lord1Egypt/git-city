@@ -7,3 +7,18 @@ export function getPostHogClient(): PostHog {
     flushInterval: 0,
   });
 }
+
+/** One server-side event. Never throws: analytics must not break the request. */
+export async function captureServer(
+  distinctId: string,
+  event: string,
+  properties: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const ph = getPostHogClient();
+    ph.capture({ distinctId, event, properties });
+    await ph.shutdown();
+  } catch (err) {
+    console.error("[posthog] capture failed", event, err);
+  }
+}

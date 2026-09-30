@@ -1,7 +1,8 @@
 import { NextResponse, after } from "next/server";
 import { getLeagueBySlug } from "@/lib/leagues/service";
 import { getDamage, getSmashTown, recordFalls, saveDamage, verifySmashSave, weekContribs } from "@/lib/league-city/smash-server";
-import { notifyDemolished } from "@/lib/notification-senders/town-demolished";
+import { isRevenge, notifyDemolished } from "@/lib/notification-senders/town-demolished";
+import { captureServer } from "@/lib/posthog-server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     const falls = await recordFalls(league.id, town, save);
     if (falls.length) {
       after(async () => {
+        for (const f of falls) {
+          await captureServer(f.attacker.toLowerCase(), "town_building_knocked_down", {
+            town_slug: league.slug,
+            victim_login: f.victim.toLowerCase(),
+            is_revenge: await isRevenge(f.attackerId, f.victimId).catch(() => false),
+          });
+        }
         for (const f of falls.slice(0, 20)) await notifyDemolished(league, f).catch((err) => console.error("[smash:email]", err));
       });
     }

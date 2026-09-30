@@ -237,12 +237,21 @@ export async function createCustomLeague(
  * left. Members an admin removed need a new invite. `ref` only credits who
  * shared the link. Company leagues are joined by verifying org membership.
  */
+export interface JoinOutcome {
+  status: MemberStatus;
+  /** False when they were already an active member: nothing changed. */
+  joined: boolean;
+  via: "invite" | "link" | "open";
+  /** Rivalry only: the side they left to pick this one. */
+  switchedFrom: string | null;
+}
+
 export async function joinLeague(
   viewer: Viewer,
   league: League,
   ref: string | null,
   token: string | null,
-): Promise<MemberStatus> {
+): Promise<JoinOutcome> {
   if (league.kind === "company") {
     throw new LeagueError("needs_verification", "Verify your GitHub org membership to join this town.", 403);
   }
@@ -252,7 +261,7 @@ export async function joinLeague(
   const needsToken = existing?.status !== "active" && existing?.status !== "invited";
   const tokenOk = needsToken && tokenMatches(token, await getInviteToken(league.id));
   const decision = customJoinDecision(existing, tokenOk, league.join_mode === "open");
-  if (decision === "active") return "active";
+  if (decision === "active") return { status: "active", joined: false, via: "open", switchedFrom: null };
   if (decision === "removed") {
     throw new LeagueError("removed", "The admin removed you from this town. Ask them for a new invite.", 403);
   }
@@ -269,16 +278,18 @@ export async function joinLeague(
   }
 
   let invitedBy = existing?.invited_by ?? null;
-  if (decision === "token") {
-    invitedBy = null;
-    if (ref && LOGIN_RE.test(ref)) {
-      const { data: referrer } = await sb.from("developers").select("id").eq("github_login", ref.toLowerCase()).maybeSingle();
-      if (referrer && (await getMembership(league.id, referrer.id))?.status === "active") invitedBy = referrer.id;
-    }
+  if (decision === "token") invitedBy = null;
+  // The open link shared by a member (token), or /towns?ref=<login> on an open town.
+  if ((decision === "token" || decision === "open") && ref && LOGIN_RE.test(ref)) {
+    const { data: referrer } = await sb.from("developers").select("id").eq("github_login", ref.toLowerCase()).maybeSingle();
+    if (referrer && (await getMembership(league.id, referrer.id))?.status === "active") invitedBy = referrer.id;
   }
 
   const via = decision === "invited" ? "invite" : decision === "token" ? "link" : "open";
-  if (isRivalry(league.slug)) return pickSide(viewer, league, existing, invitedBy, via);
+  if (isRivalry(league.slug)) {
+    const switchedFrom = await pickSide(viewer, league, existing, invitedBy, via);
+    return { status: "active", joined: true, via, switchedFrom };
+  }
 
   // The count is locked, but the upsert below runs after the lock is gone, so
   // two joins at the same instant could go one league over. Harmless.
@@ -309,7 +320,7 @@ export async function joinLeague(
   }
   if (!league.admin_id) await reassignAdmin(league.id);
   invalidateLeague(league.id);
-  return "active";
+  return { status: "active", joined: true, via, switchedFrom: null };
 }
 
 // ─── Claude vs Codex ───────────────────────────────────
@@ -334,7 +345,8 @@ async function restoreMembership(leagueId: string, devId: number, before: Member
  * Joining a rivalry town is picking a side, which is all or nothing: one side
  * at a time (the database refuses two, migration 157), the week's side holds
  * until Monday, and a side comes with a building on it. Any step that fails
- * puts both memberships back as they were.
+ * puts both memberships back as they were. Returns the rival slug when the
+ * pick switched sides, else null.
  */
 async function pickSide(
   viewer: Viewer,
@@ -342,7 +354,7 @@ async function pickSide(
   existing: Membership | null,
   invitedBy: number | null,
   via: string,
-): Promise<MemberStatus> {
+): Promise<string | null> {
   const sb = getSupabaseAdmin();
   const rival = await getLeagueBySlug(rivalOf(league.slug) as string);
   const rivalBefore = rival ? await getMembership(rival.id, viewer.id) : null;
@@ -402,7 +414,7 @@ async function pickSide(
   await closeRequest(league.id, viewer.id, null);
   if (existing?.status === "invited" || via === "link") await inviteJoined(league.id, viewer.id, viewer.github_login, invitedBy);
   invalidateLeague(league.id);
-  return "active";
+  return rival && move === "switch" ? rival.slug : null;
 }
 
 /** Active member leaves: former (kept in the hall of fame), building out of the city. */

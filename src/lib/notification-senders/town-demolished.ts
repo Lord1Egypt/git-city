@@ -76,7 +76,7 @@ export function renderTownDemolishedEmail(d: TownDemolishedEmailData, links: Ema
 }
 
 /** Whether the victim had knocked one of the attacker's buildings down lately (in any town). */
-async function isRevenge(attackerId: number, victimId: number): Promise<boolean> {
+export async function isRevenge(attackerId: number, victimId: number): Promise<boolean> {
   const { data, error } = await getSupabaseAdmin()
     .from("town_demolitions")
     .select("id")

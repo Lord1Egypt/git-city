@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getLeagueBySlug, getViewer, leaveLeague } from "@/lib/leagues/service";
 import { assertSameOrigin, leagueErrorResponse } from "@/lib/leagues/http";
+import { captureServer } from "@/lib/posthog-server";
+import { isRivalry } from "@/lib/towns/rivalry";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
   try {
     await leaveLeague(viewer, league);
+    await captureServer(viewer.github_login.toLowerCase(), "town_left", { town_slug: league.slug, is_rivalry: isRivalry(league.slug) });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return leagueErrorResponse(err);
