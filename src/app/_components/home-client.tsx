@@ -1020,7 +1020,6 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
         const login = (s.user?.user_metadata?.user_name ?? s.user?.user_metadata?.preferred_username ?? "").toLowerCase();
         if (login) {
           identifyUser({ github_login: login, email: s.user?.email ?? undefined });
-          posthog.identify(login, { github_login: login, email: s.user?.email });
         }
       }
     });
@@ -1030,11 +1029,7 @@ function HomeContent({ serverIsAdmin, townOfWeek }: HomeContentProps) {
         const login = (s.user?.user_metadata?.user_name ?? s.user?.user_metadata?.preferred_username ?? "").toLowerCase();
         if (login) {
           identifyUser({ github_login: login, email: s.user?.email ?? undefined });
-          posthog.identify(login, { github_login: login, email: s.user?.email });
         }
-      }
-      if (event === "SIGNED_OUT") {
-        posthog.reset();
       }
     });
     return () => subscription.unsubscribe();

@@ -5,6 +5,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import GlobalRadio from "@/components/GlobalRadio";
 import EmailNotice from "@/components/EmailNotice";
 import CaptureMode from "@/components/CaptureMode";
+import PostHogIdentify from "@/components/PostHogIdentify";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -101,6 +102,7 @@ export default function RootLayout({
         <GlobalRadio />
         <EmailNotice />
         <CaptureMode />
+        <PostHogIdentify />
         <Analytics />
         <SpeedInsights />
         {process.env.NEXT_PUBLIC_HIMETRICA_API_KEY && (
