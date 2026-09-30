@@ -57,8 +57,8 @@ function frame(children: React.ReactNode) {
 }
 
 /** The result: each side's logo and name over its per dev, and the tug bar. */
-function scoreboard(d: TownsBattleImage) {
-  const [a, b] = d.kind === "result" ? [d.claude, d.codex] : [null, null];
+function scoreboard(d: Extract<TownsBattleImage, { kind: "result" }>) {
+  const [a, b] = [d.claude, d.codex];
   const share = a !== null && b !== null && a + b > 0 ? a / (a + b) : 0.5;
   return frame(
     <div style={{ position: "absolute", left: M, top: 56, width: W - 2 * M, display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -73,7 +73,7 @@ function scoreboard(d: TownsBattleImage) {
               )}
               <span style={{ fontSize: 44, color: colorOf(s), lineHeight: 1 }}>{nameOf(s)}</span>
             </div>
-            <span style={{ fontSize: 150, color: colorOf(s), lineHeight: 1, marginTop: 18 }}>{d.kind === "start" ? "0" : score(i === 0 ? a : b)}</span>
+            <span style={{ fontSize: 150, color: colorOf(s), lineHeight: 1, marginTop: 18 }}>{score(i === 0 ? a : b)}</span>
           </div>
         ))}
       </div>
