@@ -1,7 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { isoDay, weekEnd, weekStart, type TownScore } from "@/lib/leagues/scoring";
+import { isoDay, townDays, weekEnd, weekStart, type TownScore } from "@/lib/leagues/scoring";
 import { loadStandings } from "@/lib/leagues/standings";
 import { BATTLE_START, RIVALRY } from "./rivalry";
 import { SIDES, battlePhase, battleWeekNumber, dayWinners, finishedDays, seriesRecord, weekWinner, type Side } from "./battle-rules";
@@ -25,8 +25,13 @@ export interface BattleSide {
 
 export interface BattleState {
   phase: "pick" | "live";
-  week: { start: string; end: string };
-  /** Who won each day so far, Mon..Sun ("open" = not over yet). */
+  /** "result" all Monday (UTC) once last week closed: the sides show that week's final. */
+  showing: "live" | "result";
+  /** The week the sides show. `number` 1 is the week starting BATTLE_START. */
+  week: { start: string; end: string; number: number };
+  /** The week that runs now (ends Sunday night): the countdown. */
+  current: { start: string; end: string; number: number };
+  /** Who won each day, Mon..Sun ("open" = not over yet). */
   dayWinners: (Side | null | "open")[];
   sides: Record<Side, BattleSide>;
   /** The battle week that closed last Monday. Null before the first close. */
@@ -35,10 +40,23 @@ export interface BattleState {
 }
 
 const TOP = 3;
+const NO_DAYS = [0, 0, 0, 0, 0, 0, 0];
+
+type SideLoad = Omit<BattleSide, "daysWon">;
 
 interface WeekLoad {
-  sides: Record<Side, Omit<BattleSide, "daysWon">>;
+  live: Record<Side, SideLoad>;
   closed: { start: string; claude: TownScore | null; codex: TownScore | null }[];
+  /** The last closed week as frozen by the close, for the Monday result. */
+  prev: Record<Side, SideLoad> | null;
+}
+
+/** A standings entry as league_weeks freezes it (STANDINGS_VERSION 2). */
+interface FrozenEntry {
+  login: string;
+  avatar_url: string | null;
+  total: number;
+  days?: number[];
 }
 
 async function rivalryIds(): Promise<Record<Side, string | null>> {
@@ -51,22 +69,25 @@ async function rivalryIds(): Promise<Record<Side, string | null>> {
   return { claude: id(0), codex: id(1) };
 }
 
+function sideOf(town: TownScore | null, entries: FrozenEntry[], days: number[]): SideLoad {
+  return {
+    perDev: town?.perDev ?? null,
+    coding: town?.coding ?? entries.filter((e) => e.total > 0).length,
+    days,
+    top: entries
+      .filter((e) => e.total > 0)
+      .slice(0, TOP)
+      .map((e) => ({ login: e.login, avatar_url: e.avatar_url, total: e.total })),
+  };
+}
+
 async function loadWeek(startDay: string): Promise<WeekLoad> {
   const ids = await rivalryIds();
   const refs = SIDES.flatMap((s) => (ids[s] ? [{ id: ids[s] as string }] : []));
   const standings = await loadStandings(refs, new Date(`${startDay}T00:00:00Z`));
-
-  const side = (s: Side): Omit<BattleSide, "daysWon"> => {
+  const live = (s: Side): SideLoad => {
     const w = ids[s] ? standings.get(ids[s] as string) : undefined;
-    return {
-      perDev: w?.town?.perDev ?? null,
-      coding: w?.town?.coding ?? w?.standings.filter((e) => e.total > 0).length ?? 0,
-      days: w?.days ?? [0, 0, 0, 0, 0, 0, 0],
-      top: (w?.standings ?? [])
-        .filter((e) => e.total > 0)
-        .slice(0, TOP)
-        .map((e) => ({ login: e.login, avatar_url: e.avatar_url, total: e.total })),
-    };
+    return sideOf(w?.town ?? null, w?.standings ?? [], w?.days ?? NO_DAYS);
   };
 
   // Closed battle weeks, frozen by the Monday close (league_weeks).
@@ -78,29 +99,37 @@ async function loadWeek(startDay: string): Promise<WeekLoad> {
     .lt("week_start", startDay)
     .order("week_start");
   if (error) throw error;
-  const byWeek = new Map<string, { claude: TownScore | null; codex: TownScore | null }>();
+  type Frozen = { town?: TownScore | null; standings?: FrozenEntry[] } | null;
+  const byWeek = new Map<string, Record<Side, Frozen>>();
   for (const r of rows ?? []) {
     const s: Side = r.league_id === ids.claude ? "claude" : "codex";
     const entry = byWeek.get(r.week_start as string) ?? { claude: null, codex: null };
-    entry[s] = (r.standings as { town?: TownScore | null } | null)?.town ?? null;
+    entry[s] = r.standings as Frozen;
     byWeek.set(r.week_start as string, entry);
   }
 
+  const prevStart = new Date(`${startDay}T00:00:00Z`);
+  prevStart.setUTCDate(prevStart.getUTCDate() - 7);
+  const prev = byWeek.get(isoDay(prevStart));
+  const frozenSide = (f: Frozen): SideLoad => {
+    const entries = f?.standings ?? [];
+    return sideOf(f?.town ?? null, entries, townDays(entries.map((e) => e.days ?? NO_DAYS)));
+  };
+
   return {
-    sides: { claude: side("claude"), codex: side("codex") },
-    closed: [...byWeek.entries()].map(([start, w]) => ({ start, ...w })),
+    live: { claude: live("claude"), codex: live("codex") },
+    closed: [...byWeek.entries()].map(([start, w]) => ({ start, claude: w.claude?.town ?? null, codex: w.codex?.town ?? null })),
+    prev: prev ? { claude: frozenSide(prev.claude), codex: frozenSide(prev.codex) } : null,
   };
 }
 
 // The hourly stats job moves the numbers; 5 minutes is fresh enough.
-const cachedWeek = unstable_cache(loadWeek, ["towns-battle-v1"], { revalidate: 300 });
+const cachedWeek = unstable_cache(loadWeek, ["towns-battle-v2"], { revalidate: 300 });
 
-/** Claude vs Codex right now: this week's score and days, last week's result, the series. */
+/** Claude vs Codex right now: this week's score and days (last week's final on Mondays), last week's result, the series. */
 export async function getBattleState(now: Date = new Date()): Promise<BattleState> {
   const start = weekStart(now);
   const load = await cachedWeek(isoDay(start));
-  const winners = dayWinners(load.sides.claude.days, load.sides.codex.days, finishedDays(start, now.getTime()));
-  const won = (s: Side) => winners.filter((w) => w === s).length;
 
   const closed = load.closed.map((w) => ({ ...w, winner: weekWinner(w.claude, w.codex) }));
   const prev = new Date(start);
@@ -108,13 +137,22 @@ export async function getBattleState(now: Date = new Date()): Promise<BattleStat
   const found = closed.find((w) => w.start === isoDay(prev));
   const last = found ? { ...found, number: battleWeekNumber(found.start) } : null;
 
+  const result = !!last && !!load.prev && now.getUTCDay() === 1;
+  const shown = result ? prev : start;
+  const sides = result ? (load.prev as Record<Side, SideLoad>) : load.live;
+  const winners = dayWinners(sides.claude.days, sides.codex.days, result ? 7 : finishedDays(start, now.getTime()));
+  const won = (s: Side) => winners.filter((w) => w === s).length;
+  const span = (d: Date) => ({ start: isoDay(d), end: isoDay(weekEnd(d)), number: battleWeekNumber(isoDay(d)) });
+
   return {
     phase: battlePhase(now.getTime()),
-    week: { start: isoDay(start), end: isoDay(weekEnd(start)) },
+    showing: result ? "result" : "live",
+    week: span(shown),
+    current: span(start),
     dayWinners: winners,
     sides: {
-      claude: { ...load.sides.claude, daysWon: won("claude") },
-      codex: { ...load.sides.codex, daysWon: won("codex") },
+      claude: { ...sides.claude, daysWon: won("claude") },
+      codex: { ...sides.codex, daysWon: won("codex") },
     },
     lastWeek: last,
     series: seriesRecord(closed.map((w) => w.winner)),
