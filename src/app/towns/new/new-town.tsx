@@ -123,6 +123,11 @@ export default function NewTown({
 
   function switchKind(k: TownKind) {
     if (k === kind) return;
+    // Friends' towns are made in the create wizard.
+    if (k === "friends") {
+      window.location.href = "/towns/new?for=friends";
+      return;
+    }
     setKind(k);
     window.history.replaceState(
       null,
