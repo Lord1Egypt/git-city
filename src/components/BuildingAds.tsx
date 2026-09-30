@@ -43,14 +43,15 @@ function useAdInteraction(ad: SkyAd, onAdClick?: (ad: SkyAd) => void) {
 // Wide rectangular panel bolted to the building face.
 // Dark metal frame, 2 support struts from below, spot glow.
 
-function AdBillboard({
+export function AdBillboard({
   ad,
   building,
   meshRef,
   onAdClick,
 }: {
   ad: SkyAd;
-  building: CityBuilding;
+  /** Only the footprint matters, so previews can pass a plain box. */
+  building: Pick<CityBuilding, "width" | "depth" | "height" | "position">;
   meshRef?: (el: THREE.Mesh | null) => void;
   onAdClick?: (ad: SkyAd) => void;
 }) {
@@ -123,14 +124,14 @@ function AdBillboard({
 // Vertical orientation (taller than wide), dual-sided, spinning on a pole.
 // Metal crossbar at top and bottom of the sign.
 
-function AdRooftopSign({
+export function AdRooftopSign({
   ad,
   building,
   meshRef,
   onAdClick,
 }: {
   ad: SkyAd;
-  building: CityBuilding;
+  building: Pick<CityBuilding, "width" | "depth" | "height" | "position">;
   meshRef?: (el: THREE.Mesh | null) => void;
   onAdClick?: (ad: SkyAd) => void;
 }) {
