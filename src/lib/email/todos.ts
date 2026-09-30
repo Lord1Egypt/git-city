@@ -15,7 +15,7 @@ export const EMAIL_TODOS: EmailTodo[] = [
     id: "towns-launch-campaign",
     title: "Send the Towns launch campaign",
     why: "Launch day. Active players first, dormant ones get the permission email a week later.",
-    how: "Campaigns tab: create towns-launch, send yourself a test, build with the start time, then start.",
+    how: "Campaigns tab: create towns-launch with holdout_pct 10 (town_joined, recipients vs holdout, measures the lift), send yourself a test, build with the start time, then start.",
     due: "2026-10-08",
   },
   {
