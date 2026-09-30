@@ -91,7 +91,7 @@ export default async function PartnersPage() {
               {t.hero.cta}
             </a>
             <Link
-              href="/"
+              href="/partners/sponsor"
               className="btn-press border-[3px] border-border px-6 py-2.5 text-sm tracking-widest text-muted transition-colors hover:text-cream sm:text-base"
             >
               {t.hero.secondary}

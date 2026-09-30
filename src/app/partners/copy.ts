@@ -98,7 +98,7 @@ export const COPY = {
       titleAccent: "developers built",
       sub: "87,600 GitHub developers live here as buildings. Sponsor a town war, light up a billboard or fly a plane or blimp over the skyline.",
       cta: "Become a partner",
-      secondary: "See the city",
+      secondary: "How to sponsor",
     },
     proof: {
       stats: [
@@ -307,7 +307,7 @@ export const COPY = {
       titleAccent: "os devs construíram",
       sub: "87.600 devs do GitHub vivem aqui como prédios. Patrocine uma guerra de towns, acenda um billboard ou voe com um avião ou balão sobre o skyline.",
       cta: "Seja parceiro",
-      secondary: "Ver a cidade",
+      secondary: "Como patrocinar",
     },
     proof: {
       stats: [
