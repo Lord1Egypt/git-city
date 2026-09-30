@@ -24,14 +24,10 @@ export default function GithubCarousel({ t }: { t: Copy["social"] }) {
       <div className="flex min-w-0 flex-col" aria-live="polite">
         <p className="text-xs tracking-widest text-muted sm:text-sm">{text.source}</p>
         <p className="mt-5 text-4xl leading-tight text-lime tabular-nums sm:text-5xl">{text.big}</p>
-        <blockquote className="mt-6 max-w-md font-sans text-2xl leading-snug text-cream normal-case tracking-normal sm:text-3xl">
+        <blockquote className="mt-6 max-w-md text-2xl leading-snug text-cream normal-case sm:text-3xl">
           &ldquo;{text.quote}&rdquo;
         </blockquote>
-        {text.detail && (
-          <p className="mt-4 font-sans text-base text-muted normal-case tracking-normal">
-            {text.detail}
-          </p>
-        )}
+        {text.detail && <p className="mt-4 text-base text-muted normal-case">{text.detail}</p>}
         <div className="mt-8 flex flex-wrap gap-2">
           {slide.links.map((link) => (
             <a

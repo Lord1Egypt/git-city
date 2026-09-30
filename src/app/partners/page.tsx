@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { COPY, PLAY_VIDEOS, PRESS, langFromAcceptLanguage, type Copy, type Lang } from "./copy";
+import { COPY, PRESS, langFromAcceptLanguage, type Copy, type Lang } from "./copy";
 import GithubCarousel from "./GithubCarousel";
-import PlayVideo from "./PlayVideo";
+import PlayCarousel from "./PlayCarousel";
 import BrandPreview from "./BrandPreview";
 import ContactForm from "./ContactForm";
 
@@ -73,9 +73,7 @@ export default async function PartnersPage() {
           <dl className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
             {t.proof.stats.map((stat, i) => (
               <div key={stat.label} className="flex flex-col-reverse justify-end gap-2">
-                <dt className="font-sans text-sm text-muted normal-case tracking-normal sm:text-base">
-                  {stat.label}
-                </dt>
+                <dt className="text-sm text-muted normal-case sm:text-base">{stat.label}</dt>
                 <dd
                   className={`text-3xl tabular-nums sm:text-5xl ${i === 0 ? "text-lime" : "text-cream"}`}
                 >
@@ -127,10 +125,8 @@ export default async function PartnersPage() {
                   }`}
                 />
                 <p className="text-xs tracking-widest text-muted">{item.date}</p>
-                <h3 className="mt-2 text-lg text-cream sm:text-xl">{item.title}</h3>
-                <p className="mt-1 font-sans text-base text-warm normal-case tracking-normal">
-                  {item.text}
-                </p>
+                <h3 className="mt-2 text-xl text-cream sm:text-2xl">{item.title}</h3>
+                <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted normal-case">{item.text}</p>
               </li>
             ))}
           </ol>
@@ -141,23 +137,9 @@ export default async function PartnersPage() {
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
           <p className="text-xs tracking-widest text-muted sm:text-sm">{t.play.kicker}</p>
           <h2 className="mt-4 text-3xl leading-tight text-cream sm:text-4xl">{t.play.title}</h2>
-          <ul className="mt-10 grid gap-4 md:grid-cols-2">
-            {t.play.items.map((item) => (
-              <li key={item.id} className="flex flex-col border-[3px] border-border bg-bg-raised">
-                <PlayVideo
-                  src={PLAY_VIDEOS[item.id]?.src}
-                  poster={PLAY_VIDEOS[item.id]?.poster}
-                  label={`${t.play.videoLabel} ${item.title}`}
-                />
-                <div className="flex flex-col gap-3 p-6">
-                  <h3 className="text-lg text-lime sm:text-xl">{item.title}</h3>
-                  <p className="font-sans text-base text-warm normal-case tracking-normal">
-                    {item.text}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-10">
+            <PlayCarousel t={t.play} />
+          </div>
         </div>
       </section>
 

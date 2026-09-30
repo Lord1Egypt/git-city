@@ -17,6 +17,11 @@ export default function BrandPreview({ t }: { t: Copy["formats"] }) {
   const inputId = useId();
   const shown = (brand.trim() || t.placeholder).toUpperCase();
   const cityItems = t.items.filter((i) => i.id !== "prize");
+  const options = [{ id: "all", title: t.showAll }, ...cityItems];
+  const stepFocus = (dir: 1 | -1) => {
+    const i = options.findIndex((o) => o.id === focus);
+    setFocus(options[(i + dir + options.length) % options.length].id as CityFocus);
+  };
 
   // Mount the 3D scene only while it is on screen.
   useEffect(() => {
@@ -40,16 +45,16 @@ export default function BrandPreview({ t }: { t: Copy["formats"] }) {
         ref={stageRef}
         role="region"
         aria-label={`${t.cityLabel}: ${shown}`}
-        className="relative aspect-square w-full overflow-hidden border-[3px] border-border bg-bg sm:aspect-[21/9]"
+        className="relative aspect-[3/4] w-full overflow-hidden border-[3px] border-border bg-bg sm:aspect-[21/9]"
       >
         {running && <CityBrandPreview brand={shown} focus={focus} />}
 
         <div
-          className="absolute top-3 right-3 left-3 flex gap-2 overflow-x-auto [scrollbar-width:none]"
+          className="absolute top-3 left-3 hidden flex-wrap gap-2 pr-3 sm:flex"
           role="group"
           aria-label={t.showLabel}
         >
-          {[{ id: "all", title: t.showAll }, ...cityItems].map((item) => {
+          {options.map((item) => {
             const on = focus === item.id;
             return (
               <button
@@ -67,6 +72,31 @@ export default function BrandPreview({ t }: { t: Copy["formats"] }) {
               </button>
             );
           })}
+        </div>
+
+        <div className="absolute top-3 right-3 left-3 flex items-stretch justify-center sm:hidden">
+          <button
+            type="button"
+            onClick={() => stepFocus(-1)}
+            aria-label={t.prevPlacement}
+            className="border-[3px] border-border bg-bg/90 px-3 text-sm text-cream outline-none focus-visible:border-cream"
+          >
+            &larr;
+          </button>
+          <span
+            aria-live="polite"
+            className="flex min-w-0 flex-1 items-center justify-center border-y-[3px] border-lime bg-lime px-3 py-2 text-xs tracking-widest text-bg"
+          >
+            {options.find((o) => o.id === focus)?.title}
+          </span>
+          <button
+            type="button"
+            onClick={() => stepFocus(1)}
+            aria-label={t.nextPlacement}
+            className="border-[3px] border-border bg-bg/90 px-3 text-sm text-cream outline-none focus-visible:border-cream"
+          >
+            &rarr;
+          </button>
         </div>
 
         <div className="absolute right-3 bottom-3 left-3 flex justify-center">
@@ -90,7 +120,7 @@ export default function BrandPreview({ t }: { t: Copy["formats"] }) {
         </div>
       </div>
 
-      <p className="font-sans text-sm text-muted normal-case tracking-normal">{t.note}</p>
+      <p className="text-sm text-muted normal-case">{t.note}</p>
     </div>
   );
 }

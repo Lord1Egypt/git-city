@@ -22,7 +22,7 @@ const NO_FILL = {
 } as const;
 
 const inputBase =
-  "w-full border-[3px] bg-bg-raised px-4 py-3 font-sans text-base text-cream normal-case tracking-normal outline-none transition-colors focus-visible:border-lime";
+  "w-full border-[3px] bg-bg-raised px-4 py-3 text-base text-cream normal-case outline-none transition-colors focus-visible:border-lime";
 
 function validate(values: Record<Field, string>, t: Copy["contact"]): Errors {
   const errors: Errors = {};
@@ -88,9 +88,7 @@ export default function ContactForm({ t, lang }: { t: Copy["contact"]; lang: Lan
     return (
       <div className="border-[3px] border-lime bg-bg-raised p-6" role="status" aria-live="polite">
         <p className="text-lg text-lime">{t.sentTitle}</p>
-        <p className="mt-2 font-sans text-base text-cream normal-case tracking-normal">
-          {t.sentText}
-        </p>
+        <p className="mt-2 text-base text-cream normal-case">{t.sentText}</p>
       </div>
     );
   }
@@ -145,10 +143,7 @@ export default function ContactForm({ t, lang }: { t: Copy["contact"]; lang: Lan
                 className={`${inputBase} ${error ? "border-red-400 focus-visible:border-red-400" : "border-border hover:border-border-light"}`}
               />
               {error && (
-                <p
-                  id={`partner-${f.key}-error`}
-                  className="font-sans text-sm text-red-400 normal-case tracking-normal"
-                >
+                <p id={`partner-${f.key}-error`} className="text-sm text-red-400 normal-case">
                   {error}
                 </p>
               )}
@@ -195,7 +190,7 @@ export default function ContactForm({ t, lang }: { t: Copy["contact"]; lang: Lan
         </button>
         <div aria-live="assertive" className="min-w-0">
           {status === "error" && (
-            <p role="alert" className="font-sans text-base text-cream normal-case tracking-normal">
+            <p role="alert" className="text-base text-cream normal-case">
               {t.error} <span className="select-all text-lime">{CONTACT_EMAIL}</span>
             </p>
           )}
