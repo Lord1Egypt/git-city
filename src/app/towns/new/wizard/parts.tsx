@@ -7,7 +7,7 @@ import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
 import { starterObjects, starterOps } from "@/lib/league-city/starter";
 import { LOT, bounds } from "@/lib/league-city/grid";
 import type { TemplateId } from "@/lib/league-city/templates";
-import type { CityIdentity } from "@/lib/league-city/types";
+import type { CityIdentity, CityObject } from "@/lib/league-city/types";
 
 const LeagueScene = dynamic(() => import("@/components/league/LeagueScene"), { ssr: false, loading: () => null });
 
@@ -150,7 +150,7 @@ export function CityPreview({
   cityDevs,
   cityNorms,
   caption,
-  push,
+  real,
 }: {
   template: TemplateId;
   name: string;
@@ -159,12 +159,14 @@ export function CityPreview({
   cityDevs: Record<string, unknown>[];
   cityNorms: LayoutNorms;
   caption: string;
-  push: boolean;
+  /** An org's town that already exists: its real streets (buildings need its members' data, so they stay out). */
+  real: { h: number; objects: CityObject[] } | null;
 }) {
-  const city = useMemo(() => {
+  const starter = useMemo(() => {
     const st = starterOps(viewerId ? [{ developer_id: viewerId, weight: 0 }] : [], template);
     return { h: st.h, objects: starterObjects(st) };
   }, [template, viewerId]);
+  const city = real ?? starter;
   const byDevId = useMemo(() => {
     const devs = cityDevs as unknown as DeveloperRecord[];
     const layout = generateCityLayout(devs, undefined, cityNorms);
@@ -192,8 +194,7 @@ export function CityPreview({
           objects={city.objects}
           buildings={buildings}
           mode="view"
-          riseKey={template}
-          push={push}
+          riseKey={real ? "real" : template}
           framing={{ zoom: 1.2, shiftPx: 0 }}
         />
       </div>

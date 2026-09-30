@@ -5,26 +5,37 @@ import Link from "next/link";
 import type { LayoutNorms } from "@/lib/github";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
-import { isTemplateId, type TemplateId } from "@/lib/league-city/templates";
+import { COMPANY_TEMPLATE, isTemplateId, type TemplateId } from "@/lib/league-city/templates";
 import { LOGO_MAX_BYTES } from "@/lib/league-city/identity";
+import type { CityObject } from "@/lib/league-city/types";
+import type { LeagueCity } from "@/lib/league-city/service";
+import type { OrgState } from "@/lib/towns/company-orgs";
+import { companyStep, normalizeOrgInput, type OrgCheck } from "@/lib/towns/company-step";
 import { COPY, type Lang, type Purpose, type WizardCopy } from "./copy";
 import { CityPreview, CopyBlock, CopyRow, Field, GithubMark, LogoTile, MiniMap } from "./parts";
+import { CompanyTownCard, OrgStep, SignInFirst } from "./company";
 
 // Create a town as a short tutorial (Discord's "create a server": who it's
 // for, name and icon, then the invite link right away): the town takes shape
 // live on the right while the left walks through what to do, and it ends by
-// handing over the link to share and the editor to build with.
+// handing over the link to share and the editor to build with. Company towns
+// swap the name for a GitHub org check: one town per org, and an org's town
+// that already exists is moved into, not built.
 
-type StepId = "purpose" | "name" | "template" | "create" | "share" | "build";
+type StepId = "purpose" | "org" | "name" | "template" | "create" | "share" | "build";
 type Join = "open" | "request";
+/** Communities and friends share the name, message and join copy. */
+type Social = Exclude<Purpose, "company">;
 
 const TEMPLATE_ORDER: TemplateId[] = ["crew", "park", "hq", "race", "blank"];
 /** What the wizard keeps across the GitHub sign-in round trip. */
 const DRAFT_KEY = "gc:new-town-draft";
 const PIXEL = 32;
+/** How long the org input waits after the last key before checking. */
+const CHECK_DELAY_MS = 600;
 
 interface Draft {
-  purpose: Purpose;
+  purpose: Social;
   name: string;
   template: TemplateId;
   join: Join;
@@ -89,6 +100,10 @@ async function pixelPreview(src: string): Promise<string> {
   return c.toDataURL("image/png");
 }
 
+function signIn(back: string) {
+  void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=${encodeURIComponent(back)}`);
+}
+
 export default function CreateWizard({
   lang,
   viewer,
@@ -98,6 +113,10 @@ export default function CreateWizard({
   startTemplate,
   startName,
   resume,
+  orgs,
+  startOrg,
+  startCheck,
+  verifyFailed,
 }: {
   lang: Lang;
   viewer: WizardViewer | null;
@@ -108,14 +127,22 @@ export default function CreateWizard({
   startName: string | null;
   /** Back from GitHub sign-in: restore the draft and finish creating. */
   resume: boolean;
+  /** Orgs the viewer verified on GitHub, with their towns. */
+  orgs: OrgState[];
+  startOrg: string | null;
+  /** The server's check of `startOrg`, so the org step opens already knowing. */
+  startCheck: OrgCheck | null;
+  verifyFailed: boolean;
 }) {
   const t = COPY[lang];
+  const c = t.company;
   const [purpose, setPurpose] = useState<Purpose | null>(startPurpose);
-  const steps: StepId[] = startPurpose ? ["name", "template", "create", "share", "build"] : ["purpose", "name", "template", "create", "share", "build"];
-  const [index, setIndex] = useState(0);
-  const step = steps[index];
+  const p: Purpose = purpose ?? "community";
+  const social: Social = p === "company" ? "community" : p;
+  const company = p === "company";
+
   const [name, setName] = useState(startName ?? "");
-  const [template, setTemplate] = useState<TemplateId>(startTemplate ?? "crew");
+  const [template, setTemplate] = useState<TemplateId>(startTemplate ?? (startPurpose === "company" ? COMPANY_TEMPLATE : "crew"));
   const [join, setJoin] = useState<Join>("open");
   const [logo, setLogo] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -126,11 +153,146 @@ export default function CreateWizard({
   const [slug, setSlug] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const p: Purpose = purpose ?? "community";
-  const shownName = name.trim() || (purpose ? t.namePlaceholder[p] : t.anyName);
-  const created = slug !== null;
+  // Company: the org being looked at and what the server found out about it.
+  const [orgInput, setOrgInput] = useState(startCheck?.org ?? startOrg ?? "");
+  const [lastCheck, setCheck] = useState<OrgCheck | null>(startCheck);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(verifyFailed ? c.verifyFailed : null);
+  // A check only counts while the input still names its org.
+  const check = company && lastCheck && lastCheck.org === normalizeOrgInput(orgInput) ? lastCheck : null;
+  const orgStep = companyStep(check);
+  const existing = check?.account === "org" && check.town ? check.town : null;
+
+  const steps: StepId[] = [
+    ...(startPurpose ? [] : (["purpose"] as StepId[])),
+    ...(company
+      ? orgStep.kind === "move_in"
+        ? (["org", "create"] as StepId[])
+        : (["org", "template", "create", "share", "build"] as StepId[])
+      : (["name", "template", "create", "share", "build"] as StepId[])),
+  ];
+  const [stepId, setStepId] = useState<StepId>(steps[0]);
+  const index = Math.max(0, steps.indexOf(stepId));
+  const goNext = () => setStepId(steps[Math.min(steps.length - 1, index + 1)]);
+  const goBack = () => setStepId(steps[Math.max(0, index - 1)]);
+
+  const shownName = company
+    ? check && orgStep.kind !== "no_account" && orgStep.kind !== "person"
+      ? check.townLabel
+      : c.anyName
+    : name.trim() || (purpose ? t.namePlaceholder[social] : t.anyName);
+  const previewLogo = company ? (check?.avatarUrl ?? null) : logoPreview;
   const link = slug ? `https://thegitcity.com/town/${slug}` : "";
 
+  // An org's town that already exists: the preview shows its real streets.
+  const [real, setReal] = useState<{ slug: string; h: number; objects: CityObject[] } | null>(null);
+  useEffect(() => {
+    if (!existing) return;
+    let stop = false;
+    fetch(`/api/leagues/${existing.slug}/city`)
+      .then((r) => (r.ok ? (r.json() as Promise<LeagueCity>) : null))
+      .then((city) => {
+        if (city && !stop) setReal({ slug: existing.slug, h: city.h, objects: city.objects.filter((o) => o.kind === "item") });
+      })
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, [existing]);
+  const realCity = existing && real?.slug === existing.slug ? real : null;
+
+  // ── Company: checking the org ──────────────────────────────
+  // Only the newest check may land: an older answer can arrive after it.
+  const checkSeq = useRef(0);
+  async function runCheck(raw?: string): Promise<OrgCheck | null> {
+    const org = normalizeOrgInput(raw ?? orgInput);
+    if (!org) {
+      setCheckError((raw ?? orgInput).trim() ? c.badName : c.typeOrg);
+      return null;
+    }
+    const seq = ++checkSeq.current;
+    setChecking(true);
+    setCheckError(null);
+    try {
+      const res = await fetch(`/api/leagues/verify/check?org=${encodeURIComponent(org)}`, { cache: "no-store" });
+      const json = (await res.json()) as OrgCheck & { error?: string };
+      if (seq !== checkSeq.current) return null;
+      if (!res.ok) {
+        setCheckError(json.error ?? c.checkError);
+        return null;
+      }
+      setCheck(json);
+      // The address follows the org, so a reload or a shared link lands here again.
+      window.history.replaceState(null, "", `/towns/new?kind=company&org=${encodeURIComponent(json.org)}`);
+      return json;
+    } catch {
+      if (seq === checkSeq.current) setCheckError(t.networkError);
+      return null;
+    } finally {
+      if (seq === checkSeq.current) setChecking(false);
+    }
+  }
+
+  // Checks the org once you stop typing, like a username field.
+  const typedOrg = company && viewer && stepId === "org" ? normalizeOrgInput(orgInput) : null;
+  useEffect(() => {
+    if (!typedOrg || lastCheck?.org === typedOrg) return;
+    const id = setTimeout(() => void runCheck(typedOrg), CHECK_DELAY_MS);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runCheck reads the latest state
+  }, [typedOrg, lastCheck?.org]);
+
+  function orgContinue() {
+    if (orgStep.kind === "open") {
+      setBusy(true);
+      window.location.href = `/town/${orgStep.slug}`;
+      return;
+    }
+    if (orgStep.kind === "build" || orgStep.kind === "move_in") {
+      goNext();
+      return;
+    }
+    void runCheck();
+  }
+
+  async function companyCreate() {
+    if (!check) return;
+    const expect = orgStep.kind === "build" ? "create" : "join";
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/leagues/verify/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ org: check.org, expect, template }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { slug?: string; error?: string; code?: string };
+      if (!res.ok || !json.slug) {
+        setBusy(false);
+        // The town changed since the check (someone built it first, or the
+        // membership went private): look again from the org step.
+        if (json.code === "town_exists" || json.code === "no_town" || json.code === "not_member") {
+          setStepId("org");
+          const fresh = await runCheck(check.org);
+          if (fresh && json.code !== "not_member") setCheckError(c.changed);
+          return;
+        }
+        setError(json.error ?? t.createError);
+        return;
+      }
+      if (expect === "join") {
+        window.location.href = `/town/${json.slug}`;
+        return;
+      }
+      setSlug(json.slug);
+      setStepId("share");
+    } catch {
+      setError(t.networkError);
+    }
+    setBusy(false);
+  }
+
+  // ── Communities and friends: creating the town ─────────────
   async function pickLogo(file: File | null) {
     setLogoError(false);
     if (!file) return;
@@ -176,7 +338,7 @@ export default function CreateWizard({
       }
       writeDraft(null);
       setSlug(newSlug);
-      setIndex(steps.indexOf("share"));
+      setStepId("share");
     } catch {
       setError(t.networkError);
     }
@@ -184,12 +346,15 @@ export default function CreateWizard({
   }
 
   function onCreate() {
-    const draft: Draft = { purpose: p, name, template, join, logo };
+    if (company) {
+      void companyCreate();
+      return;
+    }
+    const draft: Draft = { purpose: social, name, template, join, logo };
     if (!viewer) {
       setBusy(true);
       writeDraft(draft);
-      const back = `/towns/new?for=${p}&resume=1`;
-      void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=${encodeURIComponent(back)}`);
+      signIn(`/towns/new?for=${social}&resume=1`);
       return;
     }
     void create(draft);
@@ -213,28 +378,42 @@ export default function CreateWizard({
       setLogo(d.logo);
       void pixelPreview(d.logo).then(setLogoPreview).catch(() => {});
     }
-    setIndex(steps.indexOf("create"));
+    setStepId("create");
     if (viewer?.claimed) void create(d);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on the way back
   }, [resume]);
 
-  function choosePurpose(k: Purpose | "company") {
-    if (k === "company") {
-      window.location.href = "/towns/new?kind=company";
-      return;
-    }
+  function choosePurpose(k: Purpose) {
     setPurpose(k);
-    setIndex(1);
+    if (k === "company") setTemplate(COMPANY_TEMPLATE);
+    setStepId(k === "company" ? "org" : "name");
   }
 
-  const canNext = step === "name" ? name.trim().length >= 2 : step !== "purpose" && step !== "create";
-  const head = headFor(t, step, p);
+  const head = headFor(t, stepId, p, social, check);
+  const created = slug !== null;
+  const claimBlocked = !!viewer && !viewer.claimed;
+  const orgLabel =
+    orgStep.kind === "open" && check
+      ? c.openTown(check.townLabel)
+      : orgStep.kind === "not_member"
+        ? c.checkAgain
+        : orgStep.kind === "github_down"
+          ? c.tryAgain
+          : t.next;
+  const createLabel = company
+    ? orgStep.kind === "move_in"
+      ? c.moveCta(check?.townLabel ?? "")
+      : c.buildCta(check?.townLabel ?? "")
+    : viewer
+      ? t.createCta
+      : t.createSignIn;
+  const backHref = p === "community" && startPurpose === "community" ? "/communities" : "/towns";
 
   return (
     <main className="min-h-screen bg-bg pb-24 font-pixel uppercase text-warm">
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
-        <Link href={p === "community" && startPurpose ? "/communities" : "/towns"} className="text-sm text-muted transition-colors hover:text-cream">
-          &larr; {p === "community" && startPurpose ? (lang === "pt" ? "Comunidades" : "Communities") : t.back}
+        <Link href={backHref} className="text-sm text-muted transition-colors hover:text-cream">
+          &larr; {backHref === "/communities" ? (lang === "pt" ? "Comunidades" : "Communities") : t.back}
         </Link>
       </nav>
       <div className="border-t-[3px] border-border">
@@ -246,26 +425,57 @@ export default function CreateWizard({
               ))}
             </div>
             <p className="mt-4 text-xs tracking-widest text-muted">
-              {t.stepOf(index + 1, steps.length)} · {t.labels[step]}
+              {t.stepOf(index + 1, steps.length)} · {t.labels[stepId]}
             </p>
             <h1 className="mt-3 text-2xl leading-tight text-cream sm:text-4xl">{head.title}</h1>
             <p className="mt-4 text-sm leading-relaxed text-muted normal-case sm:text-base">{head.sub}</p>
 
             <div className="mt-8">
-              {step === "purpose" && <PurposeStep t={t} onPick={choosePurpose} />}
+              {stepId === "purpose" && <PurposeStep t={t} onPick={choosePurpose} />}
 
-              {step === "name" && (
+              {stepId === "org" &&
+                (viewer ? (
+                  <OrgStep
+                    c={c}
+                    login={viewer.login}
+                    orgs={orgs}
+                    input={orgInput}
+                    onInput={(v) => {
+                      setOrgInput(v);
+                      setCheckError(null);
+                    }}
+                    onPick={(org) => {
+                      setOrgInput(org);
+                      void runCheck(org);
+                    }}
+                    check={check}
+                    step={orgStep}
+                    checking={checking}
+                    error={checkError}
+                  />
+                ) : (
+                  <SignInFirst
+                    c={c}
+                    busy={busy}
+                    onSignIn={() => {
+                      setBusy(true);
+                      signIn("/towns/new?kind=company");
+                    }}
+                  />
+                ))}
+
+              {stepId === "name" && (
                 <div className="flex flex-col gap-6">
-                  <Field label={t.nameLabel[p]}>
+                  <Field label={t.nameLabel[social]}>
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value.slice(0, 40))}
-                      onKeyDown={(e) => e.key === "Enter" && canNext && setIndex(index + 1)}
-                      placeholder={t.namePlaceholder[p]}
+                      onKeyDown={(e) => e.key === "Enter" && name.trim().length >= 2 && goNext()}
+                      placeholder={t.namePlaceholder[social]}
                       autoFocus
                       autoComplete="off"
                       spellCheck={false}
-                      aria-label={t.nameLabel[p]}
+                      aria-label={t.nameLabel[social]}
                       className="w-full border-[3px] border-border bg-bg px-4 py-3 text-base text-cream normal-case outline-none placeholder:text-dim focus:border-lime"
                     />
                   </Field>
@@ -296,7 +506,7 @@ export default function CreateWizard({
                 </div>
               )}
 
-              {step === "template" && (
+              {stepId === "template" && (
                 <div role="radiogroup" aria-label={t.labels.template} className="flex flex-col gap-2">
                   {TEMPLATE_ORDER.map((id) => {
                     const on = template === id;
@@ -321,12 +531,16 @@ export default function CreateWizard({
                 </div>
               )}
 
-              {step === "create" && (
+              {stepId === "create" && (
                 <div className="flex flex-col gap-6">
-                  <Field label={t.joinLabel}>
-                    <JoinChoice t={t} purpose={p} join={join} onChange={setJoin} disabled={busy} />
-                  </Field>
-                  {viewer && !viewer.claimed ? (
+                  {company ? (
+                    check && <CompanyTownCard c={c} check={check} step={orgStep} />
+                  ) : (
+                    <Field label={t.joinLabel}>
+                      <JoinChoice t={t} purpose={social} join={join} onChange={setJoin} disabled={busy} />
+                    </Field>
+                  )}
+                  {claimBlocked ? (
                     <div className="border-[3px] border-border bg-bg-raised p-4">
                       <p className="text-sm text-cream normal-case">{t.claimFirst}</p>
                       <Link href="/" className="btn-press mt-4 inline-block bg-lime px-5 py-2.5 text-xs tracking-widest text-bg">
@@ -341,7 +555,7 @@ export default function CreateWizard({
                       className="btn-press flex w-full items-center justify-center gap-3 bg-lime px-6 py-4 text-sm tracking-widest text-bg disabled:opacity-70 sm:text-base"
                     >
                       {!viewer && <GithubMark />}
-                      {busy ? t.creating : viewer ? t.createCta : t.createSignIn}
+                      {busy ? (company && orgStep.kind === "move_in" ? c.moving : t.creating) : createLabel}
                     </button>
                   )}
                   {error && (
@@ -352,14 +566,19 @@ export default function CreateWizard({
                 </div>
               )}
 
-              {step === "share" && created && (
+              {stepId === "share" && created && (
                 <div className="flex flex-col gap-6">
                   {warning && <p className="border-[3px] border-border bg-bg-raised p-3 text-xs text-cream normal-case">{warning}</p>}
                   <Field label={t.linkLabel}>
                     <CopyRow text={link} shown={link.replace("https://", "")} copy={t.copy} copied={t.copied} />
                   </Field>
                   <Field label={t.messageLabel}>
-                    <CopyBlock text={t.message[p](shownName, link)} lang={lang} copy={t.copyMessage} copied={t.copied} />
+                    <CopyBlock
+                      text={company && check ? c.message(check.townLabel, check.org, link) : t.message[social](shownName, link)}
+                      lang={lang}
+                      copy={t.copyMessage}
+                      copied={t.copied}
+                    />
                   </Field>
                   <div className="border-[3px] border-border bg-bg-raised p-4">
                     <p className="text-sm text-lime">{t.mondayTitle}</p>
@@ -368,7 +587,7 @@ export default function CreateWizard({
                 </div>
               )}
 
-              {step === "build" && (
+              {stepId === "build" && (
                 <ul className="flex flex-col border-[3px] border-border bg-bg">
                   {t.tools.map((x) => (
                     <li key={x.k} className="flex gap-4 border-t-[3px] border-border p-4 first:border-t-0">
@@ -384,34 +603,36 @@ export default function CreateWizard({
             </div>
 
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-              {index > 0 && !created && !busy ? (
-                <button type="button" onClick={() => setIndex(index - 1)} className="btn-press px-2 py-3 text-xs tracking-widest text-muted hover:text-cream">
-                  &larr; {t.backStep}
-                </button>
-              ) : step === "build" ? (
-                <button type="button" onClick={() => setIndex(index - 1)} className="btn-press px-2 py-3 text-xs tracking-widest text-muted hover:text-cream">
+              {(index > 0 && !created && !busy) || stepId === "build" ? (
+                <button type="button" onClick={goBack} className="btn-press px-2 py-3 text-xs tracking-widest text-muted hover:text-cream">
                   &larr; {t.backStep}
                 </button>
               ) : (
                 <span />
               )}
-              {step === "build" && slug ? (
+              {stepId === "build" && slug ? (
                 <div className="flex flex-wrap items-center gap-3">
-                  <Link
-                    href={`/town/${slug}?new=1`}
-                    className="btn-press border-[3px] border-border px-5 py-2.5 text-sm tracking-widest text-muted hover:text-cream"
-                  >
+                  <Link href={`/town/${slug}?new=1`} className="btn-press border-[3px] border-border px-5 py-2.5 text-sm tracking-widest text-muted hover:text-cream">
                     {t.enter}
                   </Link>
                   <Link href={`/town/${slug}?new=1&edit=1`} className="btn-press bg-lime px-6 py-3 text-sm tracking-widest text-bg">
                     {t.openEditor}&nbsp; &rarr;
                   </Link>
                 </div>
-              ) : step !== "purpose" && step !== "create" ? (
+              ) : stepId === "org" && viewer ? (
                 <button
                   type="button"
-                  onClick={() => setIndex(index + 1)}
-                  disabled={!canNext}
+                  onClick={orgContinue}
+                  disabled={busy || checking || orgStep.kind === "removed" || !orgInput.trim()}
+                  className="btn-press bg-lime px-6 py-3 text-sm tracking-widest text-bg disabled:opacity-40"
+                >
+                  {orgLabel}
+                </button>
+              ) : stepId === "name" || stepId === "template" || stepId === "share" ? (
+                <button
+                  type="button"
+                  onClick={goNext}
+                  disabled={stepId === "name" && name.trim().length < 2}
                   className="btn-press bg-lime px-6 py-3 text-sm tracking-widest text-bg disabled:opacity-40"
                 >
                   {t.next}
@@ -424,12 +645,12 @@ export default function CreateWizard({
             <CityPreview
               template={template}
               name={shownName}
-              logo={logoPreview}
+              logo={previewLogo}
               viewerId={viewer?.id ?? null}
               cityDevs={cityDevs}
               cityNorms={cityNorms}
-              caption={`${t.templates[template].name} · 1 ${t.member}`}
-              push={false}
+              real={realCity}
+              caption={realCity && existing ? `${existing.buildings} ${c.buildings}` : `${t.templates[template].name} · 1 ${t.member}`}
             />
           </div>
         </div>
@@ -438,25 +659,31 @@ export default function CreateWizard({
   );
 }
 
-function headFor(t: WizardCopy, step: StepId, p: Purpose): { title: string; sub: string } {
+function headFor(t: WizardCopy, step: StepId, p: Purpose, social: Social, check: OrgCheck | null): { title: string; sub: string } {
+  const c = t.company;
   switch (step) {
     case "purpose":
       return { title: t.purposeTitle, sub: t.purposeSub };
+    case "org":
+      return { title: c.orgTitle, sub: c.orgSub };
     case "name":
-      return { title: t.nameTitle[p], sub: t.nameSub };
+      return { title: t.nameTitle[social], sub: t.nameSub };
     case "template":
       return { title: t.templateTitle, sub: t.templateSub };
     case "create":
+      if (p === "company" && check) {
+        return check.town ? { title: c.moveTitle(check.townLabel), sub: c.moveSub } : { title: c.buildTitle(check.townLabel), sub: c.buildSub };
+      }
       return { title: t.createTitle, sub: t.createSub };
     case "share":
-      return { title: t.shareTitle[p], sub: t.shareSub[p] };
+      return p === "company" ? { title: c.shareTitle, sub: c.shareSub } : { title: t.shareTitle[social], sub: t.shareSub[social] };
     case "build":
       return { title: t.buildTitle, sub: t.buildSub };
   }
 }
 
-function PurposeStep({ t, onPick }: { t: WizardCopy; onPick: (k: Purpose | "company") => void }) {
-  const opts: (Purpose | "company")[] = ["community", "friends", "company"];
+function PurposeStep({ t, onPick }: { t: WizardCopy; onPick: (k: Purpose) => void }) {
+  const opts: Purpose[] = ["community", "friends", "company"];
   return (
     <div className="flex flex-col gap-3">
       {opts.map((k) => (
@@ -487,7 +714,7 @@ function JoinChoice({
   disabled,
 }: {
   t: WizardCopy;
-  purpose: Purpose;
+  purpose: Social;
   join: Join;
   onChange: (j: Join) => void;
   disabled: boolean;
