@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "../supabase";
-import { sendNotification } from "../notifications";
+import { sendNotification, type NotificationPayload } from "../notifications";
+import { mapWithConcurrency } from "../concurrency";
 import { EMAIL_BASE_URL, button, heroImage, paragraph, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { RIVALRY } from "../towns/rivalry";
@@ -13,6 +14,12 @@ import { contributions } from "./town-email";
 // every member of either side. Hero, one line, one button.
 
 const nameOf = (s: Side) => RIVALRY[SIDES.indexOf(s)].name;
+
+/** Hundreds of members share the Monday close's 300s: send 8 at a time (sendEmail throttles for Resend). */
+async function sendAll(payloads: NotificationPayload[]): Promise<number> {
+  const settled = await mapWithConcurrency(payloads, 8, (p) => sendNotification(p));
+  return settled.filter((r) => r.status === "fulfilled" && r.value.some((x) => x.success)).length;
+}
 
 // ─── The battle is on ───────────────────────────────────────
 
@@ -49,7 +56,7 @@ export async function sendBattleStart(): Promise<number> {
   const sb = getSupabaseAdmin();
   const { data: towns, error } = await sb.from("leagues").select("id, slug").in("slug", RIVALRY.map((r) => r.slug));
   if (error) throw error;
-  let sent = 0;
+  const payloads: NotificationPayload[] = [];
   for (const town of towns ?? []) {
     const side = SIDES[RIVALRY.findIndex((r) => r.slug === town.slug)];
     const { data: members, error: mErr } = await sb.from("league_members").select("developer_id").eq("league_id", town.id).eq("status", "active");
@@ -57,7 +64,7 @@ export async function sendBattleStart(): Promise<number> {
     const data: BattleStartEmailData = { side, heroUrl: `${EMAIL_BASE_URL}/towns/battle-image` };
     const { subject, preheader } = startHeader(data);
     for (const m of members ?? []) {
-      const results = await sendNotification({
+      payloads.push({
         type: "battle_start",
         category: "leagues",
         developerId: m.developer_id as number,
@@ -69,10 +76,9 @@ export async function sendBattleStart(): Promise<number> {
         priority: "normal",
         channels: ["email"],
       });
-      if (results.some((r) => r.success)) sent++;
     }
   }
-  return sent;
+  return sendAll(payloads);
 }
 
 // ─── Weekly result ──────────────────────────────────────────
@@ -126,7 +132,7 @@ export async function sendBattleResults(rivalry: ClosedLeague[]): Promise<number
   const result = await getWeekResult(weekStart);
   if (!result) return 0;
   const week = battleWeekNumber(weekStart);
-  let sent = 0;
+  const payloads: NotificationPayload[] = [];
   for (const c of rivalry) {
     const side = SIDES[RIVALRY.findIndex((r) => r.slug === c.league.slug)];
     for (const me of c.week.standings) {
@@ -140,7 +146,7 @@ export async function sendBattleResults(rivalry: ClosedLeague[]): Promise<number
         heroUrl: `${EMAIL_BASE_URL}/towns/battle-image?week=${weekStart}`,
       };
       const { subject, preheader } = resultHeader(data);
-      const results = await sendNotification({
+      payloads.push({
         type: "battle_result",
         category: "leagues",
         developerId: me.developer_id,
@@ -152,8 +158,7 @@ export async function sendBattleResults(rivalry: ClosedLeague[]): Promise<number
         priority: "normal",
         channels: ["email"],
       });
-      if (results.some((r) => r.success)) sent++;
     }
   }
-  return sent;
+  return sendAll(payloads);
 }
