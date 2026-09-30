@@ -3,11 +3,11 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { CLAIMED_DEVELOPER_LIMIT, pickClaimedDeveloper } from "@/lib/auth-identity";
 import { rateLimit } from "@/lib/rate-limit";
-import { logEvent } from "@/lib/analytics";
+import { captureServer } from "@/lib/posthog-server";
 
-// Client → server event logging for a small allowlist of client-side events
-// (raid_viewed, raid_joined, reward_claimed, sponsor_clicked). Session-authed
-// where possible; anonymous allowed for funnel-top events. Rate-limited.
+// Client → PostHog (server side) for a small allowlist of client-side events
+// (raid_viewed, raid_joined, reward_claimed, sponsor_clicked). The signed-in
+// login is the person; signed out, the anonymous id. Rate-limited.
 
 const ALLOWED_EVENTS = new Set([
   "raid_viewed",
@@ -33,8 +33,8 @@ export async function POST(request: Request) {
   const props = (body.props && typeof body.props === "object" ? body.props : {}) as Record<string, unknown>;
   const anonymousId = typeof body.anonymous_id === "string" ? body.anonymous_id : null;
 
-  // Resolve developer_id from session if logged in
-  let developerId: number | null = null;
+  // Resolve the login from the session if logged in
+  let login: string | null = null;
   try {
     const supabase = await createServerSupabase();
     const { data: { user } } = await supabase.auth.getUser();
@@ -49,13 +49,14 @@ export async function POST(request: Request) {
         .order("claimed_at", { ascending: true })
         .limit(CLAIMED_DEVELOPER_LIMIT);
       const dev = pickClaimedDeveloper(rows, user);
-      developerId = dev?.id ?? null;
+      login = dev?.github_login?.toLowerCase() ?? null;
     } else if (anonymousId) {
       const rl = rateLimit(`track:anon:${anonymousId}`, 10, 1000);
       if (!rl.ok) return NextResponse.json({ ok: false, reason: "rate" }, { status: 429 });
     }
   } catch { /* ignore — fall through to log with whatever we have */ }
 
-  await logEvent(eventName, { developerId, anonymousId, props });
+  const distinctId = login ?? anonymousId;
+  if (distinctId) await captureServer(distinctId, eventName, login ? props : { ...props, $process_person_profile: false });
   return NextResponse.json({ ok: true });
 }

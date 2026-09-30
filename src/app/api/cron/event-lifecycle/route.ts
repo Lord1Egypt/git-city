@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { logEvent } from "@/lib/analytics";
+import { captureServer } from "@/lib/posthog-server";
+
+// System events belong to no player: no person profile.
+const SYSTEM = { distinctId: "event-lifecycle", props: { $process_person_profile: false } };
 
 // Runs every minute. Transitions events by their scheduled time window:
 //   scheduled → live   (at starts_at)
@@ -71,11 +74,9 @@ export async function GET(request: NextRequest) {
           results.closed++;
           const outcome = (wrapData as { outcome?: string } | null)?.outcome ?? "unknown";
           const participants = (wrapData as { participants?: number } | null)?.participants ?? 0;
-          await logEvent("event_wrapped", {
-            props: { event_id: ev.id, slug: ev.slug, outcome, participants },
-          });
+          await captureServer(SYSTEM.distinctId, "event_wrapped", { ...SYSTEM.props, event_id: ev.id, slug: ev.slug, outcome, participants });
           if (outcome === "victory") {
-            await logEvent("boss_defeated", { props: { event_id: ev.id, slug: ev.slug, participants } });
+            await captureServer(SYSTEM.distinctId, "boss_defeated", { ...SYSTEM.props, event_id: ev.id, slug: ev.slug, participants });
           }
         }
       } catch (err) {
