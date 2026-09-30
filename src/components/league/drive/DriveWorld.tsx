@@ -96,6 +96,8 @@ export interface DriveWorldProps {
   onCrown: (v: CrownView) => void;
   /** The town's floors (lib/league-city/smash). Signed in, every building but yours has no collider: the car drives through and breaks it. */
   smash?: SmashStore;
+  /** Single-player preview: no drive room, no other cars. */
+  offline?: boolean;
 }
 
 /** Your Supabase access token for the drive room (null signed out: you drive, you don't smash). */
@@ -283,6 +285,7 @@ export default function DriveWorld({
   crownApi,
   onCrown,
   smash,
+  offline = false,
 }: DriveWorldProps) {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
@@ -335,6 +338,7 @@ export default function DriveWorld({
     telemetryRef.current = telemetry;
   }, [telemetry]);
   const { remotes, drivers, sendBump, send, selfId } = useDrivePresence({
+    offline,
     slug,
     name,
     car,

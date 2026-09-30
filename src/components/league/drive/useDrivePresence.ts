@@ -67,7 +67,10 @@ export function useDrivePresence({
   onOther,
   auth,
   onEmote,
+  offline = false,
 }: {
+  /** Single-player preview (the partners page): no socket, nobody else in the room. */
+  offline?: boolean;
   slug: string;
   name: string;
   car: React.MutableRefObject<CarApi | null>;
@@ -103,6 +106,7 @@ export function useDrivePresence({
   const lastSend = useRef(0);
 
   useEffect(() => {
+    if (offline) return;
     const map = remotes.current;
     const publish = () => setDrivers([...map.values()].map(({ id, name: n }) => ({ id, name: n })));
     const add = (id: string, n: string) => {
@@ -171,7 +175,7 @@ export function useDrivePresence({
       ws.close();
       map.clear();
     };
-  }, [slug, name, party]);
+  }, [slug, name, party, offline]);
 
   // Stream your car.
   useFrame(() => {
