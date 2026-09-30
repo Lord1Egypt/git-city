@@ -59,13 +59,16 @@ export default function RivalryPoster({
     const slug = sides[i].slug;
     setBusy(i);
     setError(null);
+    // /towns?ref=<login>: whoever shared the link gets the credit, through sign-in too.
+    const ref = new URLSearchParams(window.location.search).get("ref");
     if (!signedIn) {
-      const params = new URLSearchParams({ next: `/towns?pick=${slug}` });
+      const back = new URLSearchParams({ pick: slug, ...(ref ? { ref } : {}) });
+      const params = new URLSearchParams({ next: `/towns?${back.toString()}` });
       await signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?${params.toString()}`);
       return;
     }
     try {
-      const res = await fetch(`/api/leagues/${slug}/join`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const res = await fetch(`/api/leagues/${slug}/join`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ref ? { ref } : {}) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) setError(json.error ?? "Something went wrong. Try again.");
       else router.refresh();
