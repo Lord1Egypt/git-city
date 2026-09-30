@@ -36,10 +36,16 @@ export function useDriveInput(
   // Keys pressed since the last frame: a tap shorter than a frame still counts once.
   const taps = useRef(new Set<string>());
   const ref = useRef<DriveInputRef>({ input: NONE, pressed: { camera: false, reset: false, horn: false, fire: false } });
+  // Paused, the keys belong to the page again (no swallowed arrows or Space).
+  const pausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+    if (paused) keys.current.clear();
+  }, [paused]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (typing() || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (pausedRef.current || typing() || e.metaKey || e.ctrlKey || e.altKey) return;
       if (!DRIVE_KEYS.has(e.code)) return;
       e.preventDefault(); // no page scroll on Space and the arrows
       keys.current.add(e.code);
