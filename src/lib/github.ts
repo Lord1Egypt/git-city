@@ -129,6 +129,8 @@ export interface CityBuilding {
   xp_total: number;
   xp_level: number;
   invited?: boolean;
+  /** Filler with no developer behind it (a preview town): drawn, but no name tag. */
+  unlabeled?: boolean;
   active_league_crown?: LeagueCrown | null;
   district?: string;
   district_chosen?: boolean;

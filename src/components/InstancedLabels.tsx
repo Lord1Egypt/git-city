@@ -199,13 +199,15 @@ interface InstancedLabelsProps {
 }
 
 export default memo(function InstancedLabels({
-  buildings,
+  buildings: allBuildings,
   introMode,
   flyMode,
   focusedBuilding,
   focusedBuildingB,
 }: InstancedLabelsProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
+  // Filler buildings (a preview town) carry no name tag.
+  const buildings = useMemo(() => allBuildings.filter((b) => !b.unlabeled), [allBuildings]);
   const count = Math.min(buildings.length, MAX_LABELS);
 
   const focusedLower = focusedBuilding?.toLowerCase() ?? null;

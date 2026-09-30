@@ -552,6 +552,8 @@ export interface LeagueSceneProps {
   watching?: CarFeed[];
   /** Embedded: orbit distance (default 0.85) and how far right the picture shifts on wide screens, in px (default 26% of the width). */
   framing?: { zoom: number; shiftPx: number };
+  /** Embedded but the visitor can orbit and zoom it (the partners preview). */
+  interactive?: boolean;
   /** Filled with the cover camera (the town page's automatic photo and the admin's "set cover"). */
   coverRef?: React.MutableRefObject<CoverApi | null>;
   /** A child owns the camera (the trailer's shots): no orbit, no spin, no fly-in. */
@@ -582,6 +584,7 @@ export default function LeagueScene({
   riseKey,
   push = false,
   framing,
+  interactive = false,
   watching,
   coverRef,
   smash: smashTown = null,
@@ -638,7 +641,7 @@ export default function LeagueScene({
       gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: EXPOSURE }}
       style={
         embedded
-          ? { position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }
+          ? { position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: interactive ? "auto" : "none" }
           : { position: "fixed", inset: 0, width: "100vw", height: "100vh" }
       }
       onCreated={({ gl }) => {

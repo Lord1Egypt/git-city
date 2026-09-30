@@ -296,8 +296,9 @@ export default function DriveWorld({
 
   // The room tells us whether we may smash (smash_me); until then the
   // buildings are solid. Yours always is.
-  const [side, setSide] = useState<SmashSide>("none");
-  const sideRef = useRef<SmashSide>("none");
+  // Offline (a preview) there is no room to ask: every building breaks.
+  const [side, setSide] = useState<SmashSide>(offline && smash ? "smash" : "none");
+  const sideRef = useRef<SmashSide>(offline && smash ? "smash" : "none");
   useEffect(() => {
     sideRef.current = side;
   }, [side]);
