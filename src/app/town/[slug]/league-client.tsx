@@ -752,7 +752,8 @@ export default function LeagueClient({
   );
   const introChecked = useRef(false);
   useEffect(() => {
-    if (introChecked.current || startEditing || startDriving || showJoinCta) return;
+    // Back from sign-in to join (?join=1): straight to the join panel, no intro and no car.
+    if (introChecked.current || startEditing || startDriving || showJoinCta || startJoin) return;
     introChecked.current = true;
     let seen = false;
     try {
@@ -765,7 +766,7 @@ export default function LeagueClient({
     if (document.documentElement.dataset.capture === "1") seen = false;
     // After the first paint, from a callback: the scene mounts first.
     if (!seen) window.setTimeout(playIntro, 0);
-  }, [league.slug, playIntro, startEditing, startDriving, showJoinCta]);
+  }, [league.slug, playIntro, startEditing, startDriving, showJoinCta, startJoin]);
   useEffect(() => {
     if (!intro) return;
     const onKey = (e: KeyboardEvent) => {
