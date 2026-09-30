@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
-import { COPY, langFromAcceptLanguage, type Copy, type Lang } from "./copy";
+import { COPY, PRESS, langFromAcceptLanguage, type Copy, type Lang } from "./copy";
+import GithubCarousel from "./GithubCarousel";
 import ContactForm from "./ContactForm";
 
 async function getLang(): Promise<Lang> {
@@ -57,6 +58,41 @@ export default async function PartnersPage() {
           </div>
         </div>
       </header>
+
+      <section className="border-t-[3px] border-border">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
+            {t.proof.stats.map((stat, i) => (
+              <div key={stat.label} className="flex flex-col-reverse justify-end gap-2">
+                <dt className="font-sans text-sm text-muted normal-case tracking-normal sm:text-base">{stat.label}</dt>
+                <dd className={`text-3xl tabular-nums sm:text-5xl ${i === 0 ? "text-lime" : "text-cream"}`}>{stat.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-12 border-t border-border pt-8">
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+              <span className="text-muted">{t.proof.seenIn}</span>
+              {PRESS.map((outlet) => (
+                <a
+                  key={outlet.name}
+                  href={outlet.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cream transition-colors hover:text-lime"
+                >
+                  {outlet.name}
+                </a>
+              ))}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t-[3px] border-border">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <GithubCarousel t={t.social} />
+        </div>
+      </section>
 
       <section id="contact" className="scroll-mt-6 border-t-[3px] border-border">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
