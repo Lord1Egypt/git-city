@@ -45,10 +45,10 @@ export const SOCIAL_SLIDES = [
 
 // Drop the files in public/partners/videos and list them here as they arrive.
 export const PLAY_VIDEOS: Record<string, { src: string; poster: string } | undefined> = {
-  fly: undefined,
+  fly: { src: "/partners/videos/fly.mp4", poster: "/partners/videos/fly.jpg" },
   towns: { src: "/partners/videos/towns.mp4", poster: "/partners/videos/towns.jpg" },
-  drive: undefined,
-  raids: undefined,
+  drive: { src: "/partners/videos/drive.mp4", poster: "/partners/videos/drive.jpg" },
+  raids: { src: "/partners/videos/raids.mp4", poster: "/partners/videos/raids.jpg" },
 };
 
 export const PRESS = [
