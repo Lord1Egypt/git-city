@@ -11,6 +11,29 @@ import Panel from "./Panel";
 
 const PRIMARY = "btn-press mt-4 block w-full bg-lime px-4 py-3 text-center text-[11px] tracking-widest text-bg disabled:opacity-50";
 
+/** Sign in with GitHub and come back to the same link, token included, with the join panel open. */
+export async function signInToJoin({
+  leagueSlug,
+  refLogin = null,
+  inviteToken = null,
+  invitee = null,
+}: {
+  leagueSlug: string;
+  refLogin?: string | null;
+  inviteToken?: string | null;
+  invitee?: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (refLogin) params.set("ref", refLogin);
+  const back = new URLSearchParams();
+  if (refLogin) back.set("ref", refLogin);
+  if (inviteToken) back.set("t", inviteToken);
+  if (invitee) back.set("invite", invitee);
+  back.set("join", "1");
+  params.set("next", `/town/${leagueSlug}?${back.toString()}`);
+  await signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?${params.toString()}`);
+}
+
 export default function JoinPanel({
   leagueSlug,
   action,
@@ -39,16 +62,7 @@ export default function JoinPanel({
 
   async function signIn() {
     setBusy(true);
-    const params = new URLSearchParams();
-    if (refLogin) params.set("ref", refLogin);
-    // Come back to the same link, token included, with this panel open.
-    const back = new URLSearchParams();
-    if (refLogin) back.set("ref", refLogin);
-    if (inviteToken) back.set("t", inviteToken);
-    if (invitee) back.set("invite", invitee);
-    back.set("join", "1");
-    params.set("next", `/town/${leagueSlug}?${back.toString()}`);
-    await signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?${params.toString()}`);
+    await signInToJoin({ leagueSlug, refLogin, inviteToken, invitee });
   }
 
   async function call(path: string, method: "POST" | "DELETE", body?: object): Promise<boolean> {
