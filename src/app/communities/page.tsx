@@ -79,7 +79,7 @@ export default async function CommunitiesPage() {
 
 function CreateButton({ t }: { t: Copy }) {
   return (
-    <Link href="/towns/new" className="btn-press inline-block bg-lime px-6 py-3 text-sm tracking-widest text-bg sm:text-base">
+    <Link href="/towns/new?for=community" className="btn-press inline-block bg-lime px-6 py-3 text-sm tracking-widest text-bg sm:text-base">
       {t.cta}
     </Link>
   );
