@@ -78,6 +78,8 @@ export interface DriveWorldProps {
   paused: boolean;
   /** A guest's car running out of gas since then (performance.now; lib drive/guest-gate). */
   stallAt?: number | null;
+  /** The intro's arrival choice is up: the car brakes to a stop and takes no input. */
+  held?: boolean;
   /** Rapier and the car are loaded. */
   onReady: () => void;
   /** Rapier or the models failed to load. */
@@ -274,6 +276,7 @@ export default function DriveWorld({
   onEmoteLog,
   paused,
   stallAt = null,
+  held = false,
   onReady,
   onFail,
   slug,
@@ -312,7 +315,11 @@ export default function DriveWorld({
   useEffect(() => {
     stallRef.current = stallAt;
   }, [stallAt]);
-  const input = useDriveInput(paused || cinematic, touch, { at: stallRef, speed: () => telemetry.speed });
+  const heldRef = useRef(held);
+  useEffect(() => {
+    heldRef.current = held;
+  }, [held]);
+  const input = useDriveInput(paused || cinematic, touch, { at: stallRef, speed: () => telemetry.speed }, heldRef);
   const car = useRef<CarApi | null>(null);
   const impact = useRef({ strength: 0, at: 0 });
   const fx = useRef(new Map<string, FxSource>());

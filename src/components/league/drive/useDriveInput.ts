@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { readInput, type DriveInput, type GamepadLike } from "@/lib/league-city/drive/input";
 import { mergeTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
-import { stallInput } from "@/lib/league-city/drive/guest-gate";
+import { STALL_STOPPED, stallInput } from "@/lib/league-city/drive/guest-gate";
 
 // Held keys from keyboard listeners plus the first connected gamepad, polled
 // every frame, plus the phone's touch controls when given (lib drive/touch). `input` is the level; `pressed` holds this frame's presses
@@ -31,6 +31,8 @@ export function useDriveInput(
   touch?: React.MutableRefObject<TouchDrive>,
   /** Running out of gas (lib drive/guest-gate): when it started (performance.now), and the car's speed. */
   stall?: { at: React.MutableRefObject<number | null>; speed: () => number },
+  /** The car is held (the intro's arrival choice): a soft brake to a stop, no input. */
+  hold?: React.MutableRefObject<boolean>,
 ): React.MutableRefObject<DriveInputRef> {
   const keys = useRef(new Set<string>());
   // Keys pressed since the last frame: a tap shorter than a frame still counts once.
@@ -75,6 +77,8 @@ export function useDriveInput(
     let next = typing() || paused ? NONE : touch ? mergeTouch(readInput(held, pad), touch.current) : readInput(held, pad);
     const stallAt = stall?.at.current;
     if (stallAt != null && next !== NONE) next = stallInput(next, performance.now() - stallAt, stall!.speed());
+    // Only while rolling forward: a brake at a standstill would reverse.
+    if (hold?.current) next = stall && stall.speed() > STALL_STOPPED ? { ...NONE, brake: 0.3 } : NONE;
     ref.current.pressed = {
       camera: next.camera && !prev.camera,
       reset: next.reset && !prev.reset,
