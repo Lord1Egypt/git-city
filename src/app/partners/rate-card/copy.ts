@@ -46,7 +46,7 @@ export const RATE_COPY = {
       steps: [
         "Pick an event or a town.",
         "Send your logo, your link and the prizes you'll give.",
-        "We launch it. At the end you get the winners' GitHub profiles and a report of views and clicks.",
+        "We launch it. At the end we tell you who won.",
       ],
       delivery:
         "You send the prizes to the winners. If the prize is a code or a link, we hand it to them for you.",
@@ -97,7 +97,7 @@ export const RATE_COPY = {
       steps: [
         "Escolha um evento ou uma town.",
         "Mande seu logo, seu link e os prêmios que vai dar.",
-        "A gente lança. No fim você recebe o GitHub de quem ganhou e um relatório de views e cliques.",
+        "A gente lança. No fim a gente te conta quem ganhou.",
       ],
       delivery:
         "Você envia os prêmios aos vencedores. Se o prêmio for um código ou link, a gente entrega por você.",

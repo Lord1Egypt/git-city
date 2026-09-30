@@ -216,7 +216,7 @@ export const COPY = {
     formats: {
       kicker: "For brands",
       title: "Where your brand shows up",
-      note: "Every placement is clickable, and you get a report of views and clicks.",
+      note: "Every placement is clickable and opens your site.",
       inputLabel: "Type your brand",
       cityLabel: "Git City",
       showLabel: "Show a placement",
@@ -430,7 +430,7 @@ export const COPY = {
     formats: {
       kicker: "Para marcas",
       title: "Onde sua marca aparece",
-      note: "Todo placement é clicável, e você recebe um relatório de views e cliques.",
+      note: "Todo placement é clicável e abre o seu site.",
       inputLabel: "Digite sua marca",
       cityLabel: "Git City",
       showLabel: "Mostrar um placement",
