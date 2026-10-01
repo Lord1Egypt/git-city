@@ -18,6 +18,7 @@ import { pointAt, theTrack } from "@/lib/league-city/race/track";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
 import { TRIAL, pickRival, runCounts, type TrialStage } from "@/lib/league-city/race/trial";
 import type { GhostRun } from "@/lib/league-city/race/ghost";
+import { useActiveTime } from "@/components/towns/useActiveTime";
 
 // The town's race track: one Canvas in daylight (read at a glance from the
 // high camera), the track and the race room (RaceWorld, loaded on the client
@@ -90,6 +91,7 @@ export default function RaceClient({
 
   const [telemetry] = useState(createRaceTelemetry);
   const [ready, setReady] = useState(false);
+  useActiveTime("town_race_ended", { town_slug: slug }, ready && desktop === true);
   const [failed, setFailed] = useState(false);
   const [camera, setCamera] = useState<RaceCameraMode>("high");
   const [ghostMs, setGhostMs] = useState<number | null>(null);

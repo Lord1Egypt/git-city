@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import PixelSpinner from "@/components/leagues/PixelSpinner";
 import { useTownVisit } from "@/components/towns/useTownVisit";
+import { useActiveTime } from "@/components/towns/useActiveTime";
 import { isDesktop, useTouch } from "@/components/towns/useDesktop";
 import type { TownBadges } from "@/lib/towns/milestones";
 import type { JoinAction } from "@/lib/towns/joining";
@@ -213,6 +214,8 @@ export default function LeagueClient({
   const introPose = useRef<IntroPose | null>(null);
   const [cinematic, setCinematic] = useState(false);
   useTownVisit(league.slug, !!viewer && viewer.status !== "active" && viewer.status !== "invited", driving);
+  // Time in the car, for the Towns and Partners dashboards (members and guests too).
+  useActiveTime("town_drive_ended", { town_slug: league.slug }, driving);
   const [store] = useState(() => createEditorStore(initEditor(city, !!city.identity.logoUrl)));
   // Identity from the server, with the hill sign side applied optimistically.
   // The override holds until the server's value changes (a refresh brings the truth).
