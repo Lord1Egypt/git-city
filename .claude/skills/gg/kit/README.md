@@ -36,7 +36,7 @@ To set it up by hand, copy `src/` (without `examples/gitcity/`) into your app (f
 
 ## The studio
 
-A 16:9 stage, play and scene-to-scene buttons, a ruler to scrub (its marks are the cuts), the scenes on the right (a picked scene loops), slow motion, and Export mp4 at the top, which copies the export command for this page. Keys:
+A 16:9 stage, play and scene-to-scene buttons, a ruler to scrub (its marks are the cuts), the scenes on the right (a picked scene loops), slow motion, volume, and Export mp4 at the top, which copies the export command for this page. Keys:
 
 | Key | Does |
 |---|---|
@@ -46,6 +46,8 @@ A 16:9 stage, play and scene-to-scene buttons, a ruler to scrub (its marks are t
 | Home End | Scene start / end |
 | 1–9, 0 | Pick a scene, the whole film |
 | [ ] | Slower / faster (1×, 0.5×, 0.25×) |
+| - + | Volume down / up (the studio's only: the export mixes at full level) |
+| M | Mute |
 | Shift R | Record by hand: full window, no cursor, 1s of black, the whole film once |
 | Esc | Stop recording |
 

@@ -23,6 +23,8 @@ import type { Film, Frame, SoundCue, TitleCue } from "./film";
 // but the font, so the film's look is all the film's own, titles included.
 
 const RATES = [1, 0.5, 0.25];
+/** The volume moves in tenths; it's the studio's only (the export mixes at full level). */
+const VOLUME_STEP = 0.1;
 
 const CSS = `
 /* The defaults weigh nothing (:where), so any class of yours overrides them. */
@@ -62,6 +64,12 @@ const CSS = `
 .tk-key:hover { color: var(--tk-accent); }
 .tk-key.tk-big { width: 44px; height: 44px; background: var(--tk-accent); color: var(--tk-bg); }
 .tk-key.tk-big:hover { filter: brightness(1.1); color: var(--tk-bg); }
+.tk-right { display: flex; justify-content: flex-end; align-items: center; gap: 24px; }
+.tk-volume { display: flex; align-items: center; gap: 4px; color: var(--tk-muted); }
+.tk-volume button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; color: var(--tk-muted); }
+.tk-volume button:hover { color: var(--tk-text); }
+.tk-volume button:disabled { opacity: 0.35; cursor: default; color: var(--tk-muted); }
+.tk-volume output { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
 .tk-rates { display: flex; justify-content: flex-end; gap: 14px; }
 .tk-rates button { color: var(--tk-muted); }
 .tk-rates button:hover { color: var(--tk-text); }
@@ -95,7 +103,11 @@ const CSS = `
 `;
 
 /** Pixel icons for the transport, drawn on an 8×8 grid. */
-function Icon({ name }: { name: "play" | "pause" | "prev" | "next" }) {
+function Icon({
+  name,
+}: {
+  name: "play" | "pause" | "prev" | "next" | "sound" | "mute" | "minus" | "plus";
+}) {
   const rects: Record<typeof name, [number, number, number, number][]> = {
     play: [
       [2, 0, 1, 8],
@@ -121,6 +133,30 @@ function Icon({ name }: { name: "play" | "pause" | "prev" | "next" }) {
       [4, 2, 1, 4],
       [5, 3, 1, 2],
     ],
+    sound: [
+      [0, 3, 2, 2],
+      [2, 2, 1, 4],
+      [3, 1, 1, 6],
+      [5, 3, 1, 2],
+      [6, 1, 1, 1],
+      [7, 2, 1, 4],
+      [6, 6, 1, 1],
+    ],
+    mute: [
+      [0, 3, 2, 2],
+      [2, 2, 1, 4],
+      [3, 1, 1, 6],
+      [5, 2, 1, 1],
+      [7, 2, 1, 1],
+      [6, 3, 1, 2],
+      [5, 5, 1, 1],
+      [7, 5, 1, 1],
+    ],
+    minus: [[1, 3, 6, 2]],
+    plus: [
+      [1, 3, 6, 2],
+      [3, 1, 2, 6],
+    ],
   };
   return (
     <svg
@@ -139,8 +175,14 @@ function Icon({ name }: { name: "play" | "pause" | "prev" | "next" }) {
 }
 
 /** Web Audio for the effects: files decoded once, woken by the first key or click (autoplay rules). */
-function useSoundEffects(sounds: SoundCue[]) {
+function useSoundEffects(sounds: SoundCue[], volume: number) {
   const play = useRef<((c: SoundCue) => void) | null>(null);
+  const level = useRef(volume);
+  const master = useRef<GainNode | null>(null);
+  useEffect(() => {
+    level.current = volume;
+    if (master.current) master.current.gain.value = volume;
+  }, [volume]);
   useEffect(() => {
     let ctx: AudioContext | null = null;
     const buffers = new Map<string, Promise<AudioBuffer | null>>();
@@ -158,7 +200,12 @@ function useSoundEffects(sounds: SoundCue[]) {
       return buffers.get(src)!;
     };
     const wake = () => {
-      ctx ??= new AudioContext();
+      if (!ctx) {
+        ctx = new AudioContext();
+        master.current = ctx.createGain();
+        master.current.gain.value = level.current;
+        master.current.connect(ctx.destination);
+      }
       void ctx.resume();
       for (const c of sounds) load(c.src);
     };
@@ -174,7 +221,7 @@ function useSoundEffects(sounds: SoundCue[]) {
         node.playbackRate.value = cue.rate ?? 1;
         const gain = c.createGain();
         gain.gain.value = cue.gain;
-        node.connect(gain).connect(c.destination);
+        node.connect(gain).connect(master.current ?? c.destination);
         node.loop = cue.dur !== undefined && cue.dur > buf.duration;
         node.start();
         if (cue.dur !== undefined) {
@@ -187,6 +234,7 @@ function useSoundEffects(sounds: SoundCue[]) {
       window.removeEventListener("pointerdown", wake);
       window.removeEventListener("keydown", wake);
       void ctx?.close();
+      master.current = null;
     };
   }, [sounds]);
   return play;
@@ -227,6 +275,10 @@ export default function Studio<S extends string>({
   const [scene, setScene] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [rate, setRate] = useState(1);
+  // The listening volume, 0 to 1. Mute keeps the level to come back to.
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const loud = muted ? 0 : volume;
   const [recording, setRecording] = useState(false);
   const [frame, setFrame] = useState<Frame<S>>(() => film.frameAt(0));
   const [titles, setTitles] = useState<number[]>([]);
@@ -240,7 +292,22 @@ export default function Studio<S extends string>({
   const [command, setCommand] = useState<string | null>(null);
   const track = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLDivElement>(null);
-  const sfx = useSoundEffects(film.sounds);
+  const sfx = useSoundEffects(film.sounds, loud);
+  const loudRef = useRef(loud);
+  useEffect(() => {
+    loudRef.current = loud;
+    if (audio.current) audio.current.volume = loud;
+  }, [loud]);
+  const toggleMute = () => {
+    if (volume === 0) {
+      setVolume(1);
+      setMuted(false);
+    } else setMuted((m) => !m);
+  };
+  const nudgeVolume = (dir: 1 | -1) => {
+    setMuted(false);
+    setVolume((v) => Math.round(Math.min(1, Math.max(0, v + dir * VOLUME_STEP)) * 10) / 10);
+  };
   const reset = useRef(onReset);
   useEffect(() => {
     reset.current = onReset;
@@ -261,7 +328,7 @@ export default function Studio<S extends string>({
       if (!on || clock.rate !== 1 || exporting.current) return a.pause();
       const go = () => {
         a.currentTime = (film.song?.offset ?? 0) + Math.max(0, beatOf(clock)) * BEAT;
-        a.volume = 1;
+        a.volume = loudRef.current;
         a.play().catch(() => {
           // no song file yet (tools/music.mjs): silent
         });
@@ -398,6 +465,9 @@ export default function Studio<S extends string>({
         changeRate(RATES[Math.min(RATES.length - 1, RATES.indexOf(rate) + 1)]);
       else if (k === "BracketRight") changeRate(RATES[Math.max(0, RATES.indexOf(rate) - 1)]);
       else if (k === "KeyR" && e.shiftKey) record();
+      else if (k === "Minus") nudgeVolume(-1);
+      else if (k === "Equal") nudgeVolume(1);
+      else if (k === "KeyM") toggleMute();
       else return;
       e.preventDefault();
     };
@@ -554,17 +624,46 @@ export default function Studio<S extends string>({
                   <Icon name="next" />
                 </button>
               </div>
-              <div className="tk-rates">
-                {RATES.map((r) => (
+              <div className="tk-right">
+                <div className="tk-volume" role="group" aria-label="Volume">
                   <button
-                    key={r}
                     type="button"
-                    onClick={() => changeRate(r)}
-                    className={rate === r ? "tk-on" : ""}
+                    onClick={toggleMute}
+                    aria-label={loud === 0 ? "Unmute" : "Mute"}
+                    aria-pressed={muted}
                   >
-                    {String(r).replace(/^0/, "")}×
+                    <Icon name={loud === 0 ? "mute" : "sound"} />
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => nudgeVolume(-1)}
+                    disabled={loud === 0}
+                    aria-label="Volume down"
+                  >
+                    <Icon name="minus" />
+                  </button>
+                  <output aria-live="polite">{Math.round(loud * 100)}%</output>
+                  <button
+                    type="button"
+                    onClick={() => nudgeVolume(1)}
+                    disabled={!muted && volume >= 1}
+                    aria-label="Volume up"
+                  >
+                    <Icon name="plus" />
+                  </button>
+                </div>
+                <div className="tk-rates">
+                  {RATES.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => changeRate(r)}
+                      className={rate === r ? "tk-on" : ""}
+                    >
+                      {String(r).replace(/^0/, "")}×
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -602,7 +701,7 @@ export default function Studio<S extends string>({
 
             <p className="tk-hint">
               <b>Space</b> play · <b>← →</b> frame · <b>Shift ← →</b> beat · <b>1–9</b> scene ·{" "}
-              <b>[ ]</b> speed · <b>Shift R</b> record
+              <b>[ ]</b> speed · <b>- +</b> volume · <b>M</b> mute · <b>Shift R</b> record
             </p>
           </section>
 
