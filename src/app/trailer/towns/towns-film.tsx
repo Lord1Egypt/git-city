@@ -17,6 +17,7 @@ import { Transport } from "@trailer-kit/clock";
 import type { Frame } from "@trailer-kit/film";
 import { FILM, smashRun, type Stage } from "@/lib/trailer/towns/teaser";
 import Studio from "@trailer-kit/Studio";
+import Titles from "@trailer-kit/examples/gitcity/Titles";
 import TownsRig from "@/components/trailer/towns/TownsRig";
 import EndCard from "@/components/trailer/towns/EndCard";
 
@@ -153,7 +154,7 @@ export default function TownsFilm({
   };
 
   return (
-    <Studio film={FILM} clock={clock} onReset={reset} title="Towns teaser">
+    <Studio film={FILM} clock={clock} onReset={reset} title="Towns teaser" titles={(cues) => <Titles cues={cues} />}>
       {(frame) => (
         <>
           {town("claude", frame)}

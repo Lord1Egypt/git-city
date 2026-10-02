@@ -6,7 +6,8 @@ import { Transport } from "@trailer-kit/clock";
 import type { Frame } from "@trailer-kit/film";
 import { BUMP, BUTTON_AT, CARD, FILM, LENGTH, LINE_AT, NAME_AT, STAMP_AT, type Stage } from "@/lib/trailer/demo/film";
 import Studio from "@trailer-kit/Studio";
-import EndCard from "@trailer-kit/EndCard";
+import EndCard from "@trailer-kit/examples/gitcity/EndCard";
+import Titles from "@trailer-kit/examples/gitcity/Titles";
 import CarBump from "@/components/trailer/CarBump";
 import DemoWorld from "@/components/trailer/demo/DemoWorld";
 import DemoRig from "@/components/trailer/demo/DemoRig";
@@ -51,7 +52,7 @@ export default function DemoFilm() {
 
   return (
     // Nothing in this world is destroyed, so there is nothing to put back on a reset.
-    <Studio film={FILM} clock={clock} onReset={() => {}} title="Kit demo">
+    <Studio film={FILM} clock={clock} onReset={() => {}} title="Kit demo" titles={(cues) => <Titles cues={cues} />}>
       {(frame) => (
         <>
           {stage("day", frame)}

@@ -1,17 +1,18 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { TitleCue } from "./film";
+import type { TitleCue } from "../../film";
 
-// Kinetic titles over a film (./film TitleCue), in the stage's
-// container units (cqw) so they scale with it. The styles are in TITLE_CSS,
-// which the studio mounts once.
+// Git City's title cards: one project's treatment, an example to read, not a
+// default to reuse. A film passes its own renderer to the studio's `titles`
+// slot, designed in its project's language (SKILL.md, step 3). Sizes are in
+// the stage's container units (cqw) so they scale with it.
 //   tag     a word on a slanted bar, lower left: the bar wipes in, the letters pop, a small hit
 //   big     the same, centred near the top
 //   left / right  plates under each half of a split screen
 //   center  a boxed word in the middle
 
-export const TITLE_CSS = `
+const TITLE_CSS = `
 @keyframes film-bar { 0% { clip-path: polygon(0 0, 0 0, -8% 100%, -8% 100%); } 100% { clip-path: polygon(0 0, 100% 0, 92% 100%, -8% 100%); } }
 @keyframes film-letter { 0% { opacity: 0; transform: translateY(40%) scale(1.6); } 60% { opacity: 1; transform: translateY(-6%) scale(0.95); } 100% { opacity: 1; transform: none; } }
 @keyframes film-hit { 0%, 100% { transform: translate(0, 0) skewX(-12deg); } 20% { transform: translate(-0.6cqw, 0.3cqw) skewX(-12deg); } 40% { transform: translate(0.5cqw, -0.2cqw) skewX(-12deg); } 60% { transform: translate(-0.3cqw, 0.1cqw) skewX(-12deg); } }
@@ -20,7 +21,7 @@ export const TITLE_CSS = `
 .film-tag-bar { animation: film-bar 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .film-tag-letter { display: inline-block; animation: film-letter 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .film-slam { animation: film-slam 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.film-ink { color: #0d0d0f; line-height: 1; white-space: nowrap; }
+.film-ink { color: #0d0d0f; line-height: 1; white-space: nowrap; text-transform: uppercase; }
 `;
 
 const abs = (s: CSSProperties): CSSProperties => ({ position: "absolute", ...s });
@@ -71,6 +72,7 @@ export default function Titles({ cues }: { cues: TitleCue[] }) {
   const center = at("center");
   return (
     <>
+      <style>{TITLE_CSS}</style>
       {(["left", "right"] as const).map((place) => {
         const c = at(place);
         if (!c) return null;
@@ -122,6 +124,7 @@ export default function Titles({ cues }: { cues: TitleCue[] }) {
               background: "#0d0d0f",
               color: "#e8dcc8",
               boxShadow: "0 0 0 0.35cqw #e8dcc8",
+              textTransform: "uppercase",
             }}
           >
             {center.text}

@@ -1,6 +1,6 @@
 "use client";
 
-import EndCard from "@trailer-kit/EndCard";
+import EndCard from "@trailer-kit/examples/gitcity/EndCard";
 import type { FilmClock } from "@trailer-kit/clock";
 import { BEAT, BUMP, BUTTON_AT, LENGTH, LOGO } from "@/lib/trailer/towns/teaser";
 import CarBump from "@/components/trailer/CarBump";

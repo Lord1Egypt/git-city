@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { beatOf, type FilmClock } from "./clock";
+import { beatOf, type FilmClock } from "../../clock";
 
-// A film's end card, as film end cards go: a hard cut to black, then a
-// centred lockup with nothing around it. Driven by the film's clock in beats
+// Git City's end card: one project's treatment, an example to read, not a
+// default to reuse. Design your own project's card in its own language (the
+// skill's SKILL.md, step 3). Git City's: a hard cut to black, then a centred
+// lockup with nothing around it, in the game's pixel type and cream. Driven by the film's clock in beats
 // after the cut, so a scrub shows what records. With the default beats:
 //   0  black, only the echo of the last hit
 //   1  the name stamps in, big and centred: stepped, no easing, a flash

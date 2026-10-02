@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { beatOf, type Transport } from "./clock";
-import type { Film, Frame, SoundCue } from "./film";
-import Titles, { TITLE_CSS } from "./Titles";
+import type { Film, Frame, SoundCue, TitleCue } from "./film";
 
 // A small editor for a Film (./film), played live in the engine:
 // the film in a 16:9 stage, its scenes to pick from (a picked scene loops),
@@ -19,22 +18,24 @@ import Titles, { TITLE_CSS } from "./Titles";
 // sound effects go through Web Audio, one source per cue, on their beats.
 //
 // Styled by its own CSS below, no framework needed. To match your game, pass
-// a className that sets the --tk-* variables (colors, and --tk-font).
+// a className that sets the --tk-* variables (colors, and --tk-font). That
+// CSS is the editor's only: the stage (the film itself) inherits none of it
+// but the font, so the film's look is all the film's own, titles included.
 
 const RATES = [1, 0.5, 0.25];
 
 const CSS = `
-${TITLE_CSS}
 /* The defaults weigh nothing (:where), so any class of yours overrides them. */
 :where(.tk-studio) {
   --tk-bg: #0d0d0f; --tk-panel: #161618; --tk-line: #2a2a30; --tk-line-hi: #3a3a44;
-  --tk-text: #d4cfc4; --tk-muted: #8c8c9c; --tk-accent: #c8e64a; --tk-rec: #ff5a5a;
+  --tk-text: #d4cfc4; --tk-muted: #8c8c9c; --tk-accent: #c8e64a; --tk-rec: #ff5a5a; --tk-flash: #fff;
 }
 .tk-studio {
-  min-height: 100vh; background: var(--tk-bg); color: var(--tk-text); text-transform: uppercase;
+  min-height: 100vh; background: var(--tk-bg); color: var(--tk-text);
   font-family: var(--tk-font, ui-monospace, monospace);
 }
-.tk-studio button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-transform: inherit; }
+.tk-studio :is(.tk-top, .tk-transport, .tk-marks, .tk-side) { text-transform: uppercase; }
+.tk-studio button:where(:not(.tk-stage *)) { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-transform: inherit; }
 .tk-studio.tk-recording, .tk-studio.tk-recording * { cursor: none !important; }
 .tk-wrap { margin: 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 12px; min-height: 100vh; box-sizing: border-box; padding: 16px;
   max-width: min(1760px, calc((100vh - 196px) * 16 / 9 + 344px)); }
@@ -52,7 +53,7 @@ ${TITLE_CSS}
 .tk-main { display: flex; flex-direction: column; }
 .tk-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; container-type: inline-size; }
 .tk-recording .tk-stage { position: fixed; inset: 0; z-index: 50; aspect-ratio: auto; }
-.tk-flash { pointer-events: none; position: absolute; inset: 0; background: #fff; opacity: 0; }
+.tk-flash { pointer-events: none; position: absolute; inset: 0; background: var(--tk-flash); opacity: 0; }
 .tk-transport { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 10px 16px 6px; font-size: 12px; }
 .tk-time { font-variant-numeric: tabular-nums; color: var(--tk-muted); }
 .tk-time b { font-weight: inherit; color: var(--tk-text); }
@@ -198,6 +199,7 @@ export default function Studio<S extends string>({
   className = "",
   title = "",
   exportCommand,
+  titles: drawTitles,
   children,
 }: {
   film: Film<S>;
@@ -210,6 +212,13 @@ export default function Studio<S extends string>({
   title?: string;
   /** What the Export button copies. Default: `npm run trailer:export -- <this page>` (the kit README, "Export"). */
   exportCommand?: string;
+  /**
+   * Draws the title cards on screen (the film's `titles` whose time it is),
+   * over the pictures. Design them in your project's own type and motion;
+   * examples/gitcity/Titles is one project's, not a default. Without it,
+   * titles don't show.
+   */
+  titles?: (cues: TitleCue[]) => ReactNode;
   /** The pictures for the frame on screen. */
   children: (frame: Frame<S>) => ReactNode;
 }) {
@@ -511,7 +520,7 @@ export default function Studio<S extends string>({
           <section className="tk-panel tk-main">
             <div className="tk-stage">
               {children(frame)}
-              <Titles cues={titles.map((i) => film.titles[i])} />
+              {drawTitles?.(titles.map((i) => film.titles[i]))}
               <div ref={flash} className="tk-flash" />
             </div>
 

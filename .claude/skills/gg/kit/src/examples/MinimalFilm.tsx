@@ -11,6 +11,7 @@ import {
   type Film,
   type Frame,
   type Take,
+  type TitleCue,
 } from "../film";
 import Studio from "../Studio";
 
@@ -20,6 +21,10 @@ import Studio from "../Studio";
 // piece: takes on a beat grid, a split take, a trimmed and a frozen take, a
 // moment with a title, a flash and a sound on it, and pictures that are pure
 // functions of the take's time.
+//
+// It has no look on purpose: plain boxes, a plain title. Your film's titles,
+// end card and music get designed in your project's own language (SKILL.md,
+// step 3), not copied from here or from examples/gitcity.
 
 const BPM = 120;
 const BEAT = 60 / BPM;
@@ -46,7 +51,7 @@ const FILM: Film<Stage> = {
   // The game's own impact sound (CC0, in the repo), on the landing.
   sounds: [{ beat: momentOf(jump, LANDS), src: "/sounds/drive/impact.ogg", gain: 0.7 }],
   titles: [
-    { start: momentOf(jump, 0.5), end: jump.end, text: "Jump", place: "tag", color: "#c8e64a" },
+    { start: momentOf(jump, 0.5), end: jump.end, text: "Jump", place: "tag" },
   ],
   flashes: [momentOf(jump, LANDS)],
   frameAt: (beat) => frameOf(SHOTS, beat),
@@ -121,10 +126,40 @@ function DemoStage({
   );
 }
 
+/** The titles slot: a placeholder with no style of its own. Replace it with your project's. */
+function PlainTitles({ cues }: { cues: TitleCue[] }) {
+  return (
+    <>
+      {cues.map((c) => (
+        <p
+          key={`${c.text}-${c.start}`}
+          style={{
+            position: "absolute",
+            left: "6%",
+            bottom: "8%",
+            margin: 0,
+            fontFamily: "system-ui, sans-serif",
+            fontSize: "4cqw",
+            color: "#fff",
+          }}
+        >
+          {c.text}
+        </p>
+      ))}
+    </>
+  );
+}
+
 export default function MinimalFilm() {
   const [clock] = useState(() => new Transport(BEAT));
   return (
-    <Studio film={FILM} clock={clock} onReset={() => {}} title="Minimal film">
+    <Studio
+      film={FILM}
+      clock={clock}
+      onReset={() => {}}
+      title="Minimal film"
+      titles={(cues) => <PlainTitles cues={cues} />}
+    >
       {(frame) => (
         <>
           <DemoStage stage="day" clock={clock} frame={frame} />
