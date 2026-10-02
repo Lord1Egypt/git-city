@@ -1,6 +1,6 @@
 # Trailer kit
 
-Make your web game's trailer inside the game itself. A film is data (takes on the music's beat grid), a studio page plays it live in your engine, and the export renders it frame by frame to an mp4, music included. No video editor, no screen recorder.
+Make your web game's trailer inside the game itself, or your library's or app's launch film inside the real product. A film is data (takes on the music's beat grid), a studio page plays it live in your engine, and the export renders it frame by frame to an mp4, music included. No video editor, no screen recorder.
 
 It came out of making the [Git City](https://thegitcity.com) Towns teaser, and it ships inside the `gg` Claude skill ("You made a game. gg."), so Claude can set it up in your project and build the film with you. MIT licensed (see `LICENSE`).
 
@@ -10,9 +10,9 @@ It came out of making the [Git City](https://thegitcity.com) Towns teaser, and i
 npx skills add srizzon/git-city --skill gg
 ```
 
-Then tell Claude "let's /gg this". The skill copies this kit into your project and starts from the template film.
+Then tell Claude "let's /gg this". The skill studies your project and films like it, picks a visual direction for yours, copies this kit in and builds the film in that direction.
 
-To set it up by hand, copy `src/` into your app (for example `src/trailer-kit/`), copy `tools/` anywhere, and mount `src/examples/MinimalFilm.tsx` on a page. The studio needs React 18+ and nothing else: no Tailwind, no three.js (your pictures can use them). The export needs Playwright and ffmpeg (see "Export"). In Next.js App Router the components are client components already.
+To set it up by hand, copy `src/` (without `examples/gitcity/`) into your app (for example `src/trailer-kit/`), copy `tools/` anywhere, and mount `src/examples/MinimalFilm.tsx` on a page. The studio needs React 18+ and nothing else: no Tailwind, no three.js (your pictures can use them). The export needs Playwright and ffmpeg (see "Export"). In Next.js App Router the components are client components already.
 
 ## What's here
 
@@ -21,16 +21,18 @@ To set it up by hand, copy `src/` into your app (for example `src/trailer-kit/`)
 | `src/clock.ts` | The clock every shot reads, in beats from the first frame. Never frame deltas: that's what keeps cuts on the beat. |
 | `src/film.ts` | The film as data: takes, shots, moments, scenes, sounds, titles, flashes. Pure, no React. |
 | `src/film.test.ts` | Its tests (vitest). |
-| `src/Studio.tsx` | The editor. Plays any `Film`; the pictures come from its children. |
-| `src/Titles.tsx` | Kinetic titles: a word on a slanted bar, plates over a split. |
-| `src/EndCard.tsx` | The end card: the name stamped on, a stamp after it, a line, and a slot for your game's button gag. |
-| `src/examples/MinimalFilm.tsx` | The smallest film, in plain HTML. The template for your own. |
-| `tools/music.mjs` | A tiny synthesizer that writes the film's music at its BPM. |
+| `src/Studio.tsx` | The editor. Plays any `Film`; the pictures come from its children, the title cards from its `titles` slot. |
+| `src/examples/MinimalFilm.tsx` | The smallest film, in plain HTML, with no look on purpose. The template for your own. |
+| `src/examples/gitcity/` | Git City's titles (a word on a slanted bar) and end card (the name stamped on, a stamp after it). One project's treatment, to read as an example, not to reuse. |
+| `tools/music.mjs` | A tiny synthesizer that writes the film's music at its BPM, from a brief or an arrangement. |
+| `tools/arrangements/` | `brief.mjs` (a song from a JSON brief), `gitcity.mjs` (Git City's synthwave, an example), and how to write your own. |
 | `tools/sfx.mjs` | Synthesized effects: explosion, whoosh, crumble, key click, horn. |
 | `tools/export.mjs` | Renders a film from the studio to an mp4, frame by frame, with its sound mixed in. |
 | `tools/capture.sh` | macOS: opens a clean browser window, for recording by hand. |
 
-**Styling.** The studio carries its own CSS. To match your game, give it a `className` that sets the variables: `--tk-font`, `--tk-bg`, `--tk-panel`, `--tk-line`, `--tk-line-hi`, `--tk-text`, `--tk-muted`, `--tk-accent`, `--tk-rec`.
+**Styling.** The studio carries its own CSS. To match your project, give it a `className` that sets the variables: `--tk-font`, `--tk-bg`, `--tk-panel`, `--tk-line`, `--tk-line-hi`, `--tk-text`, `--tk-muted`, `--tk-accent`, `--tk-rec`, and `--tk-flash` (the color of `film.flashes`). That CSS styles the editor only: the stage inherits nothing from it but the font, so your components and buttons on it keep their own styles.
+
+**Titles.** `film.titles` says when each card is on and where (`place`); how it looks is yours. Pass a renderer: `<Studio titles={(cues) => <MyTitles cues={cues} />}>`, drawn over the stage in container units (`cqw`) so it scales. Without one, titles don't show.
 
 ## The studio
 
@@ -65,11 +67,12 @@ Anything a take breaks lives in state the studio resets through `onReset`: when 
 
 ### A film of your own
 
-Copy `src/examples/MinimalFilm.tsx` and change four things:
+Copy `src/examples/MinimalFilm.tsx` and change five things:
 1. **The BPM and the takes.** Pick the BPM your music will use, then write the takes on that beat grid.
 2. **The stages.** One per world or scene; a `"both"` take shows them side by side.
 3. **The pictures.** Replace `DemoStage` with your own: DOM, a canvas, your game's scene. Each frame it reads `shotFor(SHOTS, stage, beatOf(clock), BEAT)` and draws the shot at time `t`.
 4. **The film object.** Its scenes, sounds, titles, flashes, and `song` if you have music (a file in `public/`).
+5. **The look.** Replace `PlainTitles` with titles designed for your project, and add an end card of your own. The film's direction (type, palette, motion, sound) comes from your project and launch films like it, not from this template or from Git City's.
 
 **To add a take:**
 1. Add its `kind`, and write its recipe.
@@ -81,12 +84,18 @@ Copy `src/examples/MinimalFilm.tsx` and change four things:
 
 The kit lives in Git City's repo, and Git City plays three films with it (all under `src/app/trailer/`):
 - `/trailer/minimal`: `src/examples/MinimalFilm.tsx`, straight from this kit.
+- Both films below use Git City's own direction (`src/examples/gitcity/` and `tools/arrangements/gitcity.mjs`): pixel type, stepped motion, a stamp, 8-bit hits and synthwave, because that's Git City's language. Yours gets its own.
 - `/trailer/demo`: a 3D street made in code (day and night), the game's car, a burnout on a split screen, a drift, a jump that freezes mid-air, and the end card with the car as its button. Runs on any fork, no data.
 - `/trailer/towns`: the Towns "coming soon" teaser, in the game's real towns.
 
 ## The craft
 
-What we learned making the Towns teaser, mostly from Derek Lieu's trailer writing ([derek-lieu.com](https://www.derek-lieu.com/blog)) and from getting it wrong first.
+What we learned making the Towns teaser, mostly from Derek Lieu's trailer writing ([derek-lieu.com](https://www.derek-lieu.com/blog)) and from getting it wrong first. These are principles; how each looks in your film comes from your project's direction.
+
+**Direction before story.**
+- Study the project first: brand, logo, palette, type, how its UI moves, its copy. Then watch launch films of products like it (a UI library: Linear, Vercel, shadcn/ui, Raycast, Framer; a game: trailers in its genre).
+- Derive the direction from those: type and its motion, palette, how titles appear, how the end card lands, the hits, the music. Write it down before the takes.
+- Not a game? The engine is the real product UI: the actual components and screens, driven by code as functions of `t`.
 
 **Story before takes.**
 - A montage of features reads as a list. Sell the feeling, not the feature ([GDC: More Feelings, Fewer Features](https://www.gdcvault.com/play/1025673/More-Feelings-Fewer-Features-Showcasing)).
@@ -114,13 +123,12 @@ What we learned making the Towns teaser, mostly from Derek Lieu's trailer writin
 - Before calling a shot done, check that nothing sits between the camera and the subject.
 
 **The end card.**
-- Cut hard to black on the last hit.
-- Then the name alone in the middle, with nothing around it.
-- The sub-title arrives after it, small, like a stamp (the way a sequel's "2" lands on its logo).
-- One small spaced line ("coming soon").
-- A button: in Git City the game's car bumps into the Y, which wobbles and stays up, and it honks.
+- Cut hard to the card on the last hit, after a moment of silence.
+- Then the name alone, with nothing around it.
+- At most one short line ("coming soon", "v2 is out") and an optional button (a short gag after the logo).
 - No footers, chips, frames or URLs: the post carries the link. A social card is not a film ending; use it for its colors and type, not its layout.
-- Motion is stepped (pixel art has no easing), and every move lands on a beat and a sound.
+- Every move lands on a beat and a sound. Its motion is the project's: eased for a UI that eases, stepped for pixel art.
+- Git City's, as one example: black, the name stamped on letter by letter in pixel type, the sub-title stamped on its corner like a sequel's "2", a spaced line, then the game's car bumps the Y, which wobbles, and honks.
 
 **Cameras that worked** (Git City's `TownsRig` and `DemoRig`):
 
@@ -172,9 +180,10 @@ The export is the way to go. If you'd rather use a screen recorder, the studio's
 
 ## Music and sound effects
 
-- `node tools/music.mjs public/trailer/song.wav [full|soon|demo]`. A tiny synthesizer: kick, snare, hats, a detuned saw bass, pad, arpeggio and lead, with sidechain ducking and an echo.
+- `node tools/music.mjs public/trailer/song.wav song.json`: a song from a brief (tempo, key, drums, bass, harmony, timbre, the hits on the end card's beats). The fields are in `tools/arrangements/README.md`, with starting points per direction.
+- `node tools/music.mjs public/trailer/song.wav ./song.mjs [cut]`: an arrangement module of your own, for what a brief can't say. The synth: kick, snare, hats, crash, a tone voice (saw, square, pulse, triangle, sine), a lead, risers and impacts, with sidechain ducking and an echo.
 - Arrangements are functions of beats, so a new BPM retimes everything. The film has to use the same BPM.
-- `soon` and `demo` are teaser cuts: a bar of intro, the drop until the freeze, a hard gate to silence, then the end card's hits (stamp, thud, stab) on its beats. They're written for Git City's two films (`CUTS` at the top); for yours, set the freeze and card beats to your film's.
+- `tools/arrangements/gitcity.mjs` is Git City's arcade synthwave (`full`, and the teaser cuts `soon` and `demo`). It's an example of one project's sound; write yours.
 - `node tools/sfx.mjs public/trailer/sfx` writes the effects. Use your game's own sounds for the rest.
 - Nothing here needs samples or a license: the output is yours.
 

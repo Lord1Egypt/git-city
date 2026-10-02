@@ -26,7 +26,7 @@ const KIT: [string, string][] = [
   ["Studio", "Plays the film in your game, with editor keys and an Export button"],
   ["Export", "Renders the film frame by frame to an mp4, sound mixed on the beat"],
   ["Film format", "Takes, trims, freezes and hits on a beat grid"],
-  ["Titles and end card", "Kinetic words, a stamped logo, a slot for your gag"],
+  ["Titles and end card", "Designed for your project, with Git City's as the example"],
   ["Music and sound", "Synthesized to the film's BPM, no samples, no license"],
   ["The craft", "What we learned cutting a teaser, written for Claude to follow"],
 ];
