@@ -1,31 +1,52 @@
-// Trailer music, synthesized from scratch (no samples, no dependencies):
-// arcade racing synthwave at 150 BPM. Two cuts:
-//   full  16 bars for a ~25s launch trailer
-//   soon  the Towns teaser: 1 bar intro, 3 bars of drop, silence on the
-//         freeze, then the end card's hits (Git City: src/lib/trailer/towns/teaser)
-//   demo  the kit's demo film, the same shape a bar shorter (Git City: src/lib/trailer/demo/film)
-// Everything is a function of beats, so changing BPM retimes it all; the
-// film's timeline must use the same BPM. Tweak the arrangement at the bottom.
-// Bar 1: the burnout (engine rev rising, a hit on beat 4 when the cars launch).
-// Bars 2-9: the drop. 10-13: lead melody. 14-15: build. 16: final hit.
-// Usage: node music.mjs <out.wav> [full|soon|demo]
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+// Trailer music, synthesized from scratch (no samples, no dependencies).
+// This file is the synthesizer: drums, a tone voice (saw, square, pulse,
+// triangle, sine; filter, envelope, detune, glide), a lead, risers, impacts,
+// an echo bus and a master. What it plays comes from an arrangement:
+//   - an arrangement module you write for the film (see arrangements/README.md),
+//   - or a brief: a JSON file of genre-level choices (tempo, key, drums, bass,
+//     harmony, timbre, hits), played by arrangements/brief.mjs.
+// arrangements/gitcity.mjs is Git City's own synthwave, an example of one
+// project's sound. Write your project's; don't reuse it.
+// Everything is a function of beats, so the film's timeline must use the
+// arrangement's BPM.
+// Usage:
+//   node music.mjs <out.wav> <brief.json>
+//   node music.mjs <out.wav> <arrangement.mjs | name in arrangements/> [cut]
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const SR = 44100;
-const BPM = 150;
+const [outPath = "song.wav", source, cut] = process.argv.slice(2);
+if (!source) {
+  console.error("Usage: node music.mjs <out.wav> <brief.json | arrangement.mjs | name> [cut]");
+  process.exit(1);
+}
+const here = dirname(fileURLToPath(import.meta.url));
+let brief = null;
+let modulePath;
+if (source.endsWith(".json")) {
+  brief = JSON.parse(readFileSync(source, "utf8"));
+  modulePath = resolve(here, "arrangements/brief.mjs");
+} else if (source.endsWith(".mjs") || source.endsWith(".js")) {
+  modulePath = resolve(source);
+} else {
+  modulePath = resolve(here, `arrangements/${source}.mjs`);
+}
+const { default: arrange } = await import(pathToFileURL(modulePath).href);
+// An arrangement: ({ cut, brief }) => { bpm, bars, echo?, play(s) }.
+const song = arrange({ cut, brief });
+
+const BPM = song.bpm;
 const BEAT = 60 / BPM;
 const BAR = BEAT * 4;
-// A teaser cut ("soon", "demo"): 1 bar intro, the drop until the freeze, silence
-// on the freeze, then the end card's hits from the cut to black. In beats:
-const MODE = process.argv[3] ?? "full";
-const CUTS = { soon: { freeze: 16, card: 18 }, demo: { freeze: 12, card: 14 } };
-const TEASER = CUTS[MODE];
-const BARS = TEASER ? Math.ceil((TEASER.card + 10) / 4) : 16;
-const LEN = Math.ceil((BARS * BAR + 2.5) * SR);
+const LEN = Math.ceil((song.bars * BAR + 2.5) * SR);
 const L = new Float32Array(LEN);
 const R = new Float32Array(LEN);
 const duck = new Float32Array(LEN).fill(1); // sidechain from the kick
+const echoL = new Float32Array(LEN);
+const echoR = new Float32Array(LEN);
+const gates = [];
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const at = (bar, beat = 0) => (bar * 4 + beat) * BEAT; // 0-indexed bar
@@ -59,8 +80,7 @@ function kick(t, gain = 1) {
 }
 function snare(t, gain = 1) {
   const s = Math.floor(t * SR);
-  let lp = 0,
-    prev = 0;
+  let lp = 0;
   for (let i = 0; i < 0.22 * SR; i++) {
     const x = i / SR;
     const n = rnd();
@@ -69,7 +89,6 @@ function snare(t, gain = 1) {
     const tone = Math.sin(2 * Math.PI * 185 * x) * Math.exp(-x * 30) * 0.5;
     const env = Math.exp(-x * 16);
     both(s + i, (hp * 0.55 * env + tone) * gain, 0.05);
-    prev = n;
   }
 }
 function hat(t, open = false, gain = 1) {
@@ -97,6 +116,7 @@ function crash(t, gain = 1) {
 }
 
 // ─── Synths ───
+// `echo` sends that much of the voice to the echo bus.
 function tone(
   t,
   dur,
@@ -111,6 +131,7 @@ function tone(
     detune = 0,
     sc = true,
     glideFrom = null,
+    echo = 0,
   } = {},
 ) {
   const s = Math.floor(t * SR);
@@ -144,19 +165,24 @@ function tone(
               ? p < 0.25
                 ? 1
                 : -1
-              : Math.sin(2 * Math.PI * p);
+              : wave === "triangle"
+                ? 1 - 4 * Math.abs(p - 0.5)
+                : Math.sin(2 * Math.PI * p);
     });
     v /= voices.length;
     lp += k * (v - lp);
     const idx = s + i;
     const g = sc && idx < LEN ? duck[idx] : 1;
-    both(idx, lp * e * gain * g, pan);
+    const out = lp * e * gain * g;
+    both(idx, out, pan);
+    if (echo) {
+      add(echoL, idx, out * echo);
+      add(echoR, idx, out * echo);
+    }
   }
 }
 
-// Echo send for the lead (dotted eighth).
-const echoL = new Float32Array(LEN),
-  echoR = new Float32Array(LEN);
+// A thin pulse lead with vibrato, sent to the echo.
 function lead(t, dur, midi, gain = 0.13) {
   const s = Math.floor(t * SR);
   const n = Math.floor((dur + 0.05) * SR);
@@ -189,7 +215,7 @@ function riser(t0, t1, gain = 0.25) {
     both(s + i, lp * gain * u, Math.sin(u * 20) * 0.3);
   }
 }
-// The engine: a detuned saw growl gliding up, wobbling like revs.
+// An engine: a detuned saw growl gliding up, wobbling like revs.
 function engine(t0, t1, gain = 0.22) {
   const s = Math.floor(t0 * SR),
     n = Math.floor((t1 - t0) * SR);
@@ -228,204 +254,32 @@ function impact(t, gain = 1) {
     glideFrom: 40,
   });
 }
-
-// ─── Arrangement ───
-// Bars 0-1: burnouts. Engine revs beats 0-3, launch hit on beat 3 (the 4th beat).
-for (const b of [0]) {
-  kick(at(b, 0), 0.8);
-  engine(at(b, 0), at(b, 3), 0.24);
-  riser(at(b, 1.5), at(b, 3), 0.18);
-  impact(at(b, 3), 1.1);
-  tone(at(b, 0), BAR, 28, {
-    wave: "saw",
-    gain: 0.12,
-    cutoff: 220,
-    env: [0.02, 0.2, 0.8, 0.1],
-    sc: false,
-  });
+/** Hard silence from one beat to another (a freeze before the name), applied after the echo. */
+function silence(fromBeat, toBeat) {
+  gates.push([fromBeat * BEAT, toBeat * BEAT]);
 }
 
-// Chords: Em, C, D, B (i, VI, VII, V).
-const CHORDS = [
-  { root: 40, notes: [64, 67, 71] },
-  { root: 36, notes: [60, 64, 67] },
-  { root: 38, notes: [62, 66, 69] },
-  { root: 35, notes: [59, 63, 66] },
-];
+song.play({ BPM, BEAT, BAR, at, rnd, kick, snare, hat, crash, tone, lead, riser, engine, impact, silence });
 
-function groove(bar, { hats = true, arp = true, pad = true, bassBusy = true, drop = false } = {}) {
-  const c = CHORDS[bar % 4];
-  for (let q = 0; q < 4; q++) {
-    kick(at(bar, q), 1);
-    if (q === 1 || q === 3) snare(at(bar, q), 0.9);
-    if (hats) {
-      for (let s = 0; s < 4; s++) hat(at(bar, q + s / 4), s === 2, s === 2 ? 0.8 : 0.55);
-    }
-  }
-  // Bass: offbeat octave pumping eighths.
-  for (let e = 0; e < 8; e++) {
-    const m = c.root + (e % 2 ? 12 : 0);
-    if (!bassBusy && e % 2 === 0) continue;
-    tone(at(bar, e / 2), (BEAT / 2) * 0.9, m, {
-      wave: "saw",
-      gain: 0.22,
-      cutoff: 900,
-      env: [0.003, 0.08, 0.5, 0.03],
-      detune: 8,
-    });
-  }
-  if (pad)
-    for (const n of c.notes)
-      tone(at(bar), BAR, n - 12, {
-        wave: "saw",
-        gain: 0.05,
-        cutoff: 1500,
-        env: [0.05, 0.4, 0.7, 0.2],
-        detune: 14,
-        pan: n % 2 ? 0.4 : -0.4,
-      });
-  if (arp) {
-    const seq = [c.notes[0], c.notes[1], c.notes[2], c.notes[0] + 12];
-    for (let s = 0; s < 16; s++)
-      tone(at(bar, s / 4), (BEAT / 4) * 0.8, seq[s % 4], {
-        wave: "pulse",
-        gain: 0.06,
-        cutoff: 3500,
-        env: [0.002, 0.05, 0.4, 0.03],
-        pan: 0.35,
-      });
-  }
-  if (drop) crash(at(bar), 0.9);
-}
-
-if (TEASER) {
-  for (let b = 1; b * 4 < TEASER.freeze; b++) groove(b, { drop: b === 1 });
-  // The end card (beats after the cut to black): an echo on the cut, an
-  // 8-bit kick and crunch as the name stamps on (+1), a thud on the stamp
-  // (+3), a chord stab on the line (+5) and a held note under the hold.
-  const C = TEASER.card * BEAT;
-  tone(C, 0.9, 28, {
-    wave: "sine",
-    gain: 0.25,
-    cutoff: 300,
-    env: [0.002, 0.8, 0.1, 0.6],
-    sc: false,
-    glideFrom: 36,
-  });
-  const stamp = C + BEAT;
-  kick(stamp, 1.1);
-  snare(stamp, 0.6);
-  tone(stamp, 0.18, 40, {
-    wave: "square",
-    gain: 0.16,
-    cutoff: 1800,
-    env: [0.001, 0.12, 0.2, 0.05],
-    sc: false,
-  });
-  // The stamp lands (card beat 3): a dry thud, like a rubber stamp.
-  const thud = C + 3 * BEAT;
-  kick(thud, 1.2);
-  snare(thud, 0.45);
-  tone(thud, 0.12, 33, {
-    wave: "square",
-    gain: 0.2,
-    cutoff: 700,
-    env: [0.001, 0.08, 0.1, 0.04],
-    sc: false,
-  });
-  const stab = C + 5 * BEAT;
-  kick(stab, 0.8);
-  for (const n of [64, 67, 71, 76])
-    tone(stab, 0.22, n, {
-      wave: "saw",
-      gain: 0.07,
-      cutoff: 2600,
-      env: [0.002, 0.15, 0.3, 0.12],
-      detune: 12,
-      sc: false,
-    });
-  tone(stab, 3 * BEAT, 52, {
-    wave: "saw",
-    gain: 0.045,
-    cutoff: 900,
-    env: [0.08, 0.5, 0.7, 0.4],
-    detune: 10,
-    sc: false,
-  });
-} else {
-  for (let b = 1; b < 9; b++) groove(b, { drop: b === 1 || b === 5 });
-
-  // Lead melody over bars 10-13 (eighths, 0 = rest).
-  const MEL = [
-    [71, 71, 76, 74, 71, 69, 67, 69],
-    [67, 67, 72, 71, 67, 64, 67, 69],
-    [69, 69, 74, 72, 69, 66, 69, 71],
-    [71, 0, 75, 0, 78, 76, 75, 71],
-  ];
-  for (let i = 0; i < 4; i++) {
-    const b = 9 + i;
-    groove(b, { drop: i === 0 });
-    MEL[i].forEach((m, e) => m && lead(at(b, e / 2), (BEAT / 2) * 0.9, m));
-  }
-
-  // Build: bars 14-15, snare roll and riser, bass on quarters.
-  for (const b of [13, 14]) {
-    const c = CHORDS[b % 4];
-    for (let q = 0; q < 4; q++) {
-      kick(at(b, q), 0.9);
-      tone(at(b, q), BEAT * 0.9, c.root + 12, {
-        wave: "saw",
-        gain: 0.18,
-        cutoff: 700 + (b - 13) * 900 + q * 250,
-        env: [0.003, 0.1, 0.6, 0.05],
-        detune: 8,
-      });
-    }
-    const div = b === 13 ? 4 : 8;
-    for (let s = 0; s < div * 4; s++)
-      snare(at(b, s / div), 0.35 + (0.55 * ((b - 13) * 16 + s * (16 / div / 2))) / 32);
-  }
-  riser(at(13), at(15), 0.3);
-  impact(at(15), 1.2);
-  tone(at(15), BAR * 1.2, 40, {
-    wave: "saw",
-    gain: 0.12,
-    cutoff: 600,
-    env: [0.005, 1.2, 0.3, 1.0],
-    detune: 12,
-    sc: false,
-  });
-  for (const n of CHORDS[0].notes)
-    tone(at(15), BAR * 1.2, n, {
-      wave: "saw",
-      gain: 0.05,
-      cutoff: 1800,
-      env: [0.005, 1.4, 0.3, 1.2],
-      detune: 14,
-      sc: false,
-    });
-}
-// Echo on the lead: dotted eighth, three repeats.
-const dly = Math.floor(BEAT * 0.75 * SR);
+// Echo bus (default: dotted eighth, three repeats).
+const { beats: echoBeats = 0.75, feedback = 0.45, mix = 0.6 } = song.echo ?? {};
+const dly = Math.floor(BEAT * echoBeats * SR);
 for (let i = dly; i < LEN; i++) {
-  echoL[i] += echoR[i - dly] * 0.45;
-  echoR[i] += echoL[i - dly] * 0.45;
+  echoL[i] += echoR[i - dly] * feedback;
+  echoR[i] += echoL[i - dly] * feedback;
 }
 for (let i = dly; i < LEN; i++) {
-  L[i] += echoL[i - dly] * 0.6;
-  R[i] += echoR[i - dly] * 0.6;
+  L[i] += echoL[i - dly] * mix;
+  R[i] += echoR[i - dly] * mix;
 }
 
-// The teaser's freeze: hard silence from the freeze until the cut to black.
-if (TEASER) {
-  const s0 = Math.floor(TEASER.freeze * BEAT * SR),
-    s1 = Math.floor(TEASER.card * BEAT * SR) - 40;
+for (const [t0, t1] of gates) {
+  const s0 = Math.floor(t0 * SR),
+    s1 = Math.floor(t1 * SR) - 40;
   for (let i = s0; i < s1 && i < LEN; i++) {
     const k = i < s0 + 220 ? 1 - (i - s0) / 220 : 0;
     L[i] *= k;
     R[i] *= k;
-    echoL[i] = 0;
-    echoR[i] = 0;
   }
 }
 
@@ -456,7 +310,6 @@ for (let i = 0; i < LEN; i++) {
   out.writeInt16LE(Math.round(Math.max(-1, Math.min(1, L[i] * norm)) * 32767), 44 + i * 4);
   out.writeInt16LE(Math.round(Math.max(-1, Math.min(1, R[i] * norm)) * 32767), 46 + i * 4);
 }
-const outPath = process.argv[2] ?? "teaser.wav";
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, out);
 console.log(`${(LEN / SR).toFixed(1)}s at ${BPM} BPM`);
