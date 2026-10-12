@@ -10,8 +10,8 @@ import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
 import { Avatar, fmt } from "@/components/league/hud/shared";
 import { BATTLE_START, BATTLE_START_LABEL, timeUntil } from "@/lib/towns/rivalry";
-import type { BattleSide, BattleState } from "@/lib/towns/battle";
-import { battleLead, resultLine, scoreShare } from "@/lib/towns/battle-sides";
+import type { BattleState } from "@/lib/towns/battle";
+import { resultLine } from "@/lib/towns/battle-sides";
 import PresentedBy from "./PresentedBy";
 import { SIDES } from "@/lib/towns/battle-rules";
 import type { GridTown } from "@/lib/towns/discover";
@@ -110,8 +110,8 @@ export default function RivalryPoster({
 
   const total = sides[0].picked + sides[1].picked;
   const names: [string, string] = [sides[0].name, sides[1].name];
-  const share = b ? scoreShare(b) : total === 0 ? 0.5 : sides[0].picked / total;
-  const lead = b ? battleLead(b, names) : leadLine(sides);
+  const share = total === 0 ? 0.5 : sides[0].picked / total;
+  const lead = leadLine(sides);
   const result = b?.showing === "result" ? resultLine(b.lastWeek, names) : null;
 
   return (
@@ -180,7 +180,6 @@ export default function RivalryPoster({
               busy={busy}
               onPick={pick}
               live={live[s.slug] ?? null}
-              score={b ? b.sides[SIDES[i]] : null}
               login={login}
             />
           ))}
@@ -191,15 +190,16 @@ export default function RivalryPoster({
           </p>
         )}
 
-        <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
-          <div className="flex h-4" role="img" aria-label={lead}>
-            <div className="h-full transition-[width] duration-700" style={{ width: `${share * 100}%`, background: sides[0].color }} />
-            <div className="h-full w-[3px] bg-cream" />
-            <div className="h-full flex-1" style={{ background: sides[1].color }} />
+        {!b && (
+          <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+            <div className="flex h-4" role="img" aria-label={lead}>
+              <div className="h-full transition-[width] duration-700" style={{ width: `${share * 100}%`, background: sides[0].color }} />
+              <div className="h-full w-[3px] bg-cream" />
+              <div className="h-full flex-1" style={{ background: sides[1].color }} />
+            </div>
+            <p className="mt-3 text-center text-sm text-cream sm:text-base">{lead}</p>
           </div>
-          {!result && <p className="mt-3 text-center text-sm text-cream sm:text-base">{lead}</p>}
-          {b && <DaySquares battle={b} sides={sides} />}
-        </div>
+        )}
       </section>
 
       {thisWeek}
@@ -221,39 +221,6 @@ function useCountdown(target: number): string | null {
   return left;
 }
 
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
-
-/** The week's 7 days, filled with who won each; outlined until the day is over. */
-function DaySquares({ battle, sides }: { battle: BattleState; sides: Pair }) {
-  const color = (w: BattleState["dayWinners"][number]) => (w === "open" || w === null ? null : sides[SIDES.indexOf(w)].color);
-  return (
-    <div className="mt-6">
-      <ol className="flex justify-center gap-1.5 sm:gap-2" aria-label="Who won each day">
-        {battle.dayWinners.map((w, i) => {
-          const c = color(w);
-          const label = w === "open" ? "not over" : w === null ? "tie" : `${sides[SIDES.indexOf(w)].name} won`;
-          return (
-            <li key={i} className="flex flex-col items-center gap-1">
-              <span
-                className="block h-6 w-6 border-[3px] sm:h-8 sm:w-8"
-                style={{ background: c ?? (w === null ? "var(--color-border)" : "transparent"), borderColor: c ?? "var(--color-border)" }}
-                aria-label={`${DAY_LABELS[i]}: ${label}`}
-              />
-              <span className="text-[10px] text-dim" aria-hidden="true">
-                {DAY_LABELS[i]}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      <p className="mt-2 text-center text-xs text-muted">
-        Days won <span className="tabular-nums" style={{ color: sides[0].color }}>{battle.sides.claude.daysWon}</span> –{" "}
-        <span className="tabular-nums" style={{ color: sides[1].color }}>{battle.sides.codex.daysWon}</span>
-      </p>
-    </div>
-  );
-}
-
 function leadLine(sides: Pair): string {
   const [a, b] = [sides[0].picked, sides[1].picked];
   if (a + b === 0) return "Nobody picked yet";
@@ -269,13 +236,10 @@ function SideCard({
   busy,
   onPick,
   live,
-  score,
   login,
 }: {
   side: RivalSide;
   live: TownLive | null;
-  /** The battle's numbers once it's on; null before: the card shows picks. */
-  score: BattleSide | null;
   login: string | null;
   index: 0 | 1;
   mine: 0 | 1 | null;
@@ -297,22 +261,16 @@ function SideCard({
       <div className="flex flex-1 flex-col justify-between gap-4 p-3 sm:flex-row sm:items-center sm:p-5">
         <div>
           <p className="text-3xl leading-none tabular-nums sm:text-5xl" style={{ color: side.color }}>
-            {score ? (score.score ?? "–") : fmt(side.picked)}
+            {fmt(side.picked)}
           </p>
           <p className="mt-2 text-xs text-muted sm:text-sm">
-            {score ? (
-              `per player · ${fmt(score.scorers)}\u00a0playing`
-            ) : (
-              <>
-                picked<span className="max-sm:hidden"> {side.name}</span>
-              </>
-            )}
+            picked<span className="max-sm:hidden"> {side.name}</span>
           </p>
         </div>
         {yours ? (
           <div className="flex flex-col gap-2">
-            <Link href={`/town/${side.slug}?drive=1`} className="btn-press block px-4 py-3 text-center text-xs tracking-widest text-bg sm:text-sm" style={{ background: side.color }}>
-              &#9654; Drive in
+            <Link href={`/town/${side.slug}`} className="btn-press block px-4 py-3 text-center text-xs tracking-widest text-bg sm:text-sm" style={{ background: side.color }}>
+              Enter town
             </Link>
             {login && <InviteButton login={login} color={side.color} />}
           </div>
