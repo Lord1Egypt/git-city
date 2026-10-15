@@ -203,9 +203,10 @@ export default function LeagueClient({
     router.push(`/town/${league.slug}/race`);
   }, [router, league.slug]);
   const isAdmin = !!viewer?.is_admin;
+  const canEdit = !!viewer?.can_edit;
 
   // ─── Editor ────────────────────────────────────────────────
-  const [mode, setMode] = useState<SceneMode>(startEditing && isAdmin ? "edit" : "view");
+  const [mode, setMode] = useState<SceneMode>(startEditing && canEdit ? "edit" : "view");
   const editing = mode === "edit" || mode === "preview";
   const driving = mode === "drive";
   // The town intro (below). Where you can drive (desktop) it is the drive's
@@ -1209,8 +1210,8 @@ export default function LeagueClient({
                   setFocused(null);
                   setPanel("invite");
                 }}
-                onEdit={isAdmin ? enterEdit : undefined}
-                onCover={isAdmin ? () => sendCover(false, true) : undefined}
+                onEdit={canEdit ? enterEdit : undefined}
+                onCover={canEdit ? () => sendCover(false, true) : undefined}
                 onDrive={() => enterDrive()}
                 onFind={openFind}
                 onRace={goRace}

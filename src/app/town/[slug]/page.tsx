@@ -112,7 +112,7 @@ export default async function LeaguePage({ params, searchParams }: Props) {
       invite={invitee}
       inviteToken={token}
       refLogin={refLogin}
-      startEditing={edit === "1" && data.viewer?.is_admin === true}
+      startEditing={edit === "1" && data.viewer?.can_edit === true}
       startDriving={drive === "1"}
       spawnAt={drive === "1" && typeof at === "string" && /^[a-z0-9_-]{1,39}$/i.test(at) ? at.toLowerCase() : null}
       startJoin={join === "1"}

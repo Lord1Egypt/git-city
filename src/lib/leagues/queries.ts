@@ -1,6 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { isAdminGithubLogin } from "@/lib/admin";
 import { CITY_DEV_COLUMNS, loadCityExtras, mergeCityExtras } from "@/lib/city-extras";
 import type { LayoutNorms } from "@/lib/github";
 import { isoDay, rankTowns, weekStart } from "./scoring";
@@ -119,6 +120,8 @@ export interface LeaguePageData {
     login: string;
     status: MemberStatus | null;
     is_admin: boolean;
+    /** Town admin, or the site admin (edits any town). */
+    can_edit: boolean;
   } | null;
   counts: { total: number; joined: number; invited: number };
 }
@@ -230,7 +233,12 @@ export async function getLeaguePageData(league: League, viewer: Viewer | null): 
     week,
     hall_of_fame: hall,
     viewer: viewer
-      ? { login: viewer.github_login, status: mine?.status ?? null, is_admin: league.admin_id === viewer.id }
+      ? {
+          login: viewer.github_login,
+          status: mine?.status ?? null,
+          is_admin: league.admin_id === viewer.id,
+          can_edit: league.admin_id === viewer.id || isAdminGithubLogin(viewer.github_login),
+        }
       : null,
     counts: {
       total: members.filter((m) => m.status !== "former").length,

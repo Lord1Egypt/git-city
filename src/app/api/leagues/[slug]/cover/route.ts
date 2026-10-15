@@ -43,7 +43,7 @@ export async function POST(req: Request, { params }: Ctx) {
     file = null;
   }
   if (!file || file.size > COVER_MAX_BYTES) return NextResponse.json({ error: "Send one picture under 1.5 MB." }, { status: 400 });
-  if (pinned && league.admin_id !== viewer.id) return NextResponse.json({ error: "Only the town admin can set the cover." }, { status: 403 });
+  if (pinned && league.admin_id !== viewer.id && !isAdminGithubLogin(viewer.github_login)) return NextResponse.json({ error: "Only the town admin can set the cover." }, { status: 403 });
 
   try {
     const saved = await saveCover(league.id, new Uint8Array(await file.arrayBuffer()), pinned);

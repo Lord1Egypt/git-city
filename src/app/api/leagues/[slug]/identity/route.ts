@@ -4,12 +4,13 @@ import { getLeagueBySlug, getViewer } from "@/lib/leagues/service";
 import { assertSameOrigin, readJson } from "@/lib/leagues/http";
 import { invalidateLeague } from "@/lib/leagues/cache";
 import { ensureCity } from "@/lib/league-city/service";
+import { isAdminGithubLogin } from "@/lib/admin";
 import { SIGN_SIDES, SKY_LABELS } from "@/lib/league-city/identity";
 import type { SignSide } from "@/lib/league-city/types";
 
 export const dynamic = "force-dynamic";
 
-// PATCH { sky?, sign_side? }: the town's sky theme and hill sign side (admin).
+// PATCH { sky?, sign_side? }: the town's sky theme and hill sign side (town admin or site admin).
 // sign_side null takes the hill sign down. A trigger bumps identity_version.
 export async function PATCH(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const bad = assertSameOrigin(req);
@@ -18,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ slug: 
   if (!viewer) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const league = await getLeagueBySlug(slug);
   if (!league) return NextResponse.json({ error: "Town not found." }, { status: 404 });
-  if (league.admin_id !== viewer.id) return NextResponse.json({ error: "Only the town admin can change this." }, { status: 403 });
+  if (league.admin_id !== viewer.id && !isAdminGithubLogin(viewer.github_login)) return NextResponse.json({ error: "Only the town admin can change this." }, { status: 403 });
 
   const update: { sky?: number; sign_side?: SignSide | null } = {};
   if ("sky" in body) {

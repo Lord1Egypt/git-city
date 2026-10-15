@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { getAuthedDeveloper } from "@/lib/auth-identity";
+import { getAuthedDeveloper, isAdminUser } from "@/lib/auth-identity";
 import { assertSameOrigin, readJson } from "@/lib/leagues/http";
 import { getLeagueBySlug } from "@/lib/leagues/service";
 import { invalidateLeague } from "@/lib/leagues/cache";
@@ -21,7 +21,7 @@ const ROUTE_ERRORS: Record<string, [string, number]> = {
   payload_too_large: ["Too many edits in one save.", 413],
 };
 
-// POST { ops }: apply a batch of city edits (admin only). Returns { version, h }.
+// POST { ops }: apply a batch of city edits (town admin or site admin). Returns { version, h }.
 // Object props are validated here with the per-type zod schemas (only the
 // service role can call the SQL function, which checks their size).
 // The dev is the building the session's auth user claimed (never the
@@ -42,6 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     p_slug: slug,
     p_dev_id: authed.dev.id,
     p_ops: ops.ops,
+    p_site_admin: isAdminUser(authed.user),
   });
   if (error) {
     const known = ROUTE_ERRORS[error.message];

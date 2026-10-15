@@ -204,13 +204,13 @@ export default function ActionBar({
           <span>{shared ? "Copied" : "Share"}</span>
         </button>
       )}
-      {isAdmin && canEdit && (
+      {canEdit && (
         <button type="button" onClick={onEdit} title="Edit the city" className={`${BTN} text-cream hover:text-lime`}>
           <Pencil {...ICON} aria-hidden />
           <span>Edit</span>
         </button>
       )}
-      {isAdmin && !canEdit && (
+      {onEdit && !canEdit && (
         <span className="relative flex">
           <button
             type="button"
@@ -233,7 +233,7 @@ export default function ActionBar({
           )}
         </span>
       )}
-      {isAdmin && onCover && (
+      {onCover && (
         <span className="relative flex">
           <button
             type="button"
