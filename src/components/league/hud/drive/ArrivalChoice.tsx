@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// The town intro hands a newcomer the car and the game freezes on a choice
-// before anyone drives: put your building here, or just drive. Two big
-// options side by side (stacked on a phone). Enter (or the gamepad's A) takes
-// the building, Esc (or B) drives on.
+// The game freezes on a choice before you drive on: the town intro asks a
+// newcomer to put their building here, the guest gate asks a guest to sign
+// in. Two big options side by side (stacked on a phone). Enter (or the
+// gamepad's A) takes the main one, Esc (or B) drives on.
 
 const PAD_A = 0;
 const PAD_B = 1;
@@ -19,18 +19,26 @@ function KeyHint({ children, dark = false }: { children: React.ReactNode; dark?:
 }
 
 export default function ArrivalChoice({
-  town,
+  eyebrow,
+  title,
   label,
   detail,
+  busyLabel = "Opening...",
+  driveLabel = "Just drive",
+  driveDetail,
   onJoin,
   onDrive,
 }: {
-  /** The town's display name. */
-  town: string;
-  /** The main action: "Add your building", "Ask to move in"… */
+  /** The small line over the title: "Welcome to Claude Code". */
+  eyebrow: string;
+  title: string;
+  /** The main action: "Add your building", "Sign in with GitHub"… */
   label: string;
   /** One line on what the main action does. */
   detail: string;
+  busyLabel?: string;
+  driveLabel?: string;
+  driveDetail: string;
   onJoin: () => void;
   onDrive: () => void;
 }) {
@@ -85,14 +93,14 @@ export default function ArrivalChoice({
   return (
     <div
       role="dialog"
-      aria-label={`Want your building in ${town}?`}
+      aria-label={title}
       // Waits for the intro's title to fade and its bars to pull back.
       className="pointer-events-auto absolute inset-0 flex animate-[fade-in_0.4s_ease-out_0.4s_both] items-center justify-center bg-bg/70 px-4 backdrop-blur-sm"
     >
       <div className="flex w-full max-w-[720px] flex-col gap-6 sm:gap-8">
         <div className="flex flex-col gap-3 text-center">
-          <p className="text-[10px] tracking-widest text-lime sm:text-xs">Welcome to {town}</p>
-          <h2 className="text-xl leading-snug text-cream sm:text-3xl">Want your building here?</h2>
+          <p className="text-[10px] tracking-widest text-lime sm:text-xs">{eyebrow}</p>
+          <h2 className="text-xl leading-snug text-cream sm:text-3xl">{title}</h2>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
@@ -102,9 +110,9 @@ export default function ArrivalChoice({
             disabled={busy}
             className="btn-press flex flex-col gap-3 border-[3px] border-lime bg-lime p-4 text-left text-bg disabled:opacity-70 sm:p-6"
           >
-            <span className="text-sm tracking-widest sm:text-base">{busy ? "Opening..." : label}</span>
+            <span className="text-sm tracking-widest sm:text-base">{busy ? busyLabel : label}</span>
             <span className="text-[11px] leading-relaxed normal-case text-bg/80 sm:text-xs">{detail}</span>
-            <span className="mt-auto pt-1">
+            <span className="mt-auto pt-1 max-sm:hidden">
               <KeyHint dark>Enter</KeyHint>
             </span>
           </button>
@@ -114,9 +122,9 @@ export default function ArrivalChoice({
             onClick={onDrive}
             className="btn-press flex flex-col gap-3 border-[3px] border-border bg-bg-card p-4 text-left text-cream transition-colors hover:border-cream sm:p-6"
           >
-            <span className="text-sm tracking-widest sm:text-base">Just drive</span>
-            <span className="text-[11px] leading-relaxed normal-case text-muted sm:text-xs">Look around first. Add your building anytime from the top bar.</span>
-            <span className="mt-auto pt-1">
+            <span className="text-sm tracking-widest sm:text-base">{driveLabel}</span>
+            <span className="text-[11px] leading-relaxed normal-case text-muted sm:text-xs">{driveDetail}</span>
+            <span className="mt-auto pt-1 max-sm:hidden">
               <KeyHint>Esc</KeyHint>
             </span>
           </button>
