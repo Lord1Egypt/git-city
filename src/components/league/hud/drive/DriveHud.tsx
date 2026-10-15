@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Plus, Volume1, Volume2, VolumeX, X } from "lucide-react";
+import { Camera, LogIn, Plus, Volume1, Volume2, VolumeX, X } from "lucide-react";
 import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { carColor, type DriverInfo } from "@/lib/league-city/drive/net";
 import { HUD_BOX } from "../shared";
@@ -78,8 +78,8 @@ export default function DriveHud({
   gated?: boolean;
   /** The intro's arrival choice is up (ArrivalChoice): the first lesson and the HUD wait for it. */
   held?: boolean;
-  /** Not in this town yet: a button to put your building here. */
-  join?: { label: string; onClick: () => void };
+  /** The top bar's lime button: join the town, or a guest signs in. `short` on a phone. */
+  join?: { label: string; short: string; signIn?: boolean; onClick: () => void };
   /** Everyone else driving in this city right now. */
   drivers: DriverInfo[];
   /** Crown Rush state from the drive room. */
@@ -224,8 +224,8 @@ export default function DriveHud({
           </span>
           {join && (
             <button type="button" onClick={join.onClick} className={`${SEG} gap-2 px-3 py-2 text-[10px] text-lime`}>
-              <Plus {...ICON} aria-hidden />
-              <span>{touch ? "Join" : join.label}</span>
+              {join.signIn ? <LogIn {...ICON} aria-hidden /> : <Plus {...ICON} aria-hidden />}
+              <span>{touch ? join.short : join.label}</span>
             </button>
           )}
           <button type="button" onClick={onExit} className={`${SEG} gap-2 px-3 py-2 text-[10px] text-cream hover:text-lime`}>

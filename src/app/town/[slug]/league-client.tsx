@@ -406,12 +406,14 @@ export default function LeagueClient({
   // Your name in the drive room: your login, or a guest name for this visit.
   const [guest] = useState(() => `guest-${Math.random().toString(36).slice(2, 6).padEnd(4, "0")}`);
   const driverName = viewer?.login ?? guest;
-  // Guests get pulled over now and then (lib drive/guest-gate): the car runs out of gas, rolls to a stop,
-  // and the terminal holds it until they sign in or drive on.
+  // Guests get pulled over (lib drive/guest-gate): a sign-in choice when the car is theirs, then the car
+  // runs out of gas now and then, rolls to a stop, and the choice holds it until they sign in or drive on.
   const [gate, setGate] = useState<{ reason: GateReason; stops: number; drivenMs: number; stallAt: number; open: boolean } | null>(null);
   const guestDriven = useRef(0);
   const guestStops = useRef(0);
   const gateClosedAt = useRef(0);
+  // This drive's opening choice was asked (the arrival choice counts: it signs a guest in too).
+  const startAsked = useRef(false);
   const [muted, setMuted] = useState(false);
   const toggleMute = useCallback(() => {
     setMuted((m) => {
@@ -465,6 +467,7 @@ export default function LeagueClient({
     setTelemetry(createTelemetry(route));
     setPaused(false);
     setGate(null);
+    startAsked.current = false;
     try {
       setMuted(localStorage.getItem(MUTE_KEY) === "1");
       setVolume(loadVolume());
@@ -521,6 +524,14 @@ export default function LeagueClient({
     return () => window.removeEventListener("keydown", onKey);
   }, [driving, cinematic, paused, exitDrive, focused, gate, arriving]);
 
+  // A guest is asked to sign in as soon as the car is theirs (after the intro, if one plays).
+  useEffect(() => {
+    if (viewer || !driving || !driveReady || cinematic || startAsked.current) return;
+    startAsked.current = true;
+    if (arriving) return;
+    setGate((g) => g ?? { reason: "start", stops: guestStops.current, drivenMs: guestDriven.current, stallAt: performance.now(), open: true });
+  }, [viewer, driving, driveReady, cinematic, arriving]);
+
   // Guest driving time, counted only while actually driving (not paused, hidden or mid crown rush).
   const crownLive = crownView?.crown.phase === "live" || crownView?.crown.phase === "countdown";
   useEffect(() => {
@@ -556,12 +567,15 @@ export default function LeagueClient({
   }, [stalling, telemetry]);
 
   const gateContinue = useCallback(() => {
-    guestStops.current += 1;
-    // The next stop is a full interval away from now, whatever stopped you.
-    guestDriven.current = Math.min(guestDriven.current, gateDueMs(guestStops.current - 1));
+    // The opening choice doesn't count as a stop: the first timed one is still GATE_FIRST_MS away.
+    if (gate?.reason !== "start") {
+      guestStops.current += 1;
+      // The next stop is a full interval away from now, whatever stopped you.
+      guestDriven.current = Math.min(guestDriven.current, gateDueMs(guestStops.current - 1));
+    }
     gateClosedAt.current = performance.now();
     setGate(null);
-  }, []);
+  }, [gate?.reason]);
   const gateSignIn = useCallback(() => {
     // A town you can move into: come back to the join panel, not the car.
     if (joinAction === "join" || joinAction === "ask") {
@@ -1071,7 +1085,13 @@ export default function LeagueClient({
           paused={paused}
           gated={!!gate}
           held={arriving}
-          join={offerJoin && !arriving ? { label: joinLabel, onClick: joinFromCar } : undefined}
+          join={
+            offerJoin && !arriving
+              ? { label: joinLabel, short: "Join", onClick: joinFromCar }
+              : !viewer
+                ? { label: "Sign in", short: "Sign in", signIn: true, onClick: gateSignIn }
+                : undefined
+          }
           drivers={drivers}
           crown={crownView}
           map={driveMap}
@@ -1088,9 +1108,11 @@ export default function LeagueClient({
       {driving && !cinematic && arriving && (
         <div className="pointer-events-none fixed inset-0 z-30 font-pixel uppercase">
           <ArrivalChoice
-            town={townDisplayName(league.name)}
+            eyebrow={`Welcome to ${townDisplayName(league.name)}`}
+            title="Want your building here?"
             label={joinLabel}
             detail={joinDetail}
+            driveDetail="Look around first. Add your building anytime from the top bar."
             onJoin={joinFromCar}
             onDrive={() => setArriving(false)}
           />
@@ -1100,9 +1122,7 @@ export default function LeagueClient({
         <GuestGate
           key={`${gate.reason}-${gate.stops}`}
           reason={gate.reason}
-          stops={gate.stops}
-          guest={guest}
-          drivenMs={gate.drivenMs}
+          town={townDisplayName(league.name)}
           onSignIn={gateSignIn}
           onContinue={gateContinue}
         />
