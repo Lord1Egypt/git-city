@@ -15,7 +15,7 @@ import { ghostAt, type GhostRun } from "@/lib/league-city/race/ghost";
 // charges: blue, orange, purple.
 
 /** A name over a ghost: a canvas sprite that always faces the camera. */
-function NameTag({ text, color }: { text: string; color: string }) {
+export function NameTag({ text, color }: { text: string; color: string }) {
   const tex = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 256;
@@ -43,23 +43,8 @@ function NameTag({ text, color }: { text: string; color: string }) {
   );
 }
 
-export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label, near }: {
-  run: React.MutableRefObject<GhostRun | null>;
-  /** Server-clock ms the lap under way started, or null. */
-  lapStart: () => number | null;
-  offset: () => number;
-  /** Read every frame: false hides it (in a race). */
-  show: () => boolean;
-  color?: string;
-  /** A name tag over it (a rival's login). */
-  label?: string;
-  /** Where your car is (city units): the ghost fades as you get close, so it never hides the line. */
-  near?: () => { x: number; z: number } | null;
-}) {
-  const group = useRef<THREE.Group>(null);
-  const wheels = useRef<(THREE.Object3D | null)[]>([]);
-
-  // See-through: every material its own copy, so the real cars stay solid.
+/** See-through: every material its own copy, so the real cars stay solid. */
+export function useSeeThrough(group: React.RefObject<THREE.Group | null>) {
   useEffect(() => {
     const g = group.current;
     if (!g) return;
@@ -79,7 +64,37 @@ export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label, n
       if (done) clearInterval(t);
     }, 200);
     return () => clearInterval(t);
-  }, []);
+  }, [group]);
+}
+
+/** 0.38 from 12 m out, down to a faint outline within 4 m (never gone: at the start it sits on your car). */
+export function fadeNear(g: THREE.Group, me: { x: number; z: number } | null | undefined) {
+  if (!me) return;
+  const d = Math.hypot(me.x - g.position.x, me.z - g.position.z) / M_TO_UNIT;
+  const k = 0.3 + 0.7 * Math.max(0, Math.min(1, (d - 4) / 8));
+  g.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && mesh.userData.ghosted) (mesh.material as THREE.Material).opacity = 0.38 * k;
+  });
+}
+
+export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label, near }: {
+  run: React.MutableRefObject<GhostRun | null>;
+  /** Server-clock ms the lap under way started, or null. */
+  lapStart: () => number | null;
+  offset: () => number;
+  /** Read every frame: false hides it (in a race). */
+  show: () => boolean;
+  color?: string;
+  /** A name tag over it (a rival's login). */
+  label?: string;
+  /** Where your car is (city units): the ghost fades as you get close, so it never hides the line. */
+  near?: () => { x: number; z: number } | null;
+}) {
+  const group = useRef<THREE.Group>(null);
+  const wheels = useRef<(THREE.Object3D | null)[]>([]);
+
+  useSeeThrough(group);
 
   useFrame(() => {
     const g = group.current;
@@ -91,16 +106,7 @@ export function Ghost({ run, lapStart, offset, show, color = "#ffffff", label, n
     if (!p) return;
     g.position.set(p.x * M_TO_UNIT, 0, p.z * M_TO_UNIT);
     g.rotation.set(0, p.yaw, 0);
-    const me = near?.();
-    if (me) {
-      // 0.38 from 12 m out, down to a faint outline within 4 m (never gone: at the start it sits on your car).
-      const d = Math.hypot(me.x - g.position.x, me.z - g.position.z) / M_TO_UNIT;
-      const k = 0.3 + 0.7 * Math.max(0, Math.min(1, (d - 4) / 8));
-      g.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (mesh.isMesh && mesh.userData.ghosted) (mesh.material as THREE.Material).opacity = 0.38 * k;
-      });
-    }
+    fadeNear(g, near?.());
   });
 
   return (

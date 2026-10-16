@@ -78,8 +78,8 @@ export function useDrivePresence({
   /** Someone hit you: apply this velocity change (m/s) to your car. */
   onBump: (from: string, x: number, z: number) => void;
   onBattle: (e: BattleEvent) => void;
-  /** Which party: the town's drive room, or its race track ("race"). */
-  party?: "drive" | "race";
+  /** Which party: the town's drive room, its race track ("race"), or a drift spot ("drift"). */
+  party?: "drive" | "race" | "drift";
   /** Every message this hook doesn't handle itself, plus the welcome (the race track's). */
   onOther?: (msg: { t: string } & Record<string, unknown>) => void;
   /** Rivalry smash: your access token, sent after hello so the room can ask the site who you are. */

@@ -6,6 +6,7 @@
     "fly": "party/fly.ts",
     "drive": "party/drive.ts",
     "race": "party/race.ts",
+    "drift": "party/drift.ts",
     "townlive": "party/townlive.ts"
   },
   "compatibilityDate": "2025-06-01"
