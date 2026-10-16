@@ -77,6 +77,8 @@ export interface DriftWorldProps {
   onFail: () => void;
   /** Phone controls, written by the HUD (lib drive/touch). */
   touch?: React.MutableRefObject<TouchDrive>;
+  /** Your car for the page (the live room streams it); null once this world unmounts. */
+  carOutRef?: React.MutableRefObject<CarApi | null>;
 }
 
 const U = M_TO_UNIT;
@@ -161,6 +163,7 @@ export default function DriftWorld({
   onReady,
   onFail,
   touch,
+  carOutRef,
 }: DriftWorldProps) {
   const track = course.track;
   const [hidden, setHidden] = useState(false);
@@ -321,10 +324,16 @@ export default function DriftWorld({
     };
   }, [respawn, respawnRef]);
 
+  useEffect(() => {
+    if (!carOutRef) return;
+    return () => void (carOutRef.current = null);
+  }, [carOutRef]);
+
   const three = useThree();
   useFrame(() => {
     const c = car.current;
     const hud = tel.current;
+    if (carOutRef) carOutRef.current = c;
     if (!c) return;
     // Paused (or a hidden tab): nothing moves on, not the countdown, the camera or the run.
     if (pausedRef.current) return;

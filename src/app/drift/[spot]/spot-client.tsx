@@ -16,7 +16,9 @@ import DriftHud from "@/components/drift/DriftHud";
 import DriftTitle, { DriftLoading, type BoardRowLite } from "@/components/drift/DriftTitle";
 import DriftResults, { type PostResult, type PostState } from "@/components/drift/DriftResults";
 import type { DriftFinish } from "@/components/drift/DriftWorld";
-import { carColor } from "@/lib/league-city/drive/net";
+import LiveDrivers from "@/components/drift/LiveDrivers";
+import type { CarApi } from "@/components/league/drive/Car";
+import { carColor, guestName } from "@/lib/league-city/drive/net";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
 import type { GhostRun } from "@/lib/league-city/race/ghost";
 import { pointAt } from "@/lib/league-city/race/track";
@@ -128,6 +130,9 @@ export default function SpotClient({
   // Bumped on every restart: the world remounts from scratch (car, physics, camera, score).
   const [runKey, setRunKey] = useState(0);
   const respawnRef = useRef<(() => void) | null>(null);
+  // Your car for the spot's live room: everyone here sees everyone else as a ghost.
+  const liveCar = useRef<CarApi | null>(null);
+  const [guest] = useState(() => guestName());
 
   // Your best: the board's, or this browser's when better (a run not posted yet).
   const [local, setLocal] = useState<LocalRun | null>(null);
@@ -376,8 +381,10 @@ export default function SpotClient({
             onReady={onReady}
             onFail={onFail}
             touch={touch ? touchRef : undefined}
+            carOutRef={liveCar}
           />
         )}
+        {(desktop || touch) && !failed && <LiveDrivers room={spot.id} name={viewerLogin ?? guest} car={liveCar} show={showGhosts} />}
       </Canvas>
 
       {ready && trial.stage === "menu" && !raceNow && (
