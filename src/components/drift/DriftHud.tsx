@@ -94,6 +94,8 @@ export interface DriftHudProps {
   onExit: () => void;
   /** A phone: the touch controls show the speed, the prompts speak touch. */
   touch?: boolean;
+  /** A room with friends: their live scores under yours, and no starting over mid-run. */
+  room?: React.ReactNode;
 }
 
 function same(a: Center, b: Center): boolean {
@@ -274,6 +276,7 @@ export default function DriftHud(p: DriftHudProps) {
                 <span className="text-muted tabular-nums">{fmt(p.rival.score)}</span>
               </Band>
             )}
+            {p.room}
             <span ref={split} className="mt-2 self-start px-3 py-1 text-bg tabular-nums opacity-0 shadow-[0_6px_0_rgba(0,0,0,0.35)] transition-opacity" style={{ fontSize: T.mid }} />
           </div>
 
@@ -385,9 +388,9 @@ function PauseMenu(p: DriftHudProps & { medals: [Medal, number][] }) {
   const next = [...p.medals].reverse().find(([, at]) => p.best === null || at > p.best) ?? null;
   const items: { id: string; chip?: string; label: string; act: () => void }[] = [
     { id: "resume", chip: "Esc", label: "Resume", act: () => p.onPause(false) },
-    { id: "restart", chip: "R", label: "Start over", act: () => { p.onPause(false); p.onRestart(); } },
+    ...(p.room ? [] : [{ id: "restart", chip: "R", label: "Start over", act: () => { p.onPause(false); p.onRestart(); } }]),
     ...(p.stage === "run" ? [{ id: "checkpoint", label: "Last checkpoint", act: () => { p.onPause(false); p.onRespawn(); } }] : []),
-    { id: "spots", chip: "Q", label: "Back to spots", act: p.onExit },
+    { id: "spots", chip: "Q", label: p.room ? "Leave the room" : "Back to spots", act: p.onExit },
   ];
   const [sel, setSel] = useState(0);
   // A game menu: ↑↓ (or W S) choose, Enter or Space picks, the letters jump straight there. Esc lives on the page.

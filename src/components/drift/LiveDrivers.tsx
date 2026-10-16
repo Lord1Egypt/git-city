@@ -10,6 +10,7 @@ import { useDrivePresence, type RemoteDriver } from "@/components/league/drive/u
 import { NameTag, fadeNear, useSeeThrough } from "@/components/race/Ghost";
 import { INTERP_MS, emptySnapshot } from "@/lib/league-city/drive/net";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
+import type { ClientSeriesMsg } from "@/lib/drift/series";
 
 // Everyone else on this spot right now, as see-through cars with their name
 // over them (party/drift.ts). Nothing to hit: a drift run is yours alone.
@@ -55,15 +56,29 @@ export default function LiveDrivers({
   name,
   car,
   show,
+  seat,
+  onMessage,
+  sendRef,
 }: {
-  /** The spot's id. */
+  /** The spot's id, or a room with friends (r-<code>). */
   room: string;
   name: string;
   /** Your car, written by DriftWorld (null between runs). */
   car: React.MutableRefObject<CarApi | null>;
   show: boolean;
+  /** A room's seat for your login (lib/drift/ticket). */
+  seat?: string;
+  /** The room's own messages (the series, a denied seat). */
+  onMessage?: (msg: { t: string } & Record<string, unknown>) => void;
+  /** Filled with a way to send the room a message. */
+  sendRef?: React.MutableRefObject<((msg: ClientSeriesMsg) => void) | null>;
 }) {
-  const { remotes, drivers } = useDrivePresence({ slug: room, name, car, input: QUIET, onBump: noop, onBattle: noop, party: "drift" });
+  const { remotes, drivers, send } = useDrivePresence({ slug: room, name, car, input: QUIET, onBump: noop, onBattle: noop, party: "drift", seat, onOther: onMessage });
+  useEffect(() => {
+    if (!sendRef) return;
+    sendRef.current = (msg) => send(msg as unknown as Parameters<typeof send>[0]);
+    return () => void (sendRef.current = null);
+  });
   const showRef = useRef(show);
   useEffect(() => {
     showRef.current = show;

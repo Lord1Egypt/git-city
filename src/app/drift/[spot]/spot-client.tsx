@@ -28,11 +28,19 @@ import { loadRun, saveRun, type LocalRun } from "@/lib/drift/local";
 import { courseOf, getLiveSpot } from "@/lib/drift/spots";
 import type { LiveSpot, SpotId } from "@/lib/drift/spots/types";
 import { createDriftTelemetry } from "@/lib/drift/telemetry";
+import { SERIES, type ClientSeriesMsg, type Series } from "@/lib/drift/series";
+import { roomId } from "@/lib/drift/ticket";
+import { RoomLobby, RoomResults, RoomStandings } from "@/components/drift/RoomScreens";
 
 // A drift spot: one Canvas, the world (DriftWorld, client only), the HUD and
 // the results. The title card, a flyover the first time, 3-2-1, the run, the
 // results. Runs post when you're signed in; signed out, your best stays in
 // this browser and posts once you sign in.
+//
+// In a room with friends (`room`), the room runs the show: its lobby instead
+// of the title, everyone's 3-2-1 on the room's clock, the room's results
+// after the line (the run still posts to the board). R puts you back on the
+// last checkpoint instead of starting over.
 
 const DriftWorld = dynamic(() => import("@/components/drift/DriftWorld"), { ssr: false, loading: () => null });
 
@@ -75,7 +83,10 @@ export default function SpotClient({
   rivalLogin,
   challenger,
   raceNow = false,
+  room,
 }: {
+  /** A room with friends: its code, your seat, and how to follow it to another spot. */
+  room?: { code: string; seat: string; onSpot: (spot: SpotId) => void };
   spotId: SpotId;
   viewerLogin: string | null;
   boardScores: number[];
@@ -133,6 +144,20 @@ export default function SpotClient({
   // Your car for the spot's live room: everyone here sees everyone else as a ghost.
   const liveCar = useRef<CarApi | null>(null);
   const [guest] = useState(() => guestName());
+
+  // The room with friends: its series, the server's clock against ours, a way to talk to it.
+  const [series, setSeries] = useState<Series | null>(null);
+  const [denied, setDenied] = useState<"seat" | "full" | null>(null);
+  const clockOffset = useRef(0);
+  const roomSend = useRef<((msg: ClientSeriesMsg) => void) | null>(null);
+  const onRoomMsg = useCallback((msg: { t: string } & Record<string, unknown>) => {
+    if (msg.t === "series") {
+      clockOffset.current = (msg.now as number) - Date.now();
+      setSeries(msg.series as Series);
+    } else if (msg.t === "denied") setDenied(msg.reason as "seat" | "full");
+  }, []);
+  const me = viewerLogin ?? "";
+  const inGrid = !!series?.grid.some((e) => e.login.toLowerCase() === me.toLowerCase());
 
   // Your best: the board's, or this browser's when better (a run not posted yet).
   const [local, setLocal] = useState<LocalRun | null>(null);
@@ -194,8 +219,8 @@ export default function SpotClient({
   const [leaving, setLeaving] = useState(false);
   const exit = useCallback(() => {
     setLeaving(true);
-    router.push(`/drift?spot=${spot.id}`);
-  }, [router, spot.id]);
+    router.push(room ? "/drift" : `/drift?spot=${spot.id}`);
+  }, [router, spot.id, room]);
 
   // Title → countdown: the 3-2-1 is the camera coming down onto the car (one shot, no flyover).
   const begin = useCallback(() => goStage("countdown", TRIAL.beatMs), [goStage]);
@@ -209,7 +234,7 @@ export default function SpotClient({
   }, [raceNow, ready, rivalSettled, trial.stage, begin]);
   useEffect(() => {
     if (!ready || paused) return;
-    if (trial.stage === "menu") {
+    if (trial.stage === "menu" && !room) {
       const go = (e: KeyboardEvent) => {
         if ((e.code === "Enter" || e.code === "Space") && !e.repeat) begin();
       };
@@ -227,7 +252,7 @@ export default function SpotClient({
         clearTimeout(t);
       };
     }
-  }, [ready, paused, trial.stage, goStage, begin]);
+  }, [ready, paused, trial.stage, goStage, begin, room]);
 
   // Esc pauses and resumes; Q on the pause menu leaves for the spots. On the title, Esc goes back.
   useEffect(() => {
@@ -235,13 +260,15 @@ export default function SpotClient({
       if (leaving) return;
       if (e.key === "Escape") {
         e.preventDefault();
-        if (trial.stage === "menu") exit();
-        else if (trial.stage !== "finish") setPaused((v) => !v);
+        // The room's screens take Esc themselves (leave).
+        if (trial.stage === "menu") {
+          if (!room) exit();
+        } else if (trial.stage !== "finish") setPaused((v) => !v);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused, exit, leaving, trial.stage, setPaused]);
+  }, [paused, exit, leaving, trial.stage, setPaused, room]);
 
   // Posting a run.
   const [finish, setFinish] = useState<{ run: DriftFinish; before: number | null } | null>(null);
@@ -286,6 +313,7 @@ export default function SpotClient({
         setLocal(next);
       }
       void send(run);
+      roomSend.current?.({ t: "run", frames: run.frames, score: run.score });
     },
     [best, spot.id, send, viewerLogin],
   );
@@ -325,6 +353,48 @@ export default function SpotClient({
     },
     [retry],
   );
+
+  // The room's turns. A run starting: the world from scratch on the line, the 3-2-1 on the
+  // room's clock so everyone sees GO together. The room moved to another spot: follow it
+  // (the page mounts that spot). Time up before your line: your results. A rematch: the lobby.
+  const roundOn = useRef(0);
+  useEffect(() => {
+    if (!room || !series) return;
+    const follow = () => {
+      if (series.spot !== spot.id) return room.onSpot(series.spot);
+      if (series.phase === "countdown" && inGrid && roundOn.current !== series.round) {
+        roundOn.current = series.round;
+        setFinish(null);
+        setPaused(false);
+        Object.assign(telemetry, { drift: null, feed: [], split: null, countdown: null, carScreen: null });
+        setRunKey((k) => k + 1);
+        const startsIn = series.goAt - SERIES.countdownMs - (Date.now() + clockOffset.current);
+        setTrial({ stage: "countdown", at: performance.now() + startsIn, beat: TRIAL.beatMs });
+      } else if (series.phase === "lobby" && (stageNow.current === "finish" || stageNow.current === "run")) {
+        roundOn.current = 0;
+        setFinish(null);
+        setRunKey((k) => k + 1);
+        goStage("menu");
+      } else if ((series.phase === "results" || series.phase === "final") && stageNow.current === "run") goStage("finish");
+    };
+    follow();
+  }, [room, series, spot.id, inGrid, telemetry, goStage, setPaused]);
+
+  // Your score for the room's standings, twice a second through the run.
+  useEffect(() => {
+    if (!room || trial.stage !== "run") return;
+    const t = setInterval(() => roomSend.current?.({ t: "live", score: telemetry.drift?.score ?? 0 }), 500);
+    return () => clearInterval(t);
+  }, [room, trial.stage, telemetry]);
+
+  const respawnNow = useCallback(() => respawnRef.current?.(), []);
+  const roomActions = {
+    onSpot: (id: SpotId) => roomSend.current?.({ t: "spot", spot: id }),
+    onStart: () => roomSend.current?.({ t: "start" }),
+    onFinal: () => roomSend.current?.({ t: "final" }),
+    onRematch: () => roomSend.current?.({ t: "rematch" }),
+    onLeave: exit,
+  };
 
   const onReady = useCallback(() => setReady(true), []);
   const onFail = useCallback(() => setFailed(true), []);
@@ -376,7 +446,7 @@ export default function SpotClient({
             rival={rival}
             showGhosts={showGhosts}
             onFinish={onFinish}
-            onRestart={retry}
+            onRestart={room ? respawnNow : retry}
             respawnRef={respawnRef}
             onReady={onReady}
             onFail={onFail}
@@ -384,10 +454,27 @@ export default function SpotClient({
             carOutRef={liveCar}
           />
         )}
-        {(desktop || touch) && !failed && <LiveDrivers room={spot.id} name={viewerLogin ?? guest} car={liveCar} show={showGhosts} />}
+        {(desktop || touch) && !failed && <LiveDrivers
+            room={room ? roomId(room.code) : spot.id}
+            name={viewerLogin ?? guest}
+            car={liveCar}
+            show={showGhosts}
+            seat={room?.seat}
+            onMessage={room ? onRoomMsg : undefined}
+            sendRef={room ? roomSend : undefined}
+          />}
       </Canvas>
 
-      {ready && trial.stage === "menu" && !raceNow && (
+      {room && ready && trial.stage === "menu" && series && <RoomLobby series={series} spot={spot} code={room.code} you={me} {...roomActions} />}
+      {room && denied && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-bg px-6 text-center font-pixel text-xs uppercase text-cream">
+          {denied === "full" ? `This room is full (${SERIES.maxPlayers} drivers).` : "Sign in with GitHub to join this room."}
+          <button type="button" onClick={exit} className={`${HUD_BOX} px-4 py-2 text-lime`}>
+            Back to spots
+          </button>
+        </div>
+      )}
+      {!room && ready && trial.stage === "menu" && !raceNow && (
         <DriftTitle spot={spot} best={best} board={board} you={viewerLogin} rival={rival?.login ?? null} challenger={challenger} onStart={begin} onSpots={exit} />
       )}
 
@@ -422,12 +509,14 @@ export default function SpotClient({
         onToggleMute={toggleMute}
         onToggleCamera={toggleCamera}
         onPause={setPaused}
-        onRestart={retry}
+        onRestart={room ? respawnNow : retry}
         onRespawn={() => respawnRef.current?.()}
         onExit={exit}
+        room={room && series && inGrid ? <RoomStandings series={series} you={me} /> : undefined}
       />
 
-      {trial.stage === "finish" && finish && (
+      {room && trial.stage === "finish" && series && <RoomResults series={series} spot={spot} you={me} {...roomActions} />}
+      {!room && trial.stage === "finish" && finish && (
         <DriftResults
           spot={spot}
           score={finish.run.score}

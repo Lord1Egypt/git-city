@@ -68,7 +68,10 @@ export function useDrivePresence({
   auth,
   onEmote,
   offline = false,
+  seat,
 }: {
+  /** A drift room's seat (lib/drift/ticket), sent with hello. */
+  seat?: string;
   /** Single-player preview (the partners page): no socket, nobody else in the room. */
   offline?: boolean;
   slug: string;
@@ -119,7 +122,7 @@ export function useDrivePresence({
       // A reconnect gets a fresh welcome with everyone still here.
       map.clear();
       publish();
-      ws.send(JSON.stringify({ t: "hello", name }));
+      ws.send(JSON.stringify(seat ? { t: "hello", name, seat } : { t: "hello", name }));
       void authRef.current?.().then((token) => {
         if (token && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "auth", token }));
       });
@@ -175,7 +178,7 @@ export function useDrivePresence({
       ws.close();
       map.clear();
     };
-  }, [slug, name, party, offline]);
+  }, [slug, name, party, offline, seat]);
 
   // Stream your car.
   useFrame(() => {
