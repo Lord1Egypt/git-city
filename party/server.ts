@@ -16,7 +16,7 @@ export { RaceServer } from "./race";
 export { DriftServer } from "./drift";
 export { TownLiveServer } from "./townlive";
 
-export default {
+const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const res = await routePartykitRequest(request, env as never, {
       onBeforeConnect: (req, { party }) => (party === "main" ? ArcadeServer.onBeforeConnect(req, env) : undefined),
@@ -24,3 +24,5 @@ export default {
     return res ?? new Response("Not found", { status: 404 });
   },
 };
+
+export default worker;

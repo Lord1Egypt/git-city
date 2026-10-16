@@ -28,7 +28,7 @@ import { loadRun, saveRun, type LocalRun } from "@/lib/drift/local";
 import { courseOf, getLiveSpot } from "@/lib/drift/spots";
 import type { LiveSpot, SpotId } from "@/lib/drift/spots/types";
 import { createDriftTelemetry } from "@/lib/drift/telemetry";
-import { SERIES, type ClientSeriesMsg, type Series } from "@/lib/drift/series";
+import { SERIES, slotOf, type ClientSeriesMsg, type Series } from "@/lib/drift/series";
 import { roomId } from "@/lib/drift/ticket";
 import { RoomLobby, RoomResults, RoomStandings } from "@/components/drift/RoomScreens";
 
@@ -158,6 +158,8 @@ export default function SpotClient({
   }, []);
   const me = viewerLogin ?? "";
   const inGrid = !!series?.grid.some((e) => e.login.toLowerCase() === me.toLowerCase());
+  // Your place on the grid, set as each run lines up (the world remounts there): nobody starts on top of anyone.
+  const [slot, setSlot] = useState(0);
 
   // Your best: the board's, or this browser's when better (a run not posted yet).
   const [local, setLocal] = useState<LocalRun | null>(null);
@@ -364,6 +366,7 @@ export default function SpotClient({
       if (series.spot !== spot.id) return room.onSpot(series.spot);
       if (series.phase === "countdown" && inGrid && roundOn.current !== series.round) {
         roundOn.current = series.round;
+        setSlot(slotOf(series, me));
         setFinish(null);
         setPaused(false);
         Object.assign(telemetry, { drift: null, feed: [], split: null, countdown: null, carScreen: null });
@@ -378,7 +381,7 @@ export default function SpotClient({
       } else if ((series.phase === "results" || series.phase === "final") && stageNow.current === "run") goStage("finish");
     };
     follow();
-  }, [room, series, spot.id, inGrid, telemetry, goStage, setPaused]);
+  }, [room, series, spot.id, inGrid, telemetry, goStage, setPaused, me]);
 
   // Your score for the room's standings, twice a second through the run.
   useEffect(() => {
@@ -442,8 +445,9 @@ export default function SpotClient({
             stageAt={trial.at}
             beatMs={trial.beat}
             onStage={goStage}
-            pb={pb}
+            pb={room ? null : pb}
             rival={rival}
+            slot={slot}
             showGhosts={showGhosts}
             onFinish={onFinish}
             onRestart={room ? respawnNow : retry}

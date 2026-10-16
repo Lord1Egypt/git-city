@@ -8,6 +8,7 @@ import {
   newSeries,
   pickSpot,
   rematch,
+  slotOf,
   standings,
   startRun,
   tickSeries,
@@ -106,9 +107,15 @@ describe("drift series", () => {
   it("keeps the host through a quick reload, hands it on after the grace", () => {
     const s = room("ana", "bo");
     leaveSeries(s, "ana", 1000);
-    // Before the first run a leaver is dropped: bo hosts at once.
+    // A spot change reconnects everyone: the host is still the host a moment later.
     tickSeries(s, 1001);
+    expect(s.host).toBe("ana");
+    joinSeries(s, "ana", 1500);
+    expect(s.host).toBe("ana");
+    leaveSeries(s, "ana", 2000);
+    tickSeries(s, 2000 + SERIES.hostGraceMs);
     expect(s.host).toBe("bo");
+    expect(s.players.map((p) => p.login)).toEqual(["bo"]);
 
     const t = room("ana", "bo");
     startRun(t, "ana", 0);
@@ -122,6 +129,25 @@ describe("drift series", () => {
     leaveSeries(t, "ana", GO + 100);
     tickSeries(t, GO + 100 + SERIES.hostGraceMs);
     expect(t.host).toBe("bo");
+  });
+
+  it("counts a reload mid-run as that run lost, and lines everyone up by grid order", () => {
+    const s = room("ana", "bo", "cy");
+    expect(slotOf(s, "cy")).toBe(2);
+    startRun(s, "ana", 0);
+    expect(slotOf(s, "bo")).toBe(1);
+    tickSeries(s, GO);
+    finishRun(s, "ana", 10, GO + 1000);
+    leaveSeries(s, "bo", GO + 2000);
+    joinSeries(s, "bo", GO + 2500);
+    expect(s.grid.find((e) => e.login === "bo")).toMatchObject({ done: true, score: null });
+    finishRun(s, "cy", 5, GO + 3000);
+    expect(s.phase).toBe("results");
+    expect(s.grid.map((e) => [e.login, e.gained])).toEqual([
+      ["ana", 10],
+      ["cy", 8],
+      ["bo", 0],
+    ]);
   });
 
   it("caps the room", () => {

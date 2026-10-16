@@ -12,6 +12,8 @@ import { courseOf, getLiveSpot } from "../src/lib/drift/spots";
 import type { SpotId } from "../src/lib/drift/spots/types";
 import { validateRun } from "../src/lib/drift/validate";
 import {
+  SERIES,
+  anyoneHere,
   finishRun,
   finishSeries,
   joinSeries,
@@ -70,7 +72,7 @@ export class DriftServer extends PartyRoom {
     return [...this.drivers.values()].some((d) => d.name.toLowerCase() === login.toLowerCase());
   }
 
-  /** Ticks while a run is on or a host is away; twice a second for the standings. */
+  /** Ticks while a run is on or someone just dropped (the host's grace); twice a second for the standings. Never in an empty room. */
   private runClock() {
     if (this.clock) return;
     let last = 0;
@@ -82,8 +84,8 @@ export class DriftServer extends PartyRoom {
         last = now;
         this.sendSeries();
       }
-      const hostAway = this.series.host !== null && !this.online(this.series.host);
-      if (!live && !hostAway && this.clock) {
+      const recent = this.series.players.some((p) => !p.online && now - p.leftAt < SERIES.hostGraceMs + 1000);
+      if (((!live && !recent) || !anyoneHere(this.series)) && this.clock) {
         clearInterval(this.clock);
         this.clock = null;
       }
@@ -121,11 +123,16 @@ export class DriftServer extends PartyRoom {
       return;
     }
     if (!this.room.getConnection(sender.id) || this.drivers.has(sender.id)) return;
-    if (!joinSeries(this.series, seat.login, Date.now())) {
+    const now = Date.now();
+    // An empty room's clock stood still: catch up first (a run nobody finished, a host long gone).
+    tickSeries(this.series, now);
+    if (!joinSeries(this.series, seat.login, now)) {
       sender.send(JSON.stringify({ t: "denied", reason: "full" } satisfies ServerSeriesMsg));
       return;
     }
+    tickSeries(this.series, now);
     if (this.seat(sender, seat.login)) this.sendSeries();
+    this.runClock();
   }
 
   private onRun(d: Driver, frames: unknown, claimed: unknown) {

@@ -18,8 +18,10 @@ export const VALIDATE = {
   maxSpeed: 45,
   /** Fastest it turns (rad/s): a spin-out plus room. */
   maxYawRate: 9,
-  /** How far from the grid slot the first frame may be (m). */
+  /** How far from a grid slot the first frame may be (m). */
   gridSlack: 4,
+  /** The slots a run may start from: a room with friends lines up to eight drivers. */
+  gridSlots: 8,
   /** Scores from another JS engine may differ by float rounding: this much is the same score. */
   tolerance: (score: number) => Math.max(20, Math.round(score * 0.002)),
 } as const;
@@ -39,8 +41,8 @@ export function validateRun(course: Course, frames: unknown, claimed: unknown, m
 
   for (let i = 0; i < n; i++) if (f[i * 4] !== i * TICK_MS) return { ok: false, reason: "ticks" };
 
-  const slot = course.track.grid[0];
-  if (Math.hypot(f[1] - slot.x, f[2] - slot.z) > VALIDATE.gridSlack) return { ok: false, reason: "grid" };
+  const near = course.track.grid.slice(0, VALIDATE.gridSlots).some((g) => Math.hypot(f[1] - g.x, f[2] - g.z) <= VALIDATE.gridSlack);
+  if (!near) return { ok: false, reason: "grid" };
 
   const r = scoreRun(course, f);
   // Speed and turn rate between ticks, except onto a respawn (the scorer vouches for those).

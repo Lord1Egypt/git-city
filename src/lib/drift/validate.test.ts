@@ -67,7 +67,8 @@ describe("validateRun", () => {
   });
 
   it("rejects a run that doesn't start on the grid", () => {
-    const f = frames.map((v, i) => (i % 4 === 2 ? v + 20 : v));
+    // Past every slot a room's grid uses (eight, half a row apart).
+    const f = frames.map((v, i) => (i % 4 === 2 ? v + 60 : v));
     expect(validateRun(course, f, real.score, 5000)).toMatchObject({ ok: false });
   });
 

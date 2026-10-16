@@ -27,16 +27,16 @@ export class PartyRoom extends Server<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     // partyserver types its base on `cloudflare:workers`; the state is the same object.
     super(ctx as never, env);
-    const self = this;
+    const roomName = () => this.name;
     this.room = {
       get id() {
-        return self.name;
+        return roomName();
       },
       env,
       storage: ctx.storage,
-      broadcast: (msg, without) => self.broadcast(msg, without),
-      getConnection: (id) => self.getConnection(id),
-      getConnections: () => self.getConnections(),
+      broadcast: (msg, without) => this.broadcast(msg, without),
+      getConnection: (id) => this.getConnection(id),
+      getConnections: () => this.getConnections(),
       party: (binding, name) => {
         const ns = env[binding] as DurableObjectNamespace | undefined;
         if (!ns) return null;

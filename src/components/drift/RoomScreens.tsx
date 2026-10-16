@@ -74,7 +74,7 @@ function Table({ series, you, delay = 0 }: { series: Series; you: string; delay?
               <span className={`normal-case ${p.online ? "" : "opacity-50"}`}>@{p.login}</span>
               {same(series.host, p.login) && <span className={mine ? "" : "text-lime"}>host</span>}
             </span>
-            <span>{p.points} pts</span>
+            {series.round > 0 && <span>{p.points} pts</span>}
           </Band>
         );
       })}
@@ -104,7 +104,13 @@ export function RoomLobby({ series, spot, code, you, ...a }: RoomActions & { ser
   const running = series.phase === "countdown" || series.phase === "run";
   const next = Math.min(SERIES.rounds, series.round + 1);
   const copy = () => {
-    navigator.clipboard?.writeText(`${window.location.origin}/drift/r/${code}`).then(
+    const url = `${window.location.origin}/drift/r/${code}`;
+    // A phone shares it (the group chat is one tap away); a computer copies it.
+    if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
+      void navigator.share({ title: "Drift with me in Git City", url }).catch(() => {});
+      return;
+    }
+    navigator.clipboard?.writeText(url).then(
       () => setCopied(true),
       () => setCopied(false),
     );
@@ -127,8 +133,23 @@ export function RoomLobby({ series, spot, code, you, ...a }: RoomActions & { ser
             {spot.name}
           </Band>
           <Band delay={140} className="px-4 py-2.5" style={{ fontSize: T.body }}>
-            {running ? `Run ${series.round} of ${SERIES.rounds} under way · you're in the next one` : `Run ${next} of ${SERIES.rounds}`}
+            {running
+              ? `Run ${series.round} of ${SERIES.rounds} under way · you race the next one`
+              : series.round === 0
+                ? `${SERIES.rounds} runs · points by place · most points wins`
+                : `Next: run ${next} of ${SERIES.rounds}`}
           </Band>
+          {!running && (
+            <Band delay={210} className="px-4 py-2 text-muted" style={{ fontSize: T.small }}>
+              {host ? (
+                "You're the host: pick the spot, then start"
+              ) : (
+                <span>
+                  <span className="normal-case text-cream">@{series.host}</span> picks the spot and starts
+                </span>
+              )}
+            </Band>
+          )}
         </div>
         {!running && host && <SpotPicker series={series} onSpot={a.onSpot} />}
       </div>
@@ -141,6 +162,11 @@ export function RoomLobby({ series, spot, code, you, ...a }: RoomActions & { ser
           </span>
         </Band>
         <Table series={series} you={you} delay={60} />
+        {series.players.filter((p) => p.online).length === 1 && (
+          <Band delay={120} className="px-5 py-2.5 normal-case text-lime" style={{ fontSize: T.small }}>
+            Just you so far. Send the invite link to race your friends.
+          </Band>
+        )}
       </div>
 
       <div className="pointer-events-auto absolute bottom-[4vh] left-4 right-4 flex flex-wrap justify-end md:bottom-[6vh] md:left-auto md:right-[6vw]" style={{ fontSize: T.body }}>
@@ -154,11 +180,6 @@ export function RoomLobby({ series, spot, code, you, ...a }: RoomActions & { ser
           <button type="button" onClick={a.onStart} className={`${act} bg-lime px-5 py-3 text-bg`}>
             <Chip tone="dark">Enter</Chip> Start run {next}
           </button>
-        )}
-        {!running && !host && (
-          <span className={`${act} bg-[#141417] px-5 py-3 text-muted`}>
-            Waiting for <span className="normal-case text-cream">@{series.host}</span>
-          </span>
         )}
       </div>
     </div>

@@ -77,6 +77,8 @@ export interface DriftWorldProps {
   onFail: () => void;
   /** Phone controls, written by the HUD (lib drive/touch). */
   touch?: React.MutableRefObject<TouchDrive>;
+  /** Your grid slot (a room lines its drivers up); pole otherwise. */
+  slot?: number;
   /** Your car for the page (the live room streams it); null once this world unmounts. */
   carOutRef?: React.MutableRefObject<CarApi | null>;
 }
@@ -164,6 +166,7 @@ export default function DriftWorld({
   onFail,
   touch,
   carOutRef,
+  slot = 0,
 }: DriftWorldProps) {
   const track = course.track;
   const [hidden, setHidden] = useState(false);
@@ -176,9 +179,9 @@ export default function DriftWorld({
   const surface = useMemo(() => trackSurface(track, spot.surface), [track, spot.surface]);
   const scenery = useMemo(() => sceneryFor(spot.id, track, course.clips), [spot.id, track, course.clips]);
   const spawn = useMemo<Spawn>(() => {
-    const g = track.grid[0];
+    const g = track.grid[Math.max(0, Math.min(track.grid.length - 1, slot))];
     return { x: g.x * U, z: g.z * U, rot: rotOf(g.heading) };
-  }, [track]);
+  }, [track, slot]);
 
   // Dev only: ?autodrive puts the run on autopilot, to check the finish and what follows without driving a lap.
   const [autodrive] = useState(() => process.env.NODE_ENV !== "production" && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("autodrive"));

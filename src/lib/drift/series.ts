@@ -79,6 +79,12 @@ export function joinSeries(s: Series, login: string, now: number): boolean {
   if (p) {
     p.online = true;
     p.leftAt = 0;
+    // Back mid-run (a reload): that run is lost, nobody waits on it.
+    const e = entryOf(s, login);
+    if (s.phase === "run" && e && !e.done) {
+      e.done = true;
+      endIfDone(s, now);
+    }
   } else {
     if (s.players.filter((x) => x.online).length >= SERIES.maxPlayers) return false;
     s.players.push({ login, joined: now, points: 0, online: true, leftAt: 0 });
@@ -93,8 +99,6 @@ export function leaveSeries(s: Series, login: string, now: number) {
   if (!p) return;
   p.online = false;
   p.leftAt = now;
-  // Between series nobody is waiting on their points: they're out of the list.
-  if (s.phase === "lobby" && s.round === 0) s.players = s.players.filter((x) => x !== p);
   if (s.phase === "run") endIfDone(s, now);
 }
 
@@ -182,6 +186,14 @@ export function tickSeries(s: Series, now: number): boolean {
     score(s);
     changed = true;
   }
+  // Before the first run, whoever's been gone past the grace (not a reload, not a spot change) is out of the list.
+  if (s.phase === "lobby" && s.round === 0) {
+    const kept = s.players.filter((p) => p.online || now - p.leftAt < SERIES.hostGraceMs);
+    if (kept.length !== s.players.length) {
+      s.players = kept;
+      changed = true;
+    }
+  }
   const host = s.host ? playerOf(s, s.host) : null;
   if (!host || (!host.online && now - host.leftAt >= SERIES.hostGraceMs)) {
     const next = s.players.filter((p) => p.online).sort((a, b) => a.joined - b.joined)[0] ?? null;
@@ -193,6 +205,17 @@ export function tickSeries(s: Series, now: number): boolean {
   }
   return changed;
 }
+
+/** Your place on the grid: the run's order once it's lined up, else the order you came in. */
+export function slotOf(s: Series, login: string): number {
+  const inGrid = s.grid.findIndex((e) => same(e.login, login));
+  if ((s.phase === "countdown" || s.phase === "run") && inGrid >= 0) return inGrid;
+  const i = s.players.filter((p) => p.online).findIndex((p) => same(p.login, login));
+  return Math.max(0, i);
+}
+
+/** Anyone in the room right now. */
+export const anyoneHere = (s: Series) => s.players.some((p) => p.online);
 
 /** Everyone, most points first (then who came first). */
 export function standings(s: Series): SeriesPlayer[] {
