@@ -8,6 +8,7 @@ import { PixelSelect, type PixelOption } from "@/components/ui/PixelSelect";
 import { MEDAL_COLORS, fmt } from "@/components/drift/DriftHud";
 import type { BoardRowLite } from "@/components/drift/DriftTitle";
 import { loadRun } from "@/lib/drift/local";
+import { roomCode } from "@/lib/drift/ticket";
 import { SPOTS } from "@/lib/drift/spots";
 import { medalFor, medalScores, type LiveSpot, type SpotId } from "@/lib/drift/spots/types";
 
@@ -15,7 +16,7 @@ import { medalFor, medalScores, type LiveSpot, type SpotId } from "@/lib/drift/s
 // the list on the left (live spots first, the ones to come locked), the
 // chosen spot's board on the right (the world or your country, your own row
 // pinned even far down, any row a ghost to race). ↑↓ choose a spot, ←→ switch
-// the board, Enter drifts.
+// the board, Enter drifts. F opens a room with friends (a new code, a link to share).
 
 export interface SpotBoard {
   rows: BoardRowLite[];
@@ -131,7 +132,8 @@ export default function DriftClient({
       else if (e.code === "Enter" || e.code === "Space") {
         e.preventDefault();
         keys.current.go();
-      } else if (e.key === "Escape") router.push("/towns");
+      } else if (e.code === "KeyF") router.push(`/drift/r/${roomCode()}`);
+      else if (e.key === "Escape") router.push("/towns");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -204,6 +206,19 @@ export default function DriftClient({
                 <Chip>→</Chip> board <Chip>Enter</Chip> drift
               </Band>
             </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/drift/r/${roomCode()}`)}
+              className="drift-band flex w-[min(560px,90vw)] items-center justify-between gap-4 bg-lime px-5 py-3.5 text-left text-bg shadow-[0_6px_0_rgba(0,0,0,0.35)] outline-none hover:bg-cream focus-visible:bg-cream"
+              style={{ animationDelay: "540ms", fontSize: T.body }}
+            >
+              <span className="flex items-center gap-4">
+                <Chip tone="dark">F</Chip> Drift with friends
+              </span>
+              <span className="opacity-70" style={{ fontSize: T.small }}>
+                3 runs · points
+              </span>
+            </button>
           </section>
 
           {/* The chosen spot */}
