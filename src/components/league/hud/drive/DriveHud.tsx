@@ -18,7 +18,7 @@ import type { CrownState } from "@/lib/league-city/drive/crown";
 import type { CityBuilding } from "@/lib/github";
 import type { CityObject } from "@/lib/league-city/types";
 import Minimap from "./Minimap";
-import { ReactionBar, ReactionButton, ReactionLog } from "./Reactions";
+import { ReactionBar, ReactionLog } from "./Reactions";
 import type { EmoteLog } from "@/lib/league-city/drive/emote-log";
 
 // Drive mode HUD: the dash (bottom: item, speed, boost), camera, mute and exit
@@ -29,8 +29,8 @@ import type { EmoteLog } from "@/lib/league-city/drive/emote-log";
 // On the first drive, handed over by the town intro, there's no start screen
 // (the intro loaded the car): one prompt teaches the controls and the rest of
 // the HUD comes in piece by piece on your first move.
-// On a phone (touchRef) the dash gives way to the touch controls
-// (TouchControls), the corners get compact and the prompts speak touch.
+// On a phone (touchRef) the HUD is only Exit, join and sound up top and the
+// touch controls (TouchControls) below; the prompts speak touch.
 
 const SEG = "flex items-center transition-colors hover:bg-white/5 [&>*]:transition-transform active:[&>*]:translate-y-px";
 const ICON_BTN = `${SEG} w-10 justify-center py-2 text-cream hover:text-lime`;
@@ -140,13 +140,13 @@ export default function DriveHud({
       {/* First, so every other piece of the HUD sits above the steering layer. */}
       {ready && touchRef && <TouchControls touchRef={touchRef} telemetry={telemetry} lesson={touchLesson} />}
 
-      {ready && entered && (
+      {ready && entered && !touch && (
         <div className={`${HUD_BOX} absolute left-4 top-4 flex flex-col gap-1.5 px-3 py-2 text-[9px]`} style={enter(0)}>
           <p className="flex items-center gap-2 text-cream">
             <span className="h-1.5 w-1.5 animate-pulse bg-lime" aria-hidden />
             {drivers.length + 1} driving now
           </p>
-          {touch ? null : drivers.length === 0 ? (
+          {drivers.length === 0 ? (
             <div className="flex max-w-[180px] flex-col items-start gap-1.5">
               <p className="text-dim normal-case">Share the link to race your team here.</p>
               <CopyLink />
@@ -165,32 +165,37 @@ export default function DriveHud({
         </div>
       )}
 
-      {entered && (
-        <div className={`${HUD_BOX} absolute right-4 top-4 flex items-stretch divide-x-2 divide-border`} style={enter(0.12)}>
-          <span className="relative flex">
-            <button
-              type="button"
-              onClick={onCamera}
-              aria-label={camera === "chase" ? "Top-down camera (C)" : "Chase camera (C)"}
-              title={camera === "chase" ? "Top-down camera (C)" : "Chase camera (C)"}
-              // Phones: a word next to the icon, since there's no C key to learn it from.
-              className={`${touch ? `${SEG} gap-2 px-3 py-2 text-[10px] text-cream` : ICON_BTN} ${touch && lesson === "camera" ? "animate-pulse bg-lime/20 text-lime" : ""}`}
-            >
-              <Camera {...ICON} aria-hidden />
-              {touch && <span>View</span>}
-            </button>
-            {touch && lesson === "camera" && (
-              <span
-                role="status"
-                className="pointer-events-none absolute left-1/2 top-full mt-3 -translate-x-1/2 animate-[fade-in_0.3s_ease-out_both] whitespace-nowrap border-[3px] border-lime bg-bg px-3 py-2 text-[10px] text-cream"
-              >
-                {/* Caret up at the button */}
-                <span className="absolute -top-[9px] left-1/2 -ml-[6px] border-x-[6px] border-b-[6px] border-x-transparent border-b-lime" aria-hidden />
-                Tap to change the view
-              </span>
+      {/* Phone: Exit on the left, join and sound on the right, nothing else. */}
+      {entered && touch && (
+        <div className="absolute inset-x-4 top-[max(1rem,env(safe-area-inset-top))] flex items-start justify-between gap-3" style={enter(0)}>
+          <button type="button" onClick={onExit} aria-label="Exit" className={`${HUD_BOX} ${ICON_BTN} w-11 py-2.5`}>
+            <X {...ICON} aria-hidden />
+          </button>
+          <div className={`${HUD_BOX} flex items-stretch divide-x-2 divide-border`}>
+            {join && (
+              <button type="button" onClick={join.onClick} className={`${SEG} gap-2 px-3 py-2.5 text-[10px] text-lime`}>
+                {join.signIn ? <LogIn {...ICON} aria-hidden /> : <Plus {...ICON} aria-hidden />}
+                <span>{join.short}</span>
+              </button>
             )}
-          </span>
-          {touch && <ReactionButton onEmote={onEmote} className={ICON_BTN} />}
+            <button type="button" onClick={onMute} aria-label={silent ? "Sound on" : "Mute"} aria-pressed={silent} className={`${ICON_BTN} w-11 py-2.5`}>
+              {silent ? <VolumeX {...ICON} aria-hidden /> : <Volume2 {...ICON} aria-hidden />}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {entered && !touch && (
+        <div className={`${HUD_BOX} absolute right-4 top-4 flex items-stretch divide-x-2 divide-border`} style={enter(0.12)}>
+          <button
+            type="button"
+            onClick={onCamera}
+            aria-label={camera === "chase" ? "Top-down camera (C)" : "Chase camera (C)"}
+            title={camera === "chase" ? "Top-down camera (C)" : "Chase camera (C)"}
+            className={ICON_BTN}
+          >
+            <Camera {...ICON} aria-hidden />
+          </button>
           {/* Mute on click; the volume slider opens under it on hover or focus. */}
           <span className="group relative flex">
             <button
@@ -203,29 +208,27 @@ export default function DriveHud({
             >
               {silent ? <VolumeX {...ICON} aria-hidden /> : volume < 0.5 ? <Volume1 {...ICON} aria-hidden /> : <Volume2 {...ICON} aria-hidden />}
             </button>
-            {!touch && (
-              // pt-2, not mt-2: the pointer crosses the gap without closing it.
-              <span className="absolute right-[-3px] top-full hidden pt-2 group-focus-within:block group-hover:block">
-                <label className={`${HUD_BOX} flex items-center gap-3 px-3 py-2.5 text-[9px] text-muted`}>
-                  <span className="sr-only">Volume</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={Math.round((muted ? 0 : volume) * 100)}
-                    onChange={(e) => onVolume(Number(e.target.value) / 100)}
-                    className="h-1 w-28 cursor-pointer accent-lime"
-                  />
-                  <span className="w-7 text-right tabular-nums text-cream">{Math.round((muted ? 0 : volume) * 100)}</span>
-                </label>
-              </span>
-            )}
+            {/* pt-2, not mt-2: the pointer crosses the gap without closing it. */}
+            <span className="absolute right-[-3px] top-full hidden pt-2 group-focus-within:block group-hover:block">
+              <label className={`${HUD_BOX} flex items-center gap-3 px-3 py-2.5 text-[9px] text-muted`}>
+                <span className="sr-only">Volume</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={Math.round((muted ? 0 : volume) * 100)}
+                  onChange={(e) => onVolume(Number(e.target.value) / 100)}
+                  className="h-1 w-28 cursor-pointer accent-lime"
+                />
+                <span className="w-7 text-right tabular-nums text-cream">{Math.round((muted ? 0 : volume) * 100)}</span>
+              </label>
+            </span>
           </span>
           {join && (
             <button type="button" onClick={join.onClick} className={`${SEG} gap-2 px-3 py-2 text-[10px] text-lime`}>
               {join.signIn ? <LogIn {...ICON} aria-hidden /> : <Plus {...ICON} aria-hidden />}
-              <span>{touch ? join.short : join.label}</span>
+              <span>{join.label}</span>
             </button>
           )}
           <button type="button" onClick={onExit} className={`${SEG} gap-2 px-3 py-2 text-[10px] text-cream hover:text-lime`}>
@@ -253,13 +256,8 @@ export default function DriveHud({
           <Minimap telemetry={telemetry} buildings={map.buildings} objects={map.objects} home={map.home} size={150} />
         </div>
       )}
-      {ready && entered && touch && (
-        <div className="absolute left-4 top-[3.25rem]" style={enter(0.1)}>
-          <Minimap telemetry={telemetry} buildings={map.buildings} objects={map.objects} home={map.home} size={92} />
-        </div>
-      )}
 
-      {ready && entered && <SmashNotice telemetry={telemetry} />}
+      {ready && entered && <SmashNotice telemetry={telemetry} touch={touch} />}
 
       {ready && entered && !touch && <Dash telemetry={telemetry} style={enter(0.24)} />}
 
@@ -282,7 +280,7 @@ export default function DriveHud({
         </div>
       )}
 
-      {ready && entered && <CrownPanel crown={crown?.crown ?? null} offset={crown?.offset ?? 0} you={crown?.you ?? null} drivers={drivers} onStart={onStartCrown} />}
+      {ready && entered && <CrownPanel crown={crown?.crown ?? null} offset={crown?.offset ?? 0} you={crown?.you ?? null} drivers={drivers} touch={touch} onStart={onStartCrown} />}
 
       {/* Last, so they blur and cover the rest of the HUD. */}
       {!firstRun && <StartScreen ready={ready} touch={touch} />}

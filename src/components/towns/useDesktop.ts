@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 /** Building and racing need a mouse (or pad) and room for their HUD. */
 export const DESKTOP_QUERY = "(pointer: fine) and (min-width: 1024px)";
 
-/** A phone or tablet: the drive shows its touch controls. */
-export const TOUCH_QUERY = "(pointer: coarse)";
+/** A phone or tablet, or any phone-wide window: the drive shows its touch controls. */
+export const TOUCH_QUERY = "(pointer: coarse), (max-width: 639px)";
 
 export function isTouch(): boolean {
   return typeof window !== "undefined" && window.matchMedia(TOUCH_QUERY).matches;

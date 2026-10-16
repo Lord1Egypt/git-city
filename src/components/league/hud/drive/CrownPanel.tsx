@@ -8,7 +8,8 @@ import CopyLink from "./CopyLink";
 
 // Crown Rush HUD: a Start button when 2+ people drive here, the 3-2-1, then
 // everyone's time left (the holder's counting down live), who holds the
-// crown, and the winner.
+// crown, and the winner. On a phone the idle Start stays off: a rush shows
+// once someone else starts it.
 
 function Crown({ className = "" }: { className?: string }) {
   // 9×6 pixel crown.
@@ -33,12 +34,14 @@ export default function CrownPanel({
   offset,
   you,
   drivers,
+  touch = false,
   onStart,
 }: {
   crown: CrownState | null;
   offset: number;
   you: string | null;
   drivers: DriverInfo[];
+  touch?: boolean;
   onStart: () => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -131,16 +134,16 @@ export default function CrownPanel({
     );
   }
 
+  if (touch) return null;
   return (
-    <div className="pointer-events-auto absolute left-1/2 top-4 max-sm:top-[4.25rem] -translate-x-1/2">
+    <div className="pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
       {canStart ? (
         <button type="button" onClick={onStart} className={`${HUD_BOX} btn-press flex items-center gap-2 px-3 py-2 text-[10px] text-[#ffcf33] hover:text-cream`}>
           <Crown className="h-2.5 w-[22px]" />
           Start crown rush
         </button>
       ) : (
-        // Phones: the room to say it isn't there, and the top-left box already counts drivers.
-        <div className={`${HUD_BOX} flex items-center gap-3 px-3 py-2 text-[9px] text-dim normal-case max-sm:hidden`}>
+        <div className={`${HUD_BOX} flex items-center gap-3 px-3 py-2 text-[9px] text-dim normal-case`}>
           <Crown className="h-2.5 w-[22px] opacity-50" />
           Crown rush needs 2 drivers.
           <CopyLink />

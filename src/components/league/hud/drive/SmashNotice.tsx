@@ -10,12 +10,13 @@ import { HUD_BOX } from "../shared";
 // building signed out, how long a shielded one has left when you run into
 // it, and the floor count while you're parked against your own broken
 // building (the drive room builds it back). Over the dash, your floor points
-// today against the day's cap, and a note when you hit it.
+// today against the day's cap, and a note when you hit it. On a phone the
+// chips sit over the touch controls and the points counter stays off.
 // Read from the telemetry every animation frame, like the honk prompt.
 
 const HINT_MS = 4500;
 
-export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }) {
+export default function SmashNotice({ telemetry, touch = false }: { telemetry: DriveTelemetry; touch?: boolean }) {
   const pathname = usePathname();
   const hint = useRef<HTMLDivElement>(null);
   const shield = useRef<HTMLDivElement>(null);
@@ -57,7 +58,7 @@ export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }
   }, [telemetry]);
 
   // The box without its pointer-events-auto: the chips only take the pointer while they show.
-  const chip = `${HUD_BOX.replace("pointer-events-auto", "")} absolute bottom-32 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap px-3 py-1.5 text-[10px] text-cream opacity-0 transition-opacity data-[on=true]:opacity-100`;
+  const chip = `${HUD_BOX.replace("pointer-events-auto", "")} absolute ${touch ? "bottom-[12.5rem]" : "bottom-32"} left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap px-3 py-1.5 text-[10px] text-cream opacity-0 transition-opacity data-[on=true]:opacity-100`;
   return (
     <>
       <div ref={hint} data-on="false" className={`${chip} pointer-events-none data-[on=true]:pointer-events-auto`}>
@@ -76,16 +77,18 @@ export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }
       <div ref={maxed} data-on="false" className={`${chip} pointer-events-none`}>
         Floors maxed for today
       </div>
-      <div
-        ref={today}
-        data-on="false"
-        className={`${chip.replace("bottom-32", "bottom-[5.5rem]")} pointer-events-none`}
-        aria-label="Floor points today"
-      >
-        <span className="text-muted">Floors today</span>
-        <span ref={todayPts} className="text-lime tabular-nums" />
-        <span className="text-muted">pts</span>
-      </div>
+      {!touch && (
+        <div
+          ref={today}
+          data-on="false"
+          className={`${chip.replace("bottom-32", "bottom-[5.5rem]")} pointer-events-none`}
+          aria-label="Floor points today"
+        >
+          <span className="text-muted">Floors today</span>
+          <span ref={todayPts} className="text-lime tabular-nums" />
+          <span className="text-muted">pts</span>
+        </div>
+      )}
     </>
   );
 }
