@@ -142,7 +142,8 @@ export default function TouchControls({
     if (drag.current) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { id: e.pointerId, origin: e.clientX, x: e.clientX, y: e.clientY };
-    touchRef.current.started = true;
+    // A mouse (a phone-wide window on a computer) drives with the keys: no auto throttle.
+    if (e.pointerType !== "mouse") touchRef.current.started = true;
     showDrag();
   };
   const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -173,7 +174,7 @@ export default function TouchControls({
         e.currentTarget.setPointerCapture(e.pointerId);
         touchRef.current[key] = true;
         // Any button counts as a first touch too.
-        touchRef.current.started = true;
+        if (e.pointerType !== "mouse") touchRef.current.started = true;
         set(true);
       },
       onPointerUp: off,
