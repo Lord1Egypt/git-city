@@ -1,5 +1,4 @@
-import type * as Party from "partykit/server";
-import type { Connection, ConnectionContext } from "partykit/server";
+import { PartyRoom, type Connection, type ConnectionContext, type Env } from "./room";
 import { checkProfanity } from "glin-profanity";
 
 // ─── Types (inline — party/ can't use @/ alias) ─────────────
@@ -370,8 +369,8 @@ interface MuteState {
 }
 
 // ─── Server ─────────────────────────────────────────────────
-export default class ArcadeServer implements Party.Server {
-  options: Party.ServerOptions = { hibernate: true };
+export class ArcadeServer extends PartyRoom {
+  static options = { hibernate: true };
 
   mapConfig: MapConfig = DEFAULT_MAP;
   seatSet = new Set<string>();
@@ -390,8 +389,6 @@ export default class ArcadeServer implements Party.Server {
   // ── Game state (10s challenge) ──────────────────────────────
   readonly gameStartedAt = new Map<string, number>();   // userId -> timestamp
   readonly lastGameStop = new Map<string, number>();    // userId -> timestamp (rate limit)
-
-  constructor(readonly room: Party.Room) {}
 
   // ── Load config + restore state ────────────────────────────
   async onStart() {
@@ -509,9 +506,8 @@ export default class ArcadeServer implements Party.Server {
 
   private async pingLobby() {
     try {
-      const lobbyParty = this.room.context.parties.lobby;
-      if (!lobbyParty) return;
-      const lobbyRoom = lobbyParty.get("main");
+      const lobbyRoom = this.room.party("Lobby", "main");
+      if (!lobbyRoom) return;
       await lobbyRoom.fetch("/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -540,10 +536,13 @@ export default class ArcadeServer implements Party.Server {
   }
 
   // ── Auth ───────────────────────────────────────────────────
+  /** Run by the worker (party/server.ts) before a socket reaches the room. */
   static async onBeforeConnect(
-    request: Party.Request,
-    lobby: Party.Lobby,
+    incoming: Request,
+    env: Env,
   ) {
+    // An incoming request's headers are immutable on Workers: a copy carries the user.
+    const request = new Request(incoming);
     const url = new URL(request.url);
     const token = url.searchParams.get("token");
     if (!token) {
@@ -560,8 +559,8 @@ export default class ArcadeServer implements Party.Server {
     }
 
     try {
-      const supabaseUrl = lobby.env.NEXT_PUBLIC_SUPABASE_URL as string;
-      const supabaseAnonKey = lobby.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+      const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL as string;
+      const supabaseAnonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
 
       const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
         headers: {
@@ -678,7 +677,7 @@ export default class ArcadeServer implements Party.Server {
   }
 
   // ── Messages ───────────────────────────────────────────────
-  onMessage(message: string, sender: Connection) {
+  onMessage(sender: Connection, message: string) {
     const state = sender.state as { userId?: string } | null;
     const userId = state?.userId ?? sender.id;
     const player = this.players.get(userId);
@@ -1144,7 +1143,7 @@ export default class ArcadeServer implements Party.Server {
   }
 
   // ── HTTP: player count + hot-reload ────────────────────────
-  async onRequest(request: Party.Request) {
+  async onRequest(request: Request) {
     const corsHeaders = {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
@@ -1214,4 +1213,3 @@ export default class ArcadeServer implements Party.Server {
   }
 }
 
-ArcadeServer satisfies Party.Worker;

@@ -1,0 +1,29 @@
+// The parties (party/), on Cloudflare: one Durable Object per party.
+// Deploy by hand: `npx wrangler deploy`. Secrets: `npx wrangler secret put <NAME>`
+// (FORCE_PUSH_HMAC_SECRET, LIVE_SECRET, SITE_URL, NEXT_PUBLIC_SUPABASE_URL,
+// NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "git-city-parties",
+  "main": "party/server.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [
+      { "name": "Main", "class_name": "ArcadeServer" },
+      { "name": "Lobby", "class_name": "LobbyServer" },
+      { "name": "Fly", "class_name": "FlyServer" },
+      { "name": "Drive", "class_name": "DriveServer" },
+      { "name": "Race", "class_name": "RaceServer" },
+      { "name": "Drift", "class_name": "DriftServer" },
+      { "name": "Townlive", "class_name": "TownLiveServer" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ArcadeServer", "LobbyServer", "FlyServer", "DriveServer", "RaceServer", "DriftServer", "TownLiveServer"]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import type { Party, Connection, ConnectionContext } from "partykit/server";
+import { PartyRoom, type Connection, type ConnectionContext } from "./room";
 import { signKillToken, randomNonce } from "./killToken";
 import { signBossDamageToken } from "./bossToken";
 
@@ -191,8 +191,8 @@ function respawnPositionFar(from: { x: number; y: number; z: number }): { x: num
 }
 
 // ─── Server ─────────────────────────────────────────────────
-export default class FlyServer implements Party.Server {
-  options: Party.ServerOptions = { hibernate: true };
+export class FlyServer extends PartyRoom {
+  static options = { hibernate: true };
 
   readonly pilots = new Map<string, PilotState>();
   readonly lastMove = new Map<string, number>();
@@ -222,8 +222,6 @@ export default class FlyServer implements Party.Server {
   bossEventFetchAt = 0;
   bossEventFetchCache: { id: string; maxHp: number; creditedDamage: number } | null | undefined = undefined;
   lastMaxHpSyncAt = 0;
-
-  constructor(readonly room: Party.Room) {}
 
   private bossPhaseFor(hp: number, maxHp: number): number {
     const r = maxHp > 0 ? hp / maxHp : 0;
@@ -431,7 +429,7 @@ export default class FlyServer implements Party.Server {
     }
   }
 
-  onMessage(message: string, sender: Connection) {
+  onMessage(sender: Connection, message: string) {
     // Reject oversized payloads up front to avoid expensive JSON.parse on
     // attacker-controlled blobs.
     if (typeof message !== "string" || message.length > MAX_MESSAGE_BYTES) return;
@@ -796,4 +794,3 @@ export default class FlyServer implements Party.Server {
   }
 }
 
-FlyServer satisfies Party.Worker;

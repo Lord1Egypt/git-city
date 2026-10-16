@@ -1,4 +1,4 @@
-import type { Party } from "partykit/server";
+import { PartyRoom } from "./room";
 import { LIVE_SECRET_HEADER, liveSnapshot, parseReport, type LiveEntry } from "../src/lib/towns/live";
 
 // ─── Town live tally ────────────────────────────────────────
@@ -11,19 +11,17 @@ import { LIVE_SECRET_HEADER, liveSnapshot, parseReport, type LiveEntry } from ".
 // Every party room is reachable from the internet, so a report must carry
 // LIVE_SECRET; without it set, nothing is accepted.
 
-export default class TownLiveServer implements Party.Server {
-  options: Party.ServerOptions = { hibernate: true };
+export class TownLiveServer extends PartyRoom {
+  static options = { hibernate: true };
 
   private entries = new Map<string, LiveEntry>();
-
-  constructor(readonly room: Party.Room) {}
 
   async onStart() {
     const stored = await this.room.storage.list<LiveEntry>({ prefix: "t:" });
     for (const [key, e] of stored) this.entries.set(key.slice(2), e);
   }
 
-  async onRequest(request: Party.Request) {
+  async onRequest(request: Request) {
     if (request.method === "GET") {
       return Response.json(liveSnapshot(this.entries, Date.now()));
     }
@@ -53,4 +51,3 @@ export default class TownLiveServer implements Party.Server {
   }
 }
 
-TownLiveServer satisfies Party.Worker;

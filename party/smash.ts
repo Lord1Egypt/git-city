@@ -1,4 +1,4 @@
-import type { Party } from "partykit/server";
+import type { Connection, Room } from "./room";
 import type { ServerMsg } from "../src/lib/league-city/drive/net";
 import { FLAG_BOOST } from "../src/lib/league-city/drive/net";
 import { M_TO_UNIT } from "../src/lib/league-city/drive/tuning";
@@ -82,7 +82,7 @@ export class SmashRoom {
   readonly drivers = new Map<string, SmashDriver>();
 
   constructor(
-    private room: Party.Room,
+    private room: Room,
     private where: Where,
   ) {}
 
@@ -135,7 +135,7 @@ export class SmashRoom {
   }
 
   /** Sends the damage to someone who just arrived (after the load, if it's still running). */
-  async greet(conn: Party.Connection) {
+  async greet(conn: Connection) {
     await this.ensure();
     if (this.store) conn.send(JSON.stringify(this.all()));
   }
@@ -157,7 +157,7 @@ export class SmashRoom {
   }
 
   /** Asks the site who the token belongs to and tells the driver whether they may smash. */
-  async auth(id: string, token: string, conn: Party.Connection) {
+  async auth(id: string, token: string, conn: Connection) {
     const d = this.drivers.get(id);
     const site = this.site();
     // Once per car: each auth costs the site a token check.

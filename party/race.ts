@@ -1,4 +1,4 @@
-import type { Party, Connection } from "partykit/server";
+import { PartyRoom, type Connection } from "./room";
 import {
   BUMP_MIN_MS,
   MAX_DRIVERS,
@@ -57,7 +57,7 @@ interface Driver {
 
 const track = theTrack();
 
-export default class RaceServer implements Party.Server {
+export class RaceServer extends PartyRoom {
   private drivers = new Map<string, Driver>();
   private race = idleRace();
   private raceTimer: ReturnType<typeof setInterval> | null = null;
@@ -65,8 +65,6 @@ export default class RaceServer implements Party.Server {
   private bests = new Map<string, number>();
   /** Each racer's grid slot during the countdown, for jump starts; `placed` once their car got there. */
   private slots = new Map<string, { x: number; z: number; placed: boolean }>();
-
-  constructor(readonly room: Party.Room) {}
 
   private bestList(): RoomBests {
     return [...this.bests.entries()].sort((a, b) => a[1] - b[1]).slice(0, 20);
@@ -193,7 +191,7 @@ export default class RaceServer implements Party.Server {
     this.room.getConnection(id)?.send(JSON.stringify({ t: "receipt", token } satisfies RaceServerMsg));
   }
 
-  onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Connection) {
+  onMessage(sender: Connection, message: string | ArrayBuffer | ArrayBufferView) {
     if (typeof message !== "string" || message.length > MAX_MESSAGE_BYTES) return;
     let msg: unknown;
     try {
@@ -287,4 +285,3 @@ export default class RaceServer implements Party.Server {
   }
 }
 
-RaceServer satisfies Party.Worker;

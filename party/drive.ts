@@ -1,4 +1,5 @@
-import type { Party, Connection, ConnectionContext } from "partykit/server";
+import type { DurableObjectState } from "@cloudflare/workers-types";
+import { PartyRoom, type Connection, type ConnectionContext, type Env } from "./room";
 import {
   MAX_AUTH_BYTES,
   MAX_DRIVERS,
@@ -85,7 +86,7 @@ interface Box {
   availableAt: number;
 }
 
-export default class DriveServer implements Party.Server {
+export class DriveServer extends PartyRoom {
   private drivers = new Map<string, Driver>();
   private boxes: Box[] = Array.from({ length: BOX_COUNT }, () => ({ gen: 0, availableAt: 0 }));
   private fxSeq = 0;
@@ -148,10 +149,10 @@ export default class DriveServer implements Party.Server {
   /** Tell the town tally who's here (best effort). */
   private async reportLive(l: TownLive) {
     const secret = (this.room.env.LIVE_SECRET as string | undefined)?.trim();
-    const tally = this.room.context.parties.townlive;
+    const tally = this.room.party("Townlive", "main");
     if (!secret || !tally) return;
     try {
-      await tally.get("main").fetch("/update", {
+      await tally.fetch("/update", {
         method: "POST",
         headers: { "Content-Type": "application/json", [LIVE_SECRET_HEADER]: secret },
         body: JSON.stringify({ slug: this.room.id, ...l }),
@@ -165,8 +166,9 @@ export default class DriveServer implements Party.Server {
     this.live.update({ driving: this.drivers.size, watching: this.watchers.size });
   }
 
-  constructor(readonly room: Party.Room) {
-    this.smash = new SmashRoom(room, (id) => {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.smash = new SmashRoom(this.room, (id) => {
       const s = this.drivers.get(id)?.state;
       return s ? { x: s[0], z: s[2], speed: s[7], flags: s[10] } : null;
     });
@@ -206,12 +208,12 @@ export default class DriveServer implements Party.Server {
   }
 
   /** GET: who's in the city right now, for /towns (cached by /api/towns/live). */
-  onRequest(request: Party.Request) {
+  onRequest(request: Request) {
     if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
     return Response.json({ driving: this.drivers.size, watching: this.watchers.size });
   }
 
-  onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Connection) {
+  onMessage(sender: Connection, message: string | ArrayBuffer | ArrayBufferView) {
     if (this.watchers.has(sender.id)) return;
     if (typeof message !== "string") return;
     // Only `auth` (an access token) may be longer than a normal message.
@@ -368,4 +370,3 @@ export default class DriveServer implements Party.Server {
   }
 }
 
-DriveServer satisfies Party.Worker;

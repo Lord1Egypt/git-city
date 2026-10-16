@@ -105,3 +105,5 @@ kenney/
 
 # gg trailer exports
 /gg-output/
+.dev.vars
+.wrangler/

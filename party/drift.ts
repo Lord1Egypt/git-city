@@ -1,4 +1,4 @@
-import type { Party, Connection } from "partykit/server";
+import { PartyRoom, type Connection } from "./room";
 import {
   MAX_DRIVERS,
   MAX_MESSAGE_BYTES,
@@ -21,10 +21,8 @@ interface Driver {
   lastState: number;
 }
 
-export default class DriftServer implements Party.Server {
+export class DriftServer extends PartyRoom {
   private drivers = new Map<string, Driver>();
-
-  constructor(readonly room: Party.Room) {}
 
   onConnect(conn: Connection) {
     const welcome = {
@@ -38,7 +36,7 @@ export default class DriftServer implements Party.Server {
     conn.send(JSON.stringify(welcome));
   }
 
-  onMessage(message: string | ArrayBuffer | ArrayBufferView, sender: Connection) {
+  onMessage(sender: Connection, message: string | ArrayBuffer | ArrayBufferView) {
     if (typeof message !== "string" || message.length > MAX_MESSAGE_BYTES) return;
     let msg: unknown;
     try {
@@ -77,4 +75,3 @@ export default class DriftServer implements Party.Server {
   }
 }
 
-DriftServer satisfies Party.Worker;

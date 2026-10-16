@@ -1,4 +1,4 @@
-import type { Party } from "partykit/server";
+import { PartyRoom } from "./room";
 
 interface RoomEntry {
   slug: string;
@@ -9,12 +9,10 @@ interface RoomEntry {
 }
 
 // ─── Lobby Party: aggregates player counts across all arcade rooms ──
-export default class LobbyServer implements Party.Server {
-  options: Party.ServerOptions = { hibernate: true };
+export class LobbyServer extends PartyRoom {
+  static options = { hibernate: true };
 
   readonly rooms = new Map<string, RoomEntry>();
-
-  constructor(readonly room: Party.Room) {}
 
   async onStart() {
     const stored = await this.room.storage.list<RoomEntry>({ prefix: "room:" });
@@ -23,7 +21,7 @@ export default class LobbyServer implements Party.Server {
     }
   }
 
-  async onRequest(request: Party.Request) {
+  async onRequest(request: Request) {
     const url = new URL(request.url);
 
     const corsHeaders = {
@@ -71,4 +69,3 @@ export default class LobbyServer implements Party.Server {
   }
 }
 
-LobbyServer satisfies Party.Worker;
