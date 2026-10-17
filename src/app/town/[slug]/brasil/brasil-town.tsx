@@ -171,7 +171,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       }
     }
   }, []);
+  const driveSince = useRef(0);
   const exitDrive = useCallback(() => {
+    if (driveSince.current) posthog.capture("brasil_drive_ended", { seconds: Math.round((performance.now() - driveSince.current) / 1000) });
+    driveSince.current = 0;
     // The map opens where the car stopped.
     const r = telemetry.radar;
     setCameraStart(r && (r.x || r.z) ? { x: r.x, z: r.z } : null);
@@ -230,12 +233,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const openBuilding = useCallback(
     (b: CityBuilding) => {
       pushUrl(`at=${b.loginLower}`);
+      posthog.capture("brasil_building_opened", { self: b.loginLower === viewerLogin?.toLowerCase() });
       setState(null);
       setPanel(null);
       setFocused(b);
       mapNav.send({ type: "flyTo", x: b.position[0], z: b.position[2], distance: 700 });
     },
-    [pushUrl],
+    [pushUrl, viewerLogin],
   );
   /** Back to the whole country: every card closes. */
   const toBrazil = useCallback(() => {
@@ -396,6 +400,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     else go();
   };
   const beginDrive = () => {
+    driveSince.current = performance.now();
     setDriveReady(false);
     setPaused(false);
     setTelemetry(createTelemetry());
@@ -769,11 +774,15 @@ function FirstVisit({ onPut }: { onPut: () => void }) {
       // storage blocked: show it
     }
     if (dismissed) return;
-    const t = setTimeout(() => setOpen(true), 900);
+    const t = setTimeout(() => {
+      setOpen(true);
+      posthog.capture("brasil_first_visit_shown");
+    }, 900);
     return () => clearTimeout(t);
   }, []);
   if (!open) return null;
-  const close = () => {
+  const close = (put = false) => {
+    posthog.capture("brasil_first_visit_closed", { put });
     setOpen(false);
     try {
       localStorage.setItem(FIRST_VISIT_KEY, "1");
@@ -785,7 +794,7 @@ function FirstVisit({ onPut }: { onPut: () => void }) {
     <div className="pointer-events-auto mt-1 w-full border-[3px] border-border bg-bg/95 p-3 font-pixel uppercase backdrop-blur-sm animate-[fade-in_0.3s_ease-out] sm:w-[min(420px,calc(100vw-32px))]">
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <p className="text-[11px] text-cream">Get your building on the map</p>
-        <button type="button" onClick={close} aria-label="Close" className="text-[10px] text-muted hover:text-cream">
+        <button type="button" onClick={() => close()} aria-label="Close" className="text-[10px] text-muted hover:text-cream">
           ✕
         </button>
       </div>
@@ -795,7 +804,7 @@ function FirstVisit({ onPut }: { onPut: () => void }) {
       <button
         type="button"
         onClick={() => {
-          close();
+          close(true);
           onPut();
         }}
         className="btn-press mt-2.5 w-full border-2 border-lime bg-lime py-1.5 text-[10px] text-bg"

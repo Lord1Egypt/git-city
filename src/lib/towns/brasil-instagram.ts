@@ -104,6 +104,7 @@ export async function handleBrasilComments(comments: IncomingComment[]): Promise
       }
       await replyToComment(c.parentId ?? c.id, reply);
       await sb.from("brasil_comments").update({ replied_at: new Date().toISOString() }).eq("id", id);
+      await captureServer(c.igUser ? `ig:${c.igUser}` : `ig-comment:${c.id}`, "brasil_reply_sent", { outcome: r.outcome, suggested: !!suggestion, kind: w.kind });
     } catch (err) {
       console.error("[brasil] instagram comment", c.id, err);
     }
@@ -134,6 +135,8 @@ async function read(c: IncomingComment, own: string): Promise<{ login: string | 
     .gte("created_at", new Date(Date.now() - 86_400_000).toISOString());
   if ((count ?? 0) >= LIMITS.modelPerDay) return rules;
   const reading = await readComment({ text: c.text, commenter: c.igUser, own, thread });
+  // The bot's health: how often the model fails and the rules take over.
+  if (!reading) await captureServer("brasil-comment-bot", "brasil_comment_model_failed", { reply: !!c.parentId });
   return reading ? { login: reading.login, uf: reading.uf, reader: "model" } : rules;
 }
 
