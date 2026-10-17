@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
 import type { CityBuilding } from "@/lib/github";
 import { Avatar, fmt } from "@/components/league/hud/shared";
 import { useSheet } from "@/components/league/hud/useSheet";
@@ -39,6 +40,7 @@ export default function StateCard({
   const invite = () => {
     const url = `${window.location.origin}${townPath}?uf=${s.uf}`;
     const text = `Put yourself on the Brasil map in Git City: comment your GitHub @ and ${s.uf} on the reel, or join here: ${url}`;
+    posthog.capture("brasil_invite_copied", { uf: s.uf, from: "state_card" });
     navigator.clipboard?.writeText(text).then(
       () => setCopied(true),
       () => setCopied(false),

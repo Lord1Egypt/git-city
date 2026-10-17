@@ -21,7 +21,9 @@ import { instagramComments, instagramMe, instagramThread, replyToComment } from 
 import { getLeagueBySlug } from "../leagues/service";
 import { BRASIL_SLUG, importBrasilComment, type ReelKind } from "./brasil-server";
 import { parseComment, replyFor } from "./brasil-comments";
+import type { UF } from "./brasil-map";
 import { confirmedLogin, readComment, suggestLogin, type ThreadLine } from "./comment-ai";
+import { captureServer } from "../posthog-server";
 
 export const LIMITS = { perUserHour: 5, repliesPerUserHour: 3, modelPerDay: 2_000 } as const;
 
@@ -82,10 +84,12 @@ export async function handleBrasilComments(comments: IncomingComment[]): Promise
         }
       }
 
-      const parsed = await read(c, own);
+      const { reader, ...parsed } = await read(c, own);
       const r = await importBrasilComment(league, { id, reel: w.reel, kind: w.kind, igUser: c.igUser, text: c.text, parsed, claimed: true });
       if (!r.fresh) continue;
       fresh++;
+      await captureServer(c.igUser ? `ig:${c.igUser}` : `ig-comment:${c.id}`, "brasil_comment_imported", { outcome: r.outcome, reader, kind: w.kind, reply: !!c.parentId });
+      if (r.outcome === "added" && r.login) await captureServer(r.login, w.kind === "brasil" ? "brasil_resident_added" : "city_building_from_comment", { uf: r.uf, source: "instagram" });
       const suggestion = r.outcome === "unknown_user" && r.login ? await suggestLogin(r.login) : null;
       const reply = replyFor(r.outcome, r.login, r.uf, w.kind, suggestion);
       if (!reply) continue;
@@ -108,8 +112,8 @@ export async function handleBrasilComments(comments: IncomingComment[]): Promise
 }
 
 /** What a comment says: a yes to our suggestion, the rules for a plain one-word comment, else the model (the rules if it can't). */
-async function read(c: IncomingComment, own: string) {
-  const rules = parseComment(c.text, { ignore: [own], reply: !!c.parentId });
+async function read(c: IncomingComment, own: string): Promise<{ login: string | null; uf: UF | null; reader: "rules" | "model" | "confirm" }> {
+  const rules = { ...parseComment(c.text, { ignore: [own], reply: !!c.parentId }), reader: "rules" as const };
   const plain = c.text.trim().split(/\s+/).length === 1 && !c.text.includes("@");
   if (!c.parentId && plain) return rules;
 
@@ -121,7 +125,7 @@ async function read(c: IncomingComment, own: string) {
       // no thread: read the comment alone
     }
     const yes = confirmedLogin(c.text, own, thread);
-    if (yes) return { login: yes, uf: null };
+    if (yes) return { login: yes, uf: null, reader: "confirm" };
   }
 
   const { count } = await getSupabaseAdmin()
@@ -130,7 +134,7 @@ async function read(c: IncomingComment, own: string) {
     .gte("created_at", new Date(Date.now() - 86_400_000).toISOString());
   if ((count ?? 0) >= LIMITS.modelPerDay) return rules;
   const reading = await readComment({ text: c.text, commenter: c.igUser, own, thread });
-  return reading ? { login: reading.login, uf: reading.uf } : rules;
+  return reading ? { login: reading.login, uf: reading.uf, reader: "model" } : rules;
 }
 
 /** Reads every watched reel's comments and imports the ones not seen yet. */

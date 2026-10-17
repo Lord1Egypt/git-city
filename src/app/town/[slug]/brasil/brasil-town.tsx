@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Building2, Car, ChevronLeft, Map as MapIcon, Trophy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import posthog from "posthog-js";
 import { generateCityLayout, type CityBuilding, type DeveloperRecord, type LayoutNorms } from "@/lib/github";
 import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
 import { createTelemetry, type DriveCameraMode } from "@/lib/league-city/drive/telemetry";
@@ -109,6 +110,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     setPanel(null);
     setJoining({ pending: null, error: null });
     setPicker({ forLogin });
+    posthog.capture("brasil_picker_opened", { signed_in: !!viewerLogin, on_map: !!home });
   };
 
   const world = useMemo(() => {
@@ -274,6 +276,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     [openState],
   );
 
+  // Who comes, and how: the top of the comment → visit → building funnel.
+  useEffect(() => {
+    posthog.capture("brasil_map_viewed", { signed_in: !!viewerLogin, on_map: !!home, link: startAt ? ("uf" in startAt ? "state" : "building") : null });
+    // Once per page load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ?uf=SP or ?at=login: open there once the map is up.
   const started = useRef(false);
   useEffect(() => {
@@ -282,7 +291,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       started.current = true;
       if ("uf" in startAt) {
         const uf = world.states.find((s) => s.uf === startAt.uf)?.uf;
-        if (uf) openState(uf);
+        if (uf) {
+          openState(uf);
+          posthog.capture("brasil_state_opened", { uf, from: "link" });
+        }
       } else {
         const b = world.placed.get(startAt.login);
         if (b) openBuilding(b);
@@ -373,6 +385,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     setPicker(null);
     setDriveDev(dev.id);
     setLaunching(true);
+    posthog.capture("brasil_drive_started", { city: world.cityOfLogin.get(dev.login.toLowerCase())?.uf ?? "island", signed_in: !!viewerLogin });
     // Down to the street first, so the car starts somewhere you just saw.
     const go = () => {
       setLaunching(false);
@@ -428,7 +441,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     }, 0);
     return () => clearTimeout(t);
   }, [arriving, viewerLogin, world, openBuilding]);
-  const signIn = () => void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=/town/${league.slug}`);
+  const signIn = () => {
+    posthog.capture("brasil_signin_clicked", { for_login: picker?.forLogin ?? null });
+    void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=/town/${league.slug}`);
+  };
 
   const yours = home && home !== "island" ? home : null;
   const top = world.states.filter((s) => s.devs > 0).slice(0, 3);
@@ -443,7 +459,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         buildings={world.buildings}
         cameraApi={camera}
         cameraStore={cameraStore}
-        onTag={openCity}
+        onTag={(c) => {
+          if (c.uf) posthog.capture("brasil_state_opened", { uf: c.uf, from: "tag" });
+          openCity(c);
+        }}
         onBuildingClick={(b) => {
           // From a state's card (or a building opened from it): closing comes back to that card.
           const from = state ?? backTo;
@@ -504,9 +523,20 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             cities={layout.cities}
             island={layout.island}
             buildings={world.buildings}
-            onPickCity={(c) => (setPicker(null), openCity(c))}
-            onPickBuilding={(b) => (setPicker(null), openBuilding(b))}
-            onPutOnMap={openPicker}
+            onPickCity={(c) => {
+              posthog.capture("brasil_search", { picked: "city", uf: c.uf });
+              setPicker(null);
+              openCity(c);
+            }}
+            onPickBuilding={(b) => {
+              posthog.capture("brasil_search", { picked: "building", self: b.loginLower === viewerLogin?.toLowerCase() });
+              setPicker(null);
+              openBuilding(b);
+            }}
+            onPutOnMap={(login) => {
+              posthog.capture("brasil_search", { picked: "missing", self: login === viewerLogin?.toLowerCase() });
+              openPicker(login);
+            }}
           />
           {picker && (
             <BrasilPicker
@@ -627,7 +657,17 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         />
       )}
 
-      {panel === "states" && <BrasilRanking states={world.states} yours={yours} onPick={(s) => openState(s.uf)} onClose={() => setPanel(null)} />}
+      {panel === "states" && (
+        <BrasilRanking
+          states={world.states}
+          yours={yours}
+          onPick={(s) => {
+            posthog.capture("brasil_state_opened", { uf: s.uf, from: "ranking" });
+            openState(s.uf);
+          }}
+          onClose={() => setPanel(null)}
+        />
+      )}
 
       {state && !driving && (
         <StateCard
@@ -769,6 +809,7 @@ function Arrival({ uf, states, founder, townPath }: { uf: UF | null; states: Sta
   const invite = () => {
     const url = `${window.location.origin}${townPath}${uf ? `?uf=${uf}` : ""}`;
     const text = uf ? `I'm on the Brasil map in Git City, in ${stateOf(uf).name}. Put yourself on it: ${url}` : `I'm on the Brasil map in Git City. Put yourself on it: ${url}`;
+    posthog.capture("brasil_invite_copied", { uf, from: "arrival" });
     navigator.clipboard?.writeText(text).then(
       () => setCopied(true),
       () => setCopied(false),
