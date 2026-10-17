@@ -55,12 +55,15 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [panel, setPanel] = useState<PanelId>(null);
   const [state, setState] = useState<StateStats | null>(null);
   const [focused, setFocused] = useState<CityBuilding | null>(null);
+  /** The state card a building was opened from: closing the building brings it back. */
+  const [backTo, setBackTo] = useState<StateStats | null>(null);
   const [joining, setJoining] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const [now] = useState(() => Date.now());
   /** A panel takes the right side: any card closes. */
   const openPanel = (p: PanelId) => {
     setState(null);
     setFocused(null);
+    setBackTo(null);
     setPanel(p);
   };
 
@@ -86,6 +89,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       const s = world.states.find((x) => x.uf === uf);
       if (!s) return;
       setFocused(null);
+      setBackTo(null);
       setPanel(null);
       setState(s);
       camera.current?.flyTo(s.capital.center, s.capital.radius);
@@ -155,6 +159,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const startDrive = () => {
     setState(null);
     setFocused(null);
+    setBackTo(null);
     setPanel(null);
     setDriving(true);
   };
@@ -188,7 +193,12 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         cameraApi={camera}
         cameraStore={cameraStore}
         onTag={openCity}
-        onBuildingClick={openBuilding}
+        onBuildingClick={(b) => {
+          // From a state's card (or a building opened from it): closing comes back to that card.
+          const from = state ?? backTo;
+          openBuilding(b);
+          if (from) setBackTo(from);
+        }}
         focused={focused?.loginLower ?? null}
         drive={driving && driveFrom !== null ? drive : undefined}
         smash={smash}
@@ -282,7 +292,9 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           townPath={`/town/${league.slug}`}
           onPickDev={(login) => {
             const b = world.placed.get(login.toLowerCase());
-            if (b) openBuilding(b);
+            if (!b) return;
+            openBuilding(b);
+            setBackTo(state);
           }}
           onDriveHere={state.devs > 0 ? startDrive : undefined}
           onClose={() => setState(null)}
@@ -295,7 +307,15 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           viewerLogin={viewerLogin}
           section={<ResidentRow login={focused.loginLower} ufOf={world.ufOf} states={world.states} onState={openState} />}
           onDriveTo={startDrive}
-          onClose={() => setFocused(null)}
+          onClose={() => {
+            setFocused(null);
+            // Opened from a state's card: back to it, and back over its city.
+            if (backTo) {
+              setState(backTo);
+              setBackTo(null);
+              camera.current?.flyTo(backTo.capital.center, backTo.capital.radius);
+            }
+          }}
         />
       )}
     </main>
