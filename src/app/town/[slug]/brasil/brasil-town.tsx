@@ -31,7 +31,7 @@ import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import BrasilMinimap from "@/components/towns/brasil/BrasilMinimap";
 import { BrasilPicker, BrasilRanking, BrasilSearchBar } from "@/components/towns/brasil/BrasilPanels";
 import StateCard from "@/components/towns/brasil/StateCard";
-import { stateStats, swatchOf, type StateStats } from "@/components/towns/brasil/stats";
+import { stateStats, swatchOf, weekCrown, type StateStats } from "@/components/towns/brasil/stats";
 import { stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import { brasilWorld } from "@/lib/towns/brasil-world";
 
@@ -127,7 +127,8 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     const allCities = [...layout.cities, layout.island];
     const cityByKey = new Map(allCities.map((c) => [cityKey(c), c]));
     const cityOfLogin = new Map(allCities.flatMap((c) => c.devs.map((d) => [d.dev.login.toLowerCase(), c] as const)));
-    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin };
+    const week = weekCrown(layout, now);
+    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week };
   }, [layout, cityDevs, cityNorms, now]);
 
   const smash = useMemo(() => smashStoreFor(world.buildings), [world.buildings]);
@@ -474,6 +475,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         smash={smash}
         pulse={pulse}
         watching={watchedCars}
+        crowned={world.week.crown?.uf ?? null}
         onCity={(key, looking) => {
           setViewKey(key);
           setLookKey(looking);
@@ -661,6 +663,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         <BrasilRanking
           states={world.states}
           yours={yours}
+          crowned={world.week.crown?.uf ?? null}
           onPick={(s) => {
             posthog.capture("brasil_state_opened", { uf: s.uf, from: "ranking" });
             openState(s.uf);
@@ -682,6 +685,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             setBackTo(state);
           }}
           onDriveHere={state.devs > 0 ? startDrive : undefined}
+          week={world.week}
           onClose={() => {
             setState(null);
             replaceUrl("");

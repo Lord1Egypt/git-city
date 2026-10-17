@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import type { CityBuilding } from "@/lib/github";
 import Panel from "@/components/league/hud/Panel";
 import { Avatar, fmt } from "@/components/league/hud/shared";
+import TrophyIcon from "@/components/towns/TrophyIcon";
 import { STATES, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import { swatchOf, type StateStats } from "./stats";
 
@@ -138,7 +139,7 @@ export function BrasilSearchBar({
 }
 
 /** The 27 states by devs, your state picked out. */
-export function BrasilRanking({ states, yours, onPick, onClose }: { states: StateStats[]; yours: UF | null; onPick: (s: StateStats) => void; onClose: () => void }) {
+export function BrasilRanking({ states, yours, crowned = null, onPick, onClose }: { states: StateStats[]; yours: UF | null; crowned?: UF | null; onPick: (s: StateStats) => void; onClose: () => void }) {
   return (
     <Panel title="States" onClose={onClose}>
       <ol className="flex min-h-0 flex-col overflow-y-auto">
@@ -150,8 +151,9 @@ export function BrasilRanking({ states, yours, onPick, onClose }: { states: Stat
               className={`flex w-full items-center gap-2.5 px-2 py-1.5 text-left ${s.uf === yours ? "bg-lime text-bg" : "text-cream hover:text-lime"}`}
             >
               <span className={`w-6 text-[9px] ${s.uf === yours ? "" : "text-muted"}`}>{s.devs > 0 ? s.place : "–"}</span>
-              <span className="h-2.5 w-2.5 shrink-0" style={{ background: swatchOf(s.uf) }} aria-hidden />
+              <span className="h-2.5 w-2.5 shrink-0 border border-border-light" style={{ background: swatchOf(s.uf) }} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-[10px] normal-case">{s.name}</span>
+              {s.uf === crowned && <TrophyIcon size={11} className={s.uf === yours ? "" : "text-lime"} label="State of the week" />}
               <span className="text-[10px]">{fmt(s.devs)}</span>
             </button>
           </li>

@@ -53,3 +53,47 @@ export function swatchOf(uf: UF): string {
   const c = stateOf(uf).colors;
   return c[0] === "#ffffff" ? c[1] : c[0];
 }
+
+// ─── State of the week ──────────────────────────────────────
+// The state that gained the most devs in the last full week (Monday to
+// Sunday, Brasília time) holds the crown all of this week, frozen on Monday
+// like the towns' war; the state gaining most this week so far is "leading".
+// A tie goes to the state with more devs. Counts arrivals by when each
+// resident took their lot (a move counts for the new state).
+
+const BRT_MS = 3 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export interface WeekStanding {
+  uf: UF;
+  gained: number;
+}
+
+/** The start (ms) of the Brasília week holding `now`: Monday 00:00. */
+export function weekStart(now: number): number {
+  const local = now - BRT_MS;
+  const day = Math.floor(local / DAY_MS);
+  // Day 0 of the epoch (1970-01-01) was a Thursday: Monday is 3 days later.
+  const monday = day - ((day - 4 + 7 * 1000) % 7);
+  return monday * DAY_MS + BRT_MS;
+}
+
+function topGainer(layout: BrasilLayout, from: number, to: number): WeekStanding | null {
+  const gained = new Map<UF, number>();
+  const total = new Map<UF, number>();
+  for (const c of [...layout.cities, layout.island])
+    for (const d of c.devs) {
+      if (!d.dev.uf) continue;
+      total.set(d.dev.uf, (total.get(d.dev.uf) ?? 0) + 1);
+      if (d.at >= from && d.at < to) gained.set(d.dev.uf, (gained.get(d.dev.uf) ?? 0) + 1);
+    }
+  let best: WeekStanding | null = null;
+  for (const [uf, n] of gained)
+    if (!best || n > best.gained || (n === best.gained && (total.get(uf) ?? 0) > (total.get(best.uf) ?? 0))) best = { uf, gained: n };
+  return best;
+}
+
+export function weekCrown(layout: BrasilLayout, now: number): { crown: WeekStanding | null; leading: WeekStanding | null } {
+  const start = weekStart(now);
+  return { crown: topGainer(layout, start - 7 * DAY_MS, start), leading: topGainer(layout, start, now + 1) };
+}

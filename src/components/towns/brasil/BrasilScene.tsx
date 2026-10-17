@@ -9,6 +9,7 @@ import * as THREE from "three";
 import type { MapControls as MapControlsImpl } from "three-stdlib";
 import CityScene from "@/components/CityScene";
 import MergedStatic from "@/components/MergedStatic";
+import TrophyIcon from "@/components/towns/TrophyIcon";
 import { ThemeLights } from "@/components/city/theme";
 import ThemeSkyFX from "@/components/ThemeSkyFX";
 import { EXPOSURE, townTheme } from "@/components/league/townTheme";
@@ -335,7 +336,7 @@ function NearPlates({ buildings }: { buildings: CityBuilding[] }) {
 
 // ─── Tags ────────────────────────────────────────────────────
 
-function Tag({ city, near, onClick }: { city: CityLayout; near: boolean; onClick: () => void }) {
+function Tag({ city, near, crowned, onClick }: { city: CityLayout; near: boolean; crowned: boolean; onClick: () => void }) {
   const [x, z] = lotToWorld(...city.center);
   const founder = city.devs.find((d) => d.founder)?.dev.login ?? null;
   const st = city.uf ? stateOf(city.uf) : null;
@@ -344,7 +345,7 @@ function Tag({ city, near, onClick }: { city: CityLayout; near: boolean; onClick
     <Html position={[x, 60, z]} center zIndexRange={[20, 0]} style={{ pointerEvents: "auto" }}>
       <button type="button" onClick={onClick} className="flex cursor-pointer flex-col items-center whitespace-nowrap font-pixel uppercase">
         <span className="flex items-center gap-1 border-2 border-border bg-bg/85 px-1 py-px text-[9px] text-cream hover:border-lime sm:gap-1.5 sm:px-1.5 sm:py-0.5 sm:text-[11px]">
-          <span className="h-1.5 w-1.5 sm:h-2 sm:w-2" style={{ background: swatch }} aria-hidden />
+          {crowned ? <TrophyIcon size={11} className="text-lime" label="State of the week" /> : <span className="h-1.5 w-1.5 sm:h-2 sm:w-2" style={{ background: swatch }} aria-hidden />}
           {city.second ? city.name : (city.uf ?? "Island")}
           {city.devs.length > 0 && <span className="text-lime">{city.devs.length}</span>}
         </span>
@@ -609,6 +610,8 @@ export interface BrasilSceneProps {
   onCity?: (key: string | null, looking: string | null) => void;
   /** Open the map camera here instead of the whole country. */
   cameraStart?: { x: number; z: number } | null;
+  /** The state of the week: its tag wears the crown. */
+  crowned?: UF | null;
   /** Dev only: fps, draw calls and triangles in a corner (the preview's ?stats=1). */
   stats?: boolean;
   /** Everyone out driving, drawn while you look at the map. */
@@ -682,7 +685,7 @@ function Pulse({ x, z }: { x: number; z: number }) {
   );
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null }: BrasilSceneProps) {
   const allCities = useMemo(() => [...cities, island], [cities, island]);
   // Phones and weak GPUs draw at a lower resolution, as in the main city (?perf=low|high overrides).
   const { mode: perf } = usePerfMode();
@@ -733,7 +736,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
         onBuildingClick={driving ? undefined : onBuildingClick}
       />}
       {!driving && <NearPlates buildings={buildings} />}
-      {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} onClick={() => onTag?.(c)} />)}
+      {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} crowned={!!crowned && c.uf === crowned && !c.second} onClick={() => onTag?.(c)} />)}
       {driving && drive && <DriveWorld objects={objects} buildings={buildings} h={MAP_H} smash={smash} {...drive} />}
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
       {stats && <Stats />}

@@ -5,7 +5,8 @@ import posthog from "posthog-js";
 import type { CityBuilding } from "@/lib/github";
 import { Avatar, fmt } from "@/components/league/hud/shared";
 import { useSheet } from "@/components/league/hud/useSheet";
-import { swatchOf, type StateStats } from "./stats";
+import TrophyIcon from "@/components/towns/TrophyIcon";
+import { swatchOf, type StateStats, type WeekStanding } from "./stats";
 
 // A state's card, opened from its tag or a search: its founder, how many
 // devs live there and its place among the 27, its top five devs (each one a
@@ -19,6 +20,7 @@ export default function StateCard({
   onPickDev,
   onDriveHere,
   onClose,
+  week,
 }: {
   state: StateStats;
   byLogin: ReadonlyMap<string, CityBuilding>;
@@ -27,6 +29,8 @@ export default function StateCard({
   onPickDev: (login: string) => void;
   onDriveHere?: () => void;
   onClose: () => void;
+  /** Last full week's crown and this week's leader, when either is this state. */
+  week?: { crown: WeekStanding | null; leading: WeekStanding | null };
 }) {
   const sheet = useSheet(onClose);
   const { close } = sheet;
@@ -70,6 +74,18 @@ export default function StateCard({
           </div>
         </div>
 
+        {week?.crown?.uf === s.uf && (
+          <div className="mx-4 mb-3 flex items-center gap-2.5 border-2 border-lime px-3 py-2">
+            <TrophyIcon size={14} className="text-lime" />
+            <div>
+              <p className="text-[10px] text-lime">State of the week</p>
+              <p className="text-[9px] normal-case text-muted">+{fmt(week.crown.gained)} devs last week, the most of any state</p>
+            </div>
+          </div>
+        )}
+        {week?.leading?.uf === s.uf && week.crown?.uf !== s.uf && (
+          <p className="mx-4 mb-3 text-[9px] normal-case text-lime">Leading this week: +{fmt(week.leading.gained)} devs. The crown goes out on Monday.</p>
+        )}
         <div className="mx-4 mb-3 flex items-center gap-3 border-2 border-border px-3 py-2">
           {s.founder ? (
             <>
