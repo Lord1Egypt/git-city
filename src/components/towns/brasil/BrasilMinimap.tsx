@@ -31,7 +31,7 @@ export default function BrasilMinimap({ cities, island, camera }: { cities: City
     mapNav.send({ type: "flyTo", x: x / k + x0, z: y / k + z0, distance: 2600 });
   };
   return (
-    <div className="pointer-events-auto fixed bottom-4 left-4 z-30 border-[3px] border-border bg-bg/80 p-1 backdrop-blur-sm max-sm:hidden">
+    <div className="pointer-events-auto fixed bottom-4 right-4 z-30 border-[3px] border-border bg-bg/80 p-1 backdrop-blur-sm max-sm:hidden">
       <svg width={W} height={W} viewBox={`0 0 ${W} ${W}`} onClick={click} className="cursor-pointer" role="img" aria-label="Map of Brazil">
         <path d={path} fill="#1d2634" stroke="#4b5466" strokeWidth={1} />
         {[...cities, island].map((c) => {
