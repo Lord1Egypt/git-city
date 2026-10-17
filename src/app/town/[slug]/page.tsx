@@ -15,7 +15,9 @@ import {
 } from "@/lib/leagues/service";
 import { getLapBoard } from "@/lib/league-city/race/board";
 import { TRACK_ID } from "@/lib/league-city/race/track";
-import { getCityNorms, getLeagueCityDevs, getLeaguePageData, getTownRanking, townPlace } from "@/lib/leagues/queries";
+import { getCityDevsByIds, getCityNorms, getLeagueCityDevs, getLeaguePageData, getTownRanking, townPlace } from "@/lib/leagues/queries";
+import { getBrasilLayout } from "@/lib/towns/brasil-server";
+import BrasilTownLoader from "./brasil/loader";
 import { getCachedCity } from "@/lib/league-city/service";
 import { LOGIN_RE } from "@/lib/leagues/names";
 import { tokenMatches } from "@/lib/leagues/invite-token";
@@ -67,6 +69,14 @@ export default async function LeaguePage({ params, searchParams }: Props) {
   }
 
   const viewer = await getViewer();
+
+  // The Brasil town is drawn as the map of Brazil: its own page.
+  if (league.map === "brasil") {
+    const { layout, residents } = await getBrasilLayout(league.id);
+    const [cityDevs, cityNorms] = await Promise.all([getCityDevsByIds(residents.map((r) => r.dev.id)), getCityNorms()]);
+    return <BrasilTownLoader league={{ slug: league.slug, name: league.name }} layout={layout} cityDevs={cityDevs} cityNorms={cityNorms} viewerLogin={viewer?.github_login ?? null} />;
+  }
+
   const data = await getLeaguePageData(league, viewer);
   const coding = data.week.standings.filter((s) => s.total > 0).length;
   const [city, cityDevs, cityNorms, inviteToken, badges, ranking, raceRecord] = await Promise.all([
