@@ -222,7 +222,7 @@ export default function BrasilAdminPage() {
                   </a>
                   <p className="truncate px-2 pt-1.5 text-[10px] normal-case text-muted">{m.caption?.split("\n")[0] || "No caption"}</p>
                   <div className="flex items-center gap-1 p-2 pt-1.5">
-                    <span className="mr-auto text-[9px] text-dim">Watch as</span>
+                    <span className="mr-auto whitespace-nowrap text-[9px] text-dim">Watch as</span>
                     {(["city", "brasil"] as const).map((k) => (
                       <button key={k} type="button" disabled={igBusy} onClick={() => watch(m, k)} className="border border-border px-2 py-1 text-[10px] text-cream hover:border-lime hover:text-lime disabled:opacity-40">
                         {KIND[k]}
