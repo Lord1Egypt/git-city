@@ -42,6 +42,17 @@ interface Instagram {
 
 const KIND = { city: "City", brasil: "Brasil" } as const;
 
+interface Day {
+  day: number;
+  date: string;
+  devs: number;
+  founded: number;
+  arrived: { login: string; uf: string | null }[];
+  newFounders: { login: string; uf: string }[];
+  states: { uf: string; devs: number; today: number }[];
+  line: string;
+}
+
 interface Result {
   line: string;
   outcome: string;
@@ -97,6 +108,19 @@ export default function BrasilAdminPage() {
   }, []);
 
   const [showAll, setShowAll] = useState(false);
+  const [day, setDay] = useState<Day | null>(null);
+  const [dayDate, setDayDate] = useState("");
+  const [dayCopied, setDayCopied] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/admin/brasil?view=day${dayDate ? `&date=${dayDate}` : ""}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => live && j && setDay(j as Day))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [dayDate]);
   const watched = ig?.media.filter((m) => m.watching) ?? [];
   const others = ig?.media.filter((m) => !m.watching) ?? [];
   const watch = (m: Post, kind: "city" | "brasil" | null) =>
@@ -239,6 +263,50 @@ export default function BrasilAdminPage() {
             )}
             <p className="text-[10px] text-dim">City: a building in Git City. Brasil: a building in Git City and on the Brasil map, in the state they name.</p>
           </div>
+        </section>
+
+        <section className="flex flex-col gap-3 border border-border bg-bg-raised p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-[11px] uppercase tracking-wider text-dim">Episode numbers</h2>
+            <input type="date" value={dayDate || day?.date || ""} onChange={(e) => setDayDate(e.target.value)} className="border border-border bg-bg px-2 py-1 text-[11px] text-cream [color-scheme:dark]" />
+          </div>
+          {!day ? (
+            <p className="text-[11px] text-muted">Loading…</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-4 gap-px border border-border bg-border text-center">
+                {[
+                  ["Day", day.day > 0 ? String(day.day) : "–"],
+                  ["Devs", day.devs.toLocaleString("en-US")],
+                  ["Founded", `${day.founded}/27`],
+                  ["Today", `+${day.arrived.length}`],
+                ].map(([k, v]) => (
+                  <div key={k} className="bg-bg-raised py-2">
+                    <div className="text-sm text-lime">{v}</div>
+                    <div className="text-[9px] uppercase text-muted">{k}</div>
+                  </div>
+                ))}
+              </div>
+              {day.newFounders.length > 0 && (
+                <p className="text-[11px] text-cream">
+                  New founders: <span className="normal-case">{day.newFounders.map((f) => `@${f.login} (${f.uf})`).join(", ")}</span>
+                </p>
+              )}
+              <p className="text-[11px] text-muted">
+                Top today: {day.states.filter((s) => s.today > 0).sort((a, b) => b.today - a.today).slice(0, 5).map((s) => `${s.uf} +${s.today}`).join(" · ") || "nobody yet"}
+              </p>
+              <div className="flex items-center gap-2">
+                <p className="min-w-0 flex-1 truncate border border-border bg-bg px-2 py-1.5 text-[10px] normal-case text-muted">{day.line}</p>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(day.line).then(() => setDayCopied(true))}
+                  className="shrink-0 border border-border px-3 py-1.5 text-[10px] text-cream hover:border-lime hover:text-lime"
+                >
+                  {dayCopied ? "Copied" : "Copy"}
+                </button>
+              </div>
+            </>
+          )}
         </section>
 
         <section className="flex flex-col gap-3 border border-border bg-bg-raised p-4">

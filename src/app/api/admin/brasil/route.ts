@@ -8,6 +8,8 @@ import { getLeagueBySlug } from "@/lib/leagues/service";
 import { BRASIL_SLUG, importBrasilComment, type ImportOutcome } from "@/lib/towns/brasil-server";
 import { connectInstagram, instagramMedia, subscribeToComments } from "@/lib/instagram";
 import { syncBrasilReels } from "@/lib/towns/brasil-instagram";
+import { getBrasilResidents } from "@/lib/towns/brasil-server";
+import { brasilDay, brasiliaToday, dayLine } from "@/lib/towns/brasil-day";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -28,7 +30,16 @@ async function requireAdmin() {
 export async function GET(req: Request) {
   if (!(await requireAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const sb = getSupabaseAdmin();
-  if (new URL(req.url).searchParams.get("view") === "instagram") {
+  const q = new URL(req.url).searchParams;
+  // ?view=day&date=2026-10-19: that day's numbers for the episode (today on Brasília time by default).
+  if (q.get("view") === "day") {
+    const league = await getLeagueBySlug(BRASIL_SLUG);
+    if (!league) return NextResponse.json({ error: "The Brasil town isn't set up." }, { status: 404 });
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(q.get("date") ?? "") ? q.get("date")! : brasiliaToday();
+    const day = brasilDay(await getBrasilResidents(league.id), date);
+    return NextResponse.json({ ...day, line: dayLine(day) });
+  }
+  if (q.get("view") === "instagram") {
     const [{ data: stored }, { data: reels }] = await Promise.all([
       sb.from("instagram_account").select("username").eq("id", 1).maybeSingle<{ username: string | null }>(),
       sb.from("brasil_reels").select("media_id, permalink, watching, kind"),
