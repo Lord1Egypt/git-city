@@ -269,10 +269,15 @@ export async function getDevLeagues(devId: number): Promise<{ slug: string; name
 export async function getLeagueCityDevs(members: LeagueMemberRow[]): Promise<Record<string, unknown>[]> {
   const shown = members.filter((m) => m.status !== "former");
   if (shown.length === 0) return [];
-  const sb = getSupabaseAdmin();
-  const ids = shown.map((m) => m.developer_id);
   const status = new Map(shown.map((m) => [m.developer_id, m.status]));
+  const devs = await getCityDevsByIds(shown.map((m) => m.developer_id));
+  return devs.map((d) => ({ ...d, invited: status.get(d.id as number) === "invited" }));
+}
 
+/** The city records (main-city size, lit windows, loadout) of these developers, by rank. */
+export async function getCityDevsByIds(ids: number[]): Promise<Record<string, unknown>[]> {
+  if (ids.length === 0) return [];
+  const sb = getSupabaseAdmin();
   const devs: { id: number; rank: number | null }[] = [];
   for (let i = 0; i < ids.length; i += 300) {
     const { data } = await sb
@@ -284,7 +289,7 @@ export async function getLeagueCityDevs(members: LeagueMemberRow[]): Promise<Rec
   }
   devs.sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER));
   const extras = await loadCityExtras(sb, ids);
-  return mergeCityExtras(devs, extras).map((d) => ({ ...d, invited: status.get(d.id) === "invited" }));
+  return mergeCityExtras(devs, extras);
 }
 
 /**
