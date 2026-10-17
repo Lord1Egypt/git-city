@@ -6,7 +6,8 @@ import type { Env } from "./room";
 // One Cloudflare Worker, one Durable Object class per party (wrangler.jsonc).
 // Requests route to /parties/<binding, kebab-cased>/<room>, the same paths
 // hosted PartyKit served, so clients only change host. The arcade ("main")
-// checks the player's token before the socket reaches its room.
+// checks the player's token before the socket reaches its room; the lobby
+// takes no writes from outside.
 
 export { ArcadeServer } from "./arcade";
 export { LobbyServer } from "./lobby";
@@ -20,6 +21,8 @@ const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const res = await routePartykitRequest(request, env as never, {
       onBeforeConnect: (req, { party }) => (party === "main" ? ArcadeServer.onBeforeConnect(req, env) : undefined),
+      // The lobby's counts come from the arcade rooms inside this worker (room.party), never from outside.
+      onBeforeRequest: (req, { party }) => (party === "lobby" && req.method === "POST" ? new Response("Forbidden", { status: 403 }) : undefined),
     });
     return res ?? new Response("Not found", { status: 404 });
   },
