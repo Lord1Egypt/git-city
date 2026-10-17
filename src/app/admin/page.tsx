@@ -33,6 +33,11 @@ const SECTIONS: { heading: string; links: AdminLink[] }[] = [
         title: "Town logo reports",
         description: "Reported town logos: take down or dismiss",
       },
+      {
+        href: "/admin/brasil",
+        title: "Brasil town · comments",
+        description: "Paste reel comments to put devs on the map",
+      },
     ],
   },
   {
