@@ -1,0 +1,112 @@
+// ─── Instagram (API with Instagram Login) ───────────────────
+// The one connected account (@samuelrizzondev): its posts, replying to a
+// comment, subscribing the app to its comment webhooks, and keeping the
+// long-lived token alive. The token lives in instagram_account (migration
+// 170) once the cron has refreshed it, INSTAGRAM_ACCESS_TOKEN before that.
+// Webhook payloads are signed with INSTAGRAM_APP_SECRET. Server only.
+
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { getSupabaseAdmin } from "./supabase";
+
+const GRAPH = "https://graph.instagram.com/v26.0";
+
+export interface IgMedia {
+  id: string;
+  permalink: string;
+  caption?: string;
+  media_product_type: string;
+  timestamp: string;
+}
+
+export async function instagramToken(): Promise<string | null> {
+  const { data } = await getSupabaseAdmin().from("instagram_account").select("access_token").eq("id", 1).maybeSingle<{ access_token: string }>();
+  return data?.access_token ?? process.env.INSTAGRAM_ACCESS_TOKEN ?? null;
+}
+
+async function graph<T>(path: string, params: Record<string, string> = {}, method: "GET" | "POST" = "GET"): Promise<T> {
+  const token = await instagramToken();
+  if (!token) throw new Error("Instagram isn't connected (no token).");
+  const url = new URL(`${GRAPH}${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  url.searchParams.set("access_token", token);
+  const res = await fetch(url, { method, cache: "no-store" });
+  const json = (await res.json().catch(() => ({}))) as T & { error?: { message?: string } };
+  if (!res.ok || json.error) throw new Error(`Instagram ${path}: ${json.error?.message ?? res.status}`);
+  return json;
+}
+
+export function instagramMe() {
+  return graph<{ user_id: string; username: string }>("/me", { fields: "user_id,username" });
+}
+
+export async function instagramMedia(limit = 24): Promise<IgMedia[]> {
+  const { data } = await graph<{ data: IgMedia[] }>("/me/media", { fields: "id,permalink,caption,media_product_type,timestamp", limit: String(limit) });
+  return data;
+}
+
+export function replyToComment(commentId: string, message: string) {
+  return graph<{ id: string }>(`/${commentId}/replies`, { message }, "POST");
+}
+
+/** Turns on the comment webhooks for the account (the dashboard's webhook setup alone doesn't). */
+export function subscribeToComments() {
+  return graph<{ success: boolean }>("/me/subscribed_apps", { subscribed_fields: "comments" }, "POST");
+}
+
+/** Stores the account and the token it was connected with (the env's, generated in Meta's dashboard). */
+export async function connectInstagram(): Promise<{ user_id: string; username: string }> {
+  const me = await instagramMe();
+  const sb = getSupabaseAdmin();
+  const { data } = await sb.from("instagram_account").select("id").eq("id", 1).maybeSingle();
+  if (data) await sb.from("instagram_account").update({ ig_user_id: me.user_id, username: me.username }).eq("id", 1);
+  else await sb.from("instagram_account").insert({ id: 1, ig_user_id: me.user_id, username: me.username, access_token: process.env.INSTAGRAM_ACCESS_TOKEN });
+  return me;
+}
+
+/** Swaps the token for a fresh 60-day one and stores it (the token must be a day old). */
+export async function refreshInstagramToken(): Promise<{ username: string; expiresAt: string }> {
+  const token = await instagramToken();
+  if (!token) throw new Error("Instagram isn't connected (no token).");
+  const res = await fetch(`https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(token)}`, { cache: "no-store" });
+  const json = (await res.json()) as { access_token?: string; expires_in?: number; error?: { message?: string } };
+  if (!json.access_token) throw new Error(`Instagram refresh: ${json.error?.message ?? res.status}`);
+  const expiresAt = new Date(Date.now() + (json.expires_in ?? 60 * 86_400) * 1000).toISOString();
+  const sb = getSupabaseAdmin();
+  await sb.from("instagram_account").upsert({ id: 1, access_token: json.access_token, refreshed_at: new Date().toISOString(), expires_at: expiresAt });
+  const me = await instagramMe();
+  await sb.from("instagram_account").update({ ig_user_id: me.user_id, username: me.username }).eq("id", 1);
+  return { username: me.username, expiresAt };
+}
+
+/** Whether a webhook body came from Meta: its X-Hub-Signature-256 is the body's HMAC with the app secret. */
+export function validInstagramSignature(body: string, header: string | null): boolean {
+  const secret = process.env.INSTAGRAM_APP_SECRET;
+  if (!secret || !header?.startsWith("sha256=")) return false;
+  const want = Buffer.from(createHmac("sha256", secret).update(body).digest("hex"));
+  const got = Buffer.from(header.slice(7));
+  return want.length === got.length && timingSafeEqual(want, got);
+}
+
+export interface IgComment {
+  id: string;
+  text: string;
+  from?: { id: string; username?: string };
+  replies?: { data: IgComment[] };
+}
+
+/** A post's comments with their replies, newest first, up to `pages` pages of 50. */
+export async function instagramComments(mediaId: string, pages = 4): Promise<IgComment[]> {
+  const out: IgComment[] = [];
+  let after: string | undefined;
+  for (let i = 0; i < pages; i++) {
+    const page = await graph<{ data: IgComment[]; paging?: { cursors?: { after?: string }; next?: string } }>(`/${mediaId}/comments`, {
+      fields: "id,text,from,replies{id,text,from}",
+      limit: "50",
+      ...(after ? { after } : {}),
+    });
+    out.push(...page.data);
+    after = page.paging?.next ? page.paging.cursors?.after : undefined;
+    if (!after) break;
+  }
+  return out;
+}

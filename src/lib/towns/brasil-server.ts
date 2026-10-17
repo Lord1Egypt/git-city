@@ -145,18 +145,21 @@ export type ImportOutcome = "added" | "already" | "unknown_user" | "no_login" | 
  * One comment: read it, check the username on GitHub (creating the dev if
  * Git City doesn't have them yet), put them on the map in the state they
  * named (none: the island), and log what came of it. A comment seen before
- * returns what it got then. One Instagram account puts one GitHub login on
- * the map.
+ * returns what it got then, not fresh (so it is never answered twice). One
+ * Instagram account puts one GitHub login on the map.
  */
-export async function importBrasilComment(league: Pick<League, "id">, c: ReelComment): Promise<{ outcome: ImportOutcome; login: string | null; uf: UF | null }> {
+export async function importBrasilComment(
+  league: Pick<League, "id">,
+  c: ReelComment,
+): Promise<{ outcome: ImportOutcome; login: string | null; uf: UF | null; fresh: boolean }> {
   const sb = getSupabaseAdmin();
   const { data: seen } = await sb.from("brasil_comments").select("outcome, github_login, uf").eq("id", c.id).maybeSingle<{ outcome: ImportOutcome; github_login: string | null; uf: UF | null }>();
-  if (seen) return { outcome: seen.outcome, login: seen.github_login, uf: seen.uf };
+  if (seen) return { outcome: seen.outcome, login: seen.github_login, uf: seen.uf, fresh: false };
 
   const { login, uf } = parseComment(c.text);
   const log = async (outcome: ImportOutcome, developerId: number | null = null) => {
     await sb.from("brasil_comments").insert({ id: c.id, reel: c.reel, ig_user: c.igUser, github_login: login, uf, developer_id: developerId, outcome });
-    return { outcome, login, uf };
+    return { outcome, login, uf, fresh: true };
   };
   if (!login) return log("no_login");
 
