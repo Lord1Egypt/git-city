@@ -25,8 +25,10 @@ function geometryKey(g: THREE.BufferGeometry): string {
  * 3-4 calls. Merges once, at mount, relative to this group. Anything that
  * animates on its own (a ref'd mesh, a pulsing material) belongs outside it;
  * the originals stay in the tree, hidden, so raycasts and unmount still work.
+ * `byMaterial` merges only meshes sharing the very same material, for custom
+ * shaders that look alike to materialKey but aren't (water, patched ground).
  */
-export default function MergedStatic({ children }: { children: ReactNode }) {
+export default function MergedStatic({ children, byMaterial = false }: { children: ReactNode; byMaterial?: boolean }) {
   const ref = useRef<THREE.Group>(null);
 
   useLayoutEffect(() => {
@@ -39,7 +41,7 @@ export default function MergedStatic({ children }: { children: ReactNode }) {
     root.traverseVisible((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh || (mesh as THREE.InstancedMesh).isInstancedMesh || Array.isArray(mesh.material)) return;
-      const k = `${materialKey(mesh.material)}#${geometryKey(mesh.geometry)}`;
+      const k = `${byMaterial ? mesh.material.uuid : materialKey(mesh.material)}#${geometryKey(mesh.geometry)}`;
       const b = buckets.get(k) ?? { material: mesh.material, meshes: [] };
       b.meshes.push(mesh);
       buckets.set(k, b);
@@ -66,7 +68,7 @@ export default function MergedStatic({ children }: { children: ReactNode }) {
       for (const m of merged) { root.remove(m); m.geometry.dispose(); }
       for (const m of hidden) m.visible = true;
     };
-  }, []);
+  }, [byMaterial]);
 
   return <group ref={ref}>{children}</group>;
 }

@@ -16,7 +16,7 @@ import { STATES, layoutBrasil, ranking, type CityLayout, type MapDev, type UF } 
 // never say their state and land on the island. The page loads this whole
 // file client-side (one bundle with the scene: one three.js).
 
-const STEPS = [0, 12, 60, 250, 800, 2000];
+const STEPS = [0, 12, 60, 250, 800, 2000, 10000, 30000];
 const ISLAND_SHARE = 0.12;
 
 function rng(seed: number) {
@@ -38,7 +38,13 @@ function fakeDevs(n: number, seed: number): MapDev[] {
 }
 
 export default function BrasilPreview() {
-  const [step, setStep] = useState(2);
+  // ?n=10000 opens at that many devs, ?stats=1 shows fps and draw calls.
+  const [step, setStep] = useState(() => {
+    if (typeof window === "undefined") return 2;
+    const i = STEPS.indexOf(Number(new URLSearchParams(window.location.search).get("n")));
+    return i >= 0 ? i : 2;
+  });
+  const [stats] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("stats"));
   const [seed, setSeed] = useState(7);
   const [driving, setDriving] = useState(false);
   const [focus, setFocus] = useState<UF | null>(null);
@@ -114,6 +120,7 @@ export default function BrasilPreview() {
   return (
     <main className="fixed inset-0 bg-bg font-pixel uppercase text-cream">
       <BrasilScene
+        stats={stats}
         key={`${n}-${seed}`}
         cities={world.layout.cities}
         island={world.layout.island}

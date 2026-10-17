@@ -8,6 +8,7 @@ import { Html, MapControls } from "@react-three/drei";
 import * as THREE from "three";
 import type { MapControls as MapControlsImpl } from "three-stdlib";
 import CityScene from "@/components/CityScene";
+import MergedStatic from "@/components/MergedStatic";
 import { ThemeLights } from "@/components/city/theme";
 import ThemeSkyFX from "@/components/ThemeSkyFX";
 import { EXPOSURE, townTheme } from "@/components/league/townTheme";
@@ -25,6 +26,7 @@ import type { CityObject } from "@/lib/league-city/types";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { MAP_BOUNDS, MAP_H, OUTLINE, RIVERS, STATE_RINGS, type Ring } from "@/lib/towns/brasil-geo";
 import { mapNav, type MapCameraStore } from "@/lib/map-nav";
+import { usePerfMode } from "@/lib/perfMode";
 import { stateOf, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 
 // The Brasil town: the country on its real outline under the towns' night
@@ -280,8 +282,20 @@ function CitySign({ city }: { city: CityLayout }) {
   }, [city.name, city.uf, fontReady]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => tex.dispose(), [tex]);
   const [x, z] = lotToWorld(...city.center);
-  return <Billboard position={[x, z - LOT * 0.42]} rot={0} map={tex} />;
+  // Unreadable from high up: drawn only near, so the whole country costs no sign draw calls.
+  const group = useRef<THREE.Group>(null);
+  useFrame(({ camera }) => {
+    const g = group.current;
+    if (g) g.visible = Math.hypot(camera.position.x - x, camera.position.y - MAP_H, camera.position.z - z) < SIGN_VIEW;
+  });
+  return (
+    <group ref={group}>
+      <Billboard position={[x, z - LOT * 0.42]} rot={0} map={tex} />
+    </group>
+  );
 }
+/** Closer than this a city's sign is drawn. */
+const SIGN_VIEW = 9000;
 
 /** Up close: the @login over the buildings nearest the middle of the view (the towns' name tags). */
 function NearPlates({ buildings }: { buildings: CityBuilding[] }) {
@@ -595,6 +609,8 @@ export interface BrasilSceneProps {
   onCity?: (key: string | null, looking: string | null) => void;
   /** Open the map camera here instead of the whole country. */
   cameraStart?: { x: number; z: number } | null;
+  /** Dev only: fps, draw calls and triangles in a corner (the preview's ?stats=1). */
+  stats?: boolean;
   /** Everyone out driving, drawn while you look at the map. */
   watching?: CarFeed[];
   /** A lot just taken: a lime ring spreads from it once (a new key plays it again). */
@@ -602,6 +618,32 @@ export interface BrasilSceneProps {
 }
 
 const WatchedCars = dynamic(() => import("@/components/league/drive/WatchedCars"), { ssr: false, loading: () => null });
+
+/** Fps, draw calls and triangles, written to window.__brasilStats and a corner label (dev only). */
+function Stats() {
+  const el = useRef<HTMLDivElement | null>(null);
+  const frames = useRef({ n: 0, t: 0 });
+  useFrame(({ gl }) => {
+    const f = frames.current;
+    f.n++;
+    const now = performance.now();
+    if (!f.t) f.t = now;
+    if (now - f.t < 1000) return;
+    const s = { fps: Math.round((f.n * 1000) / (now - f.t)), calls: gl.info.render.calls, tris: gl.info.render.triangles, geos: gl.info.memory.geometries };
+    (window as unknown as { __brasilStats?: typeof s }).__brasilStats = s;
+    if (el.current) el.current.textContent = `${s.fps} fps · ${s.calls} calls · ${(s.tris / 1000).toFixed(0)}k tris · ${s.geos} geos`;
+    f.n = 0;
+    f.t = now;
+  });
+  return (
+    <Html fullscreen zIndexRange={[50, 50]}>
+      <div ref={el} className="pointer-events-none fixed bottom-1 right-2 bg-bg/90 px-2 py-1 font-mono text-[11px] text-lime" />
+    </Html>
+  );
+}
+
+/** Trees past this far from the camera aren't drawn: a street's worth up close, none from the whole country. */
+const TREE_CULL = { maxDistance: 9000 };
 
 const PULSE_S = 1.8;
 
@@ -640,8 +682,13 @@ function Pulse({ x, z }: { x: number; z: number }) {
   );
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false }: BrasilSceneProps) {
   const allCities = useMemo(() => [...cities, island], [cities, island]);
+  // Phones and weak GPUs draw at a lower resolution, as in the main city (?perf=low|high overrides).
+  const { mode: perf } = usePerfMode();
+  // Dev only: ?off=ground,roads hides layers, to see what each one costs.
+  const [hidden] = useState(() => (stats && typeof window !== "undefined" ? new Set((new URLSearchParams(window.location.search).get("off") ?? "").split(",")) : new Set<string>()));
+  const off = (layer: string) => hidden.has(layer);
   const driving = !!drive;
   const [near, setNear] = useState(false);
   const decorations = useMemo(() => decorationsOf(objects), [objects]);
@@ -651,7 +698,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
   return (
     <Canvas
       shadows={false}
-      dpr={[1, 1.5]}
+      dpr={perf === "low" ? 0.75 : [1, 1.5]}
       camera={{ position: [cx, 40000, cz + 15000], fov: FOV, near: 5, far: 400000 }}
       gl={{ antialias: true, logarithmicDepthBuffer: true, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: EXPOSURE }}
       style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh" }}
@@ -659,30 +706,37 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       <ThemeLights theme={NIGHT} themeIndex={NIGHT_KEY} />
       <ThemeSkyFX themeIndex={NIGHT_FX} theme={NIGHT} lowSky />
       {!driving && <MapCamera apiRef={cameraApi} onNear={setNear} store={cameraStore} cities={allCities} onCity={onCity} start={cameraStart} />}
-      <Ground island={island} />
-      <Paving cities={[...cities, island]} />
-      <Squares cities={[...cities, island]} />
-      {[...cities, island].map((c) => (
-        <CitySign key={`sign-${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} />
-      ))}
-      <InstancedDecorations items={decorations} roadMarkingColor={NIGHT.roadMarkingColor} sidewalkColor={NIGHT.sidewalkColor} />
-      <LeagueRoads objects={objects} markingColor={NIGHT.roadMarkingColor} />
+      {/* The ground is ~200 static meshes (sea, land, borders, rivers and their banks): merged to a handful of draw calls. */}
+      {!off("ground") && (
+        <MergedStatic byMaterial>
+          <Ground island={island} />
+        </MergedStatic>
+      )}
+      {!off("paving") && <Paving cities={[...cities, island]} />}
+      {!off("squares") && <Squares cities={[...cities, island]} />}
+      {!off("signs") &&
+        [...cities, island].map((c) => (
+          <CitySign key={`sign-${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} />
+        ))}
+      {!off("decor") && <InstancedDecorations items={decorations} roadMarkingColor={NIGHT.roadMarkingColor} sidewalkColor={NIGHT.sidewalkColor} />}
+      {!off("roads") && <LeagueRoads objects={objects} markingColor={NIGHT.roadMarkingColor} />}
       <Suspense fallback={null}>
-        <LeagueTrees objects={objects} />
+        <LeagueTrees objects={objects} cull={TREE_CULL} />
       </Suspense>
-      <IdentityLayer objects={objects} identity={identity} name="Brasil" h={MAP_H} hillColor={LAND} />
-      <CityScene
+      {!off("identity") && <IdentityLayer objects={objects} identity={identity} name="Brasil" h={MAP_H} hillColor={LAND} />}
+      {!off("buildings") && <CityScene
         buildings={buildings}
         colors={NIGHT.building}
         accentColor={NIGHT.building.accent}
         smash={smash}
         focusedBuilding={driving ? null : focused}
         onBuildingClick={driving ? undefined : onBuildingClick}
-      />
+      />}
       {!driving && <NearPlates buildings={buildings} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} onClick={() => onTag?.(c)} />)}
       {driving && drive && <DriveWorld objects={objects} buildings={buildings} h={MAP_H} smash={smash} {...drive} />}
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
+      {stats && <Stats />}
       {!driving && watching && watching.length > 0 && <WatchedCars cars={watching} />}
     </Canvas>
   );
