@@ -3,8 +3,8 @@
 // put on the map. People write it every way: "@login SP", "login sp",
 // "github.com/login - São Paulo", "SP: login", "sou de Recife PE @login".
 // The username: a github.com/ link first, else the first @handle, else a
-// bare word, only when the comment also names a state and that word is the
-// only thing it could be. The state: a UF on its own, or a state's name. An
+// bare word, when it's the whole comment, or when the comment also names a
+// state and that word is the only thing it could be. The state: a UF on its own, or a state's name. An
 // @handle may be an Instagram handle rather than a GitHub one; the importer
 // checks GitHub before placing anyone. Pure.
 
@@ -24,7 +24,11 @@ const NOT_LOGINS = new Set([
   "eu", "sou", "de", "do", "da", "dos", "das", "e", "o", "a", "os", "as", "meu", "minha", "aqui", "estado", "cidade", "github", "user", "usuario",
   "me", "coloca", "coloque", "bota", "quero", "por", "favor", "pf", "pfv", "obrigado", "obrigada", "vlw", "valeu", "ai", "ae", "manda", "the", "my",
   "is", "from", "in", "im", "i", "am", "please", "add", "put", "here", "brasil", "brazil", "sim", "top", "show", "massa", "kkk", "kkkk", "haha",
+  // Reactions people leave on their own, which would put a stranger called "brabo" on the map.
+  "brabo", "braba", "foda", "parabens", "incrivel", "sensacional", "demais", "lindo", "perfeito", "amei", "genial", "insano", "mano", "cara",
+  "nice", "wow", "cool", "great", "awesome", "insane", "amazing", "first", "primeiro", "link", "ok", "quero", "eu", "bora", "boa", "dahora",
 ]);
+const LAUGH = /^(k{2,}|(ha){2,}h?|(rs){2,}|(he){2,})$/;
 
 const STATE_NAMES: [string, UF][] = STATES.map((s) => [fold(s.name), s.uf] as [string, UF]).sort((a, b) => b[0].length - a[0].length);
 
@@ -62,11 +66,26 @@ export function parseComment(text: string): ParsedComment {
     const handle = words.find((w) => w.startsWith("@") && GITHUB_LOGIN.test(w.slice(1)));
     if (handle) login = handle.slice(1);
   }
-  // A bare word only counts next to a state and with nothing else it could be ("srizzon sp"),
-  // so a comment like "top demais" never puts a stranger called "demais" on the map.
-  if (!login && uf) {
-    const plain = words.filter((w) => GITHUB_LOGIN.test(w) && !NOT_LOGINS.has(w) && !(w.length === 2 && parseUF(w)) && !/^\d+$/.test(w));
+  // A bare word counts when it's the whole comment ("srizzon": how most people answer), or next
+  // to a state with nothing else it could be ("srizzon sp"), so a comment like "top demais" never
+  // puts a stranger called "demais" on the map.
+  if (!login && (uf || words.length === 1)) {
+    // As written: a word typed with accents ("Incrível") was never a username.
+    const typed = new Set(raw.toLowerCase().split(/[\s,;:|/()!?.]+/));
+    const plain = words.filter((w) => typed.has(w) && GITHUB_LOGIN.test(w) && !NOT_LOGINS.has(w) && !LAUGH.test(w) && !(w.length === 2 && parseUF(w)) && !/^\d+$/.test(w));
     if (plain.length === 1) login = plain[0];
   }
   return { login, uf };
+}
+
+/**
+ * The reply under a comment once it's imported, or null when it gets none (no
+ * username: most comments are just comments; the rest would read as spam).
+ */
+export function replyFor(outcome: string, login: string | null, uf: UF | null): string | null {
+  const where = uf ? `in ${STATES.find((s) => s.uf === uf)?.name ?? uf}` : "on the island";
+  if (outcome === "added") return `Done! @${login} is on the Brasil map ${where} 🏙️ Link in bio to claim your building.`;
+  if (outcome === "already") return `@${login} is already on the map. Link in bio to find your building 🏙️`;
+  if (outcome === "unknown_user") return `Couldn't find @${login} on GitHub. Check the username and comment again.`;
+  return null;
 }

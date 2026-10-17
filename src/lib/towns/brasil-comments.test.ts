@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseComment } from "./brasil-comments";
+import { parseComment, replyFor } from "./brasil-comments";
 
 describe("parseComment", () => {
   it.each([
@@ -14,6 +14,14 @@ describe("parseComment", () => {
     ["@pedro", { login: "pedro", uf: null }],
     ["Bahia!", { login: null, uf: "BA" }],
     ["top demais kkkk", { login: null, uf: null }],
+    ["Slickinh0", { login: "slickinh0", uf: null }],
+    ["Codyte ", { login: "codyte", uf: null }],
+    ["top", { login: null, uf: null }],
+    ["Incrível", { login: null, uf: null }],
+    ["Brabo!!", { login: null, uf: null }],
+    ["kkkkkk", { login: null, uf: null }],
+    ["srizzon São Paulo", { login: "srizzon", uf: "SP" }],
+    ["Codyte demais", { login: null, uf: null }],
   ])("%s", (text, want) => {
     expect(parseComment(text)).toEqual(want);
   });
@@ -26,5 +34,16 @@ describe("parseComment", () => {
   it("refuses what can't be a GitHub login", () => {
     expect(parseComment("@-bad- SP").login).toBeNull();
     expect(parseComment("@nome_com_underscore SP").login).toBeNull();
+  });
+});
+
+describe("replyFor", () => {
+  it("names the state, or the island", () => {
+    expect(replyFor("added", "srizzon", "SP")).toContain("@srizzon is on the Brasil map in São Paulo");
+    expect(replyFor("added", "srizzon", null)).toContain("on the island");
+  });
+  it("stays quiet on comments without a username", () => {
+    expect(replyFor("no_login", null, null)).toBeNull();
+    expect(replyFor("blocked", "x", "SP")).toBeNull();
   });
 });
