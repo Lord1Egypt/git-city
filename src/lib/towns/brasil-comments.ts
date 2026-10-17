@@ -79,17 +79,25 @@ export function parseComment(text: string): ParsedComment {
 }
 
 /**
- * The reply under a comment once it's imported, or null when it gets none (no
+ * The reply under a comment once it's imported, in Portuguese and in Sam's
+ * voice (his reels are in Portuguese), or null when it gets none (no
  * username: most comments are just comments; the rest would read as spam).
+ * The GitHub login goes without an @: on Instagram an @ tags whoever owns
+ * that handle there. Each reply has a few wordings, picked by the login, so
+ * a hundred replies don't read as one copied line.
  */
 export function replyFor(outcome: string, login: string | null, uf: UF | null, kind: "brasil" | "city" = "brasil"): string | null {
+  // FNV-1a over the login, so neighbouring logins land on different wordings.
+  const hash = [...(login ?? "")].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
+  const pick = (lines: string[]) => lines[hash % lines.length];
+  const where = uf ? `em ${STATES.find((s) => s.uf === uf)?.name ?? uf}` : "na ilha";
+  if (outcome === "unknown_user") return pick([`Não achei o ${login} no GitHub 😕 Confere o user e comenta de novo`, `Hmm, ${login} não existe no GitHub. Confere aí e manda de novo!`, `Não encontrei ${login} no GitHub 🤔 Vê se o user tá certinho e comenta de novo`]);
   if (kind === "city") {
-    if (outcome === "added") return `Done! @${login} has a building in Git City now 🏙️ Link in bio to find it.`;
-    if (outcome === "already") return `@${login} already has a building in Git City 🏙️ Link in bio to find it.`;
+    if (outcome === "added") return pick([`Pronto! O prédio do ${login} já tá na Git City 🏙️ Link na bio pra ver`, `Feito! ${login} já tem prédio na cidade 🏙️ Corre no link da bio`, `Tá na mão! Prédio do ${login} subiu na Git City 🏙️ Link na bio`]);
+    if (outcome === "already") return pick([`O ${login} já tinha prédio na cidade! Link na bio pra achar 🏙️`, `${login} já tá na Git City faz tempo 😎 Link na bio pra ver teu prédio`, `Esse já tava lá! Prédio do ${login} no link da bio 🏙️`]);
+    return null;
   }
-  const where = uf ? `in ${STATES.find((s) => s.uf === uf)?.name ?? uf}` : "on the island";
-  if (outcome === "added") return `Done! @${login} is on the Brasil map ${where} 🏙️ Link in bio to claim your building.`;
-  if (outcome === "already") return `@${login} is already on the map. Link in bio to find your building 🏙️`;
-  if (outcome === "unknown_user") return `Couldn't find @${login} on GitHub. Check the username and comment again.`;
+  if (outcome === "added") return pick([`Pronto! ${login} tá no mapa ${where} 🏙️ Link na bio pra ver teu prédio`, `Feito! Prédio do ${login} subiu ${where} 🇧🇷 Corre no link da bio`, `Tá no mapa! ${login} agora mora ${where} 🏙️ Link na bio`]);
+  if (outcome === "already") return pick([`O ${login} já tava no mapa! Link na bio pra achar teu prédio 🏙️`, `${login} já mora no mapa 😎 Link na bio pra ver`, `Esse já tava lá! Prédio do ${login} no link da bio 🇧🇷`]);
   return null;
 }

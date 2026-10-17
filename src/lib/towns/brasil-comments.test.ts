@@ -38,13 +38,21 @@ describe("parseComment", () => {
 });
 
 describe("replyFor", () => {
-  it("names the state, or the island", () => {
-    expect(replyFor("added", "srizzon", "SP")).toContain("@srizzon is on the Brasil map in São Paulo");
-    expect(replyFor("added", "srizzon", null)).toContain("on the island");
+  it("speaks Portuguese and names the state, or the island", () => {
+    expect(replyFor("added", "srizzon", "SP")).toContain("em São Paulo");
+    expect(replyFor("added", "srizzon", null)).toContain("na ilha");
   });
   it("on a city reel, talks about the city", () => {
-    expect(replyFor("added", "srizzon", null, "city")).toContain("@srizzon has a building in Git City");
-    expect(replyFor("unknown_user", "x", null, "city")).toContain("Couldn't find @x");
+    expect(replyFor("added", "srizzon", null, "city")).toMatch(/Git City|cidade/);
+    expect(replyFor("unknown_user", "x", null, "city")).toContain("GitHub");
+  });
+  it("never tags anyone: no @ before the login", () => {
+    for (const o of ["added", "already", "unknown_user"]) for (const k of ["brasil", "city"] as const) expect(replyFor(o, "srizzon", "SP", k)).not.toContain("@");
+  });
+  it("words it differently for different logins, the same for one", () => {
+    const lines = new Set(["a", "bb", "ccc", "dddd", "eeeee", "ffffff"].map((l) => replyFor("added", l, null, "city")!.replace(l, "")));
+    expect(lines.size).toBeGreaterThan(1);
+    expect(replyFor("added", "srizzon", "SP")).toBe(replyFor("added", "srizzon", "SP"));
   });
   it("stays quiet on comments without a username", () => {
     expect(replyFor("no_login", null, null)).toBeNull();
