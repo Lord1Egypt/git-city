@@ -7,7 +7,7 @@
 // Server only.
 
 import { getSupabaseAdmin } from "../supabase";
-import { instagramComments, replyToComment } from "../instagram";
+import { instagramComments, instagramMe, replyToComment } from "../instagram";
 import { getLeagueBySlug } from "../leagues/service";
 import { BRASIL_SLUG, importBrasilComment, type ReelKind } from "./brasil-server";
 import { replyFor } from "./brasil-comments";
@@ -55,13 +55,17 @@ export async function handleBrasilComments(comments: IncomingComment[]): Promise
 /** Reads every watched reel's comments and imports the ones not seen yet. */
 export async function syncBrasilReels(ownUserId: string | null): Promise<{ reels: number; fresh: number }> {
   const { data: reels } = await getSupabaseAdmin().from("brasil_reels").select("media_id").eq("watching", true);
+  if (!reels?.length) return { reels: 0, fresh: 0 };
+  // The account's own comments (its replies) must never count: without the stored account, ask Instagram who it is.
+  const me = ownUserId ? null : await instagramMe();
+  const own = { id: ownUserId ?? me?.user_id ?? null, username: me?.username?.toLowerCase() ?? null };
   let fresh = 0;
   for (const { media_id } of (reels ?? []) as { media_id: string }[]) {
     const all = await instagramComments(media_id);
     const flat: IncomingComment[] = all.flatMap((c) => [
       { id: c.id, mediaId: media_id, text: c.text, igUser: c.from?.username?.toLowerCase() ?? null, from: c.from?.id },
       ...(c.replies?.data ?? []).map((r) => ({ id: r.id, mediaId: media_id, text: r.text, igUser: r.from?.username?.toLowerCase() ?? null, from: r.from?.id, parentId: c.id })),
-    ]).filter((c) => !ownUserId || c.from !== ownUserId);
+    ]).filter((c) => c.from && c.from !== own.id && (!own.username || c.igUser !== own.username));
     // Oldest first, so the first to comment is the first on the map.
     fresh += await handleBrasilComments(flat.reverse());
   }
