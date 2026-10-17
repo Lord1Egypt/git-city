@@ -16,7 +16,7 @@ import { fmt } from "@/components/league/hud/shared";
 import MapNavControls from "@/components/MapNavControls";
 import BrasilScene, { type CameraApi } from "@/components/towns/brasil/BrasilScene";
 import BrasilMinimap from "@/components/towns/brasil/BrasilMinimap";
-import { BrasilJoin, BrasilRanking, BrasilSearch } from "@/components/towns/brasil/BrasilPanels";
+import { BrasilJoin, BrasilRanking, BrasilSearchBar } from "@/components/towns/brasil/BrasilPanels";
 import StateCard from "@/components/towns/brasil/StateCard";
 import { stateStats, swatchOf, type StateStats } from "@/components/towns/brasil/stats";
 import { stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
@@ -42,7 +42,7 @@ export interface BrasilTownProps {
   startAt: { uf: string } | { login: string } | null;
 }
 
-type PanelId = "search" | "states" | "join" | null;
+type PanelId = "states" | "join" | null;
 const LIME = "#c8e64a";
 
 export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt }: BrasilTownProps) {
@@ -58,6 +58,8 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   /** The state card a building was opened from: closing the building brings it back. */
   const [backTo, setBackTo] = useState<StateStats | null>(null);
   const [joining, setJoining] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
+  /** The username typed in the search that isn't on the map (the join panel speaks to them). */
+  const [joinFor, setJoinFor] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
   /** A panel takes the right side: any card closes. */
   const openPanel = (p: PanelId) => {
@@ -219,6 +221,22 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         </span>
       </div>
 
+      {!driving && (
+        <div className="absolute left-1/2 top-[108px] z-30 -translate-x-1/2">
+          <BrasilSearchBar
+            cities={layout.cities}
+            island={layout.island}
+            buildings={world.buildings}
+            onPickCity={openCity}
+            onPickBuilding={openBuilding}
+            onPutOnMap={(login) => {
+              setJoinFor(login);
+              openPanel("join");
+            }}
+          />
+        </div>
+      )}
+
       {top.length > 0 && !state && !focused && !panel && (
         <div className="pointer-events-auto absolute right-4 top-4 flex flex-col gap-1 text-[11px]">
           {top.map((t, i) => (
@@ -243,9 +261,6 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           </button>
         ) : (
           <>
-            <button type="button" onClick={() => openPanel("search")} className={bar}>
-              Search
-            </button>
             <button type="button" onClick={() => openPanel("states")} className={bar}>
               States
             </button>
@@ -264,24 +279,45 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             <button type="button" disabled={driveFrom === null} onClick={startDrive} className={`${bar} disabled:opacity-40`}>
               Drive
             </button>
-            <button type="button" onClick={() => openPanel("join")} className="flex h-10 items-center gap-2 bg-lime px-4 text-[11px] text-bg">
+            <button
+              type="button"
+              onClick={() => {
+                // On the map: to your building. Not yet: the way in.
+                const mine = home && viewerLogin ? world.placed.get(viewerLogin.toLowerCase()) : undefined;
+                if (mine) openBuilding(mine);
+                else {
+                  setJoinFor(null);
+                  openPanel("join");
+                }
+              }}
+              className="flex h-10 items-center gap-2 bg-lime px-4 text-[11px] text-bg"
+            >
               {home ? (
                 <>
-                  {yours && <span className="h-2.5 w-2.5" style={{ background: swatchOf(yours) }} aria-hidden />}
-                  {yours ?? "Island"}
+                  {yours && <span className="h-2.5 w-2.5 border border-bg/40" style={{ background: swatchOf(yours) }} aria-hidden />}
+                  My building
                 </>
               ) : (
-                "Join the map"
+                "Put my building"
               )}
             </button>
           </>
         )}
       </div>
 
-      {panel === "search" && <BrasilSearch cities={layout.cities} island={layout.island} buildings={world.buildings} onPickCity={openCity} onPickBuilding={openBuilding} onClose={() => setPanel(null)} />}
       {panel === "states" && <BrasilRanking states={world.states} yours={yours} onPick={(s) => openState(s.uf)} onClose={() => setPanel(null)} />}
       {panel === "join" && (
-        <BrasilJoin signedIn={!!viewerLogin} current={home} busy={joining.busy} error={joining.error} onPick={pickState} onSignIn={signIn} onClose={() => setPanel(null)} />
+        <BrasilJoin
+          signedIn={!!viewerLogin}
+          viewerLogin={viewerLogin}
+          forLogin={joinFor}
+          current={home}
+          busy={joining.busy}
+          error={joining.error}
+          onPick={pickState}
+          onSignIn={signIn}
+          onClose={() => setPanel(null)}
+        />
       )}
 
       {state && !driving && (
@@ -305,7 +341,15 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           key={focused.loginLower}
           building={focused}
           viewerLogin={viewerLogin}
-          section={<ResidentRow login={focused.loginLower} ufOf={world.ufOf} states={world.states} onState={openState} />}
+          section={
+            <ResidentRow
+              login={focused.loginLower}
+              ufOf={world.ufOf}
+              states={world.states}
+              onState={openState}
+              onMove={viewerLogin?.toLowerCase() === focused.loginLower ? () => (setJoinFor(null), openPanel("join")) : undefined}
+            />
+          }
           onDriveTo={startDrive}
           onClose={() => {
             setFocused(null);
@@ -328,11 +372,14 @@ function ResidentRow({
   ufOf,
   states,
   onState,
+  onMove,
 }: {
   login: string;
   ufOf: ReadonlyMap<string, { uf: UF | null; founder: boolean }>;
   states: StateStats[];
   onState: (uf: UF) => void;
+  /** Your own building: change state. */
+  onMove?: () => void;
 }) {
   const r = ufOf.get(login);
   const s = r?.uf ? states.find((x) => x.uf === r.uf) : null;
@@ -347,8 +394,13 @@ function ResidentRow({
       ) : (
         <span className="text-[9px] text-muted">The island · no state</span>
       )}
-      <span className="text-[9px] text-muted">
+      <span className="flex items-center gap-2 text-[9px] text-muted">
         {r?.founder ? <span className="text-lime">Founder</span> : inState >= 0 ? `Top ${inState + 1} in ${s?.uf}` : ""}
+        {onMove && (
+          <button type="button" onClick={onMove} className="text-cream underline hover:text-lime">
+            Move
+          </button>
+        )}
       </span>
     </div>
   );
