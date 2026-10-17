@@ -58,7 +58,7 @@ export default function StateCard({
         </button>
 
         <div className="flex items-center gap-3 px-4 pb-3 pt-4">
-          <span className="h-9 w-9 shrink-0 border-2 border-border" style={{ background: swatchOf(s.uf) }} aria-hidden />
+          <span className="h-9 w-9 shrink-0 border-2 border-border-light" style={{ background: swatchOf(s.uf) }} aria-hidden />
           <div className="min-w-0">
             <p className="text-sm text-cream">{s.name}</p>
             <p className="text-[9px] normal-case text-muted">
