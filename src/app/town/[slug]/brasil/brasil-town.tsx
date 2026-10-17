@@ -3,14 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { generateCityLayout, type CityBuilding, type DeveloperRecord, type LayoutNorms } from "@/lib/github";
 import { leagueBuildings, scaleTownHeights } from "@/lib/league-city/buildings";
-import { createTelemetry } from "@/lib/league-city/drive/telemetry";
+import { createTelemetry, type DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import { smashStoreFor } from "@/lib/league-city/smash";
 import { createCameraStore, mapNav } from "@/lib/map-nav";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
-import type { CrownApi } from "@/components/league/drive/CrownMode";
+import type { CrownApi, CrownView } from "@/components/league/drive/CrownMode";
+import type { EmoteApi } from "@/components/league/drive/EmoteBubbles";
+import { useTouch } from "@/components/towns/useDesktop";
+import { createEmoteLog } from "@/lib/league-city/drive/emote-log";
+import { createTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
+import { loadVolume, saveVolume } from "@/lib/league-city/drive/volume";
 import { useDriveWatch } from "@/components/league/drive/useDriveWatch";
 import { useTownsLive } from "@/components/towns/live";
 import { applyRoomDamage } from "@/lib/league-city/smash-net";
@@ -48,13 +54,16 @@ export interface BrasilTownProps {
 }
 
 type PanelId = "states" | null;
+const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"), { ssr: false });
+/** The drive's mute switch, shared with every town. */
+const MUTE_KEY = "gc:drive-muted";
 const LIME = "#c8e64a";
 
 export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt }: BrasilTownProps) {
   const router = useRouter();
   const camera = useRef<CameraApi | null>(null);
   const cameraStore = useMemo(() => createCameraStore(), []);
-  const telemetry = useMemo(() => createTelemetry(), []);
+  const [telemetry, setTelemetry] = useState(createTelemetry);
   const crownApi = useRef<CrownApi | null>(null);
   const [driving, setDriving] = useState(false);
   const [panel, setPanel] = useState<PanelId>(null);
@@ -64,7 +73,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [backTo, setBackTo] = useState<StateStats | null>(null);
   /** The state picker under the search, for a username typed there (null: yours). */
   const [picker, setPicker] = useState<{ forLogin: string | null } | null>(null);
-  const [joining, setJoining] = useState<{ pending: UF | "island" | null; error: string | null }>({ pending: null, error: null });
+  const [joining, setJoining] = useState<{ pending: UF | "island" | null; error: string | null }>({
+    pending: null,
+    error: null,
+  });
   /** Just placed: where, until the refreshed map has the building (then the camera goes there). */
   const [arriving, setArriving] = useState<{ uf: UF | null } | null>(null);
   /** The arrival the open card celebrates, and the ring under the new lot. */
@@ -108,6 +120,60 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   // The town's drive room: everyone driving sees everyone, and the map shows their cars while you look.
   const [guest] = useState(() => `guest-${Math.random().toString(36).slice(2, 6).padEnd(4, "0")}`);
   const [drivers, setDrivers] = useState<DriverInfo[]>([]);
+  // The car's HUD, as in every town: camera, sound, reactions, Crown Rush, pause, phone controls.
+  const [driveReady, setDriveReady] = useState(false);
+  const [driveCamera, setDriveCamera] = useState<DriveCameraMode>("chase");
+  const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [crownView, setCrownView] = useState<CrownView | null>(null);
+  const emoteApi = useRef<EmoteApi | null>(null);
+  const [emoteLog] = useState(createEmoteLog);
+  const touchRef = useRef<TouchDrive>(createTouch());
+  const touchUi = useTouch();
+  const toggleCamera = useCallback(() => setDriveCamera((c) => (c === "chase" ? "top" : "chase")), []);
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      try {
+        localStorage.setItem(MUTE_KEY, m ? "0" : "1");
+      } catch {
+        // storage blocked
+      }
+      return !m;
+    });
+  }, []);
+  // The slider: moving it while muted turns the sound back on.
+  const changeVolume = useCallback((v: number) => {
+    setVolume(v);
+    saveVolume(v);
+    if (v > 0) {
+      setMuted(false);
+      try {
+        localStorage.setItem(MUTE_KEY, "0");
+      } catch {
+        // storage blocked
+      }
+    }
+  }, []);
+  const exitDrive = useCallback(() => {
+    setDriving(false);
+    setPaused(false);
+    setDrivers([]);
+    setCrownView(null);
+    emoteLog.clear();
+  }, [emoteLog]);
+  // Esc pauses; Esc again on the pause menu leaves the car.
+  useEffect(() => {
+    if (!driving) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.repeat) return;
+      e.preventDefault();
+      if (paused) exitDrive();
+      else setPaused(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [driving, paused, exitDrive]);
   const watch = useDriveWatch(league.slug, !driving, (msg) => applyRoomDamage(smash, msg, Date.now()));
   const watchedCars = useMemo(() => watch.drivers.flatMap((d) => watch.remotes.current.get(d.id) ?? []), [watch.drivers, watch.remotes]);
   // Who's here now (the drive room reports to the towns tally), plus the drivers the room just told us about.
@@ -164,42 +230,74 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
 
   // Drive from the building or the state in view (or the biggest state).
   const driveFrom =
-    (focused ? layout.cities.concat(layout.island).flatMap((c) => c.devs).find((d) => d.dev.login.toLowerCase() === focused.loginLower)?.dev.id : undefined) ??
+    (focused
+      ? layout.cities
+          .concat(layout.island)
+          .flatMap((c) => c.devs)
+          .find((d) => d.dev.login.toLowerCase() === focused.loginLower)?.dev.id
+      : undefined) ??
     state?.capital.devs[0]?.dev.id ??
     world.states.find((s) => s.devs > 0)?.capital.devs[0]?.dev.id ??
     null;
   const drive = useMemo(
     () => ({
       viewerDevId: driveFrom,
+      touch: touchRef,
       telemetry,
-      camera: "chase" as const,
-      onCameraToggle: noop,
-      muted: false,
-      paused: false,
+      camera: driveCamera,
+      onCameraToggle: toggleCamera,
+      muted,
+      volume,
+      emoteApi,
+      onEmoteLog: emoteLog.push,
+      paused,
       stallAt: null,
-      onReady: noop,
-      onFail: () => setDriving(false),
+      onReady: () => setDriveReady(true),
+      onFail: exitDrive,
       slug: league.slug,
       name: viewerLogin ?? guest,
       onDrivers: setDrivers,
       onHonk: noop,
       crownApi,
-      onCrown: noop,
+      onCrown: setCrownView,
     }),
-    [telemetry, noop, driveFrom, league.slug, viewerLogin, guest],
+    [telemetry, noop, driveFrom, league.slug, viewerLogin, guest, driveCamera, toggleCamera, muted, volume, emoteLog, paused, exitDrive],
+  );
+  // The drive minimap: the map around the car, and your building.
+  const driveMap = useMemo(
+    () => ({
+      buildings: world.buildings,
+      objects: world.objects,
+      home: viewerLogin?.toLowerCase() ?? null,
+    }),
+    [world, viewerLogin],
   );
   const startDrive = () => {
     setState(null);
     setFocused(null);
     setBackTo(null);
     setPanel(null);
+    setPicker(null);
+    setDriveReady(false);
+    setPaused(false);
+    setTelemetry(createTelemetry());
+    try {
+      setMuted(localStorage.getItem(MUTE_KEY) === "1");
+      setVolume(loadVolume());
+    } catch {
+      // storage blocked: sound stays on
+    }
     setDriving(true);
   };
 
   const pickState = async (uf: UF | null) => {
     setJoining({ pending: uf ?? "island", error: null });
     try {
-      const res = await fetch(`/api/towns/${league.slug}/brasil/place`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uf }) });
+      const res = await fetch(`/api/towns/${league.slug}/brasil/place`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uf }),
+      });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) return setJoining({ pending: null, error: body.error ?? "Couldn't put you on the map." });
       // The picker stays (saying "finding your lot") until the refreshed map has the building.
@@ -255,24 +353,28 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         watching={watchedCars}
       />
 
-      <div className="pointer-events-auto absolute left-4 top-4">
-        <Link href="/towns" className="bg-bg/85 px-3 py-2 text-[11px] text-muted hover:text-cream">
-          ← Towns
-        </Link>
-      </div>
+      {!driving && (
+        <div className="pointer-events-auto absolute left-4 top-4">
+          <Link href="/towns" className="bg-bg/85 px-3 py-2 text-[11px] text-muted hover:text-cream">
+            ← Towns
+          </Link>
+        </div>
+      )}
 
-      <div className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 flex-col items-center gap-1 text-center">
-        <span className="bg-bg/85 px-4 py-2 text-2xl" style={{ color: LIME }}>
-          {fmt(world.devs)} devs
-        </span>
-        <span className="bg-bg/85 px-3 py-1 text-[11px] text-muted">
-          {world.founders}/27 states with a founder · {layout.island.devs.length} on the island
-        </span>
-        <span className="flex items-center gap-1.5 bg-bg/85 px-3 py-1 text-[11px] tabular-nums text-cream">
-          <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
-          {fmt(here)} here now{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
-        </span>
-      </div>
+      {!driving && (
+        <div className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 flex-col items-center gap-1 text-center">
+          <span className="bg-bg/85 px-4 py-2 text-2xl" style={{ color: LIME }}>
+            {fmt(world.devs)} devs
+          </span>
+          <span className="bg-bg/85 px-3 py-1 text-[11px] text-muted">
+            {world.founders}/27 states with a founder · {layout.island.devs.length} on the island
+          </span>
+          <span className="flex items-center gap-1.5 bg-bg/85 px-3 py-1 text-[11px] tabular-nums text-cream">
+            <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
+            {fmt(here)} here now{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
+          </span>
+        </div>
+      )}
 
       {!driving && (
         <div className="absolute left-1/2 top-[140px] z-30 -translate-x-1/2">
@@ -300,10 +402,15 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         </div>
       )}
 
-      {top.length > 0 && !state && !focused && !panel && (
+      {top.length > 0 && !driving && !state && !focused && !panel && (
         <div className="pointer-events-auto absolute right-4 top-4 flex flex-col gap-1 text-[11px]">
           {top.map((t, i) => (
-            <button key={t.uf} type="button" onClick={() => openState(t.uf)} className={`flex justify-between gap-4 px-3 py-1 text-left ${i === 0 ? "bg-lime text-bg" : "bg-[#141417] text-cream hover:text-lime"}`}>
+            <button
+              key={t.uf}
+              type="button"
+              onClick={() => openState(t.uf)}
+              className={`flex justify-between gap-4 px-3 py-1 text-left ${i === 0 ? "bg-lime text-bg" : "bg-[#141417] text-cream hover:text-lime"}`}
+            >
               <span>
                 {i + 1}. {t.uf}
               </span>
@@ -315,60 +422,77 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
 
       {!driving && <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />}
       {!driving && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} />}
-      {!driving && (
-        <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60">
-          Map data: IBGE · Natural Earth
-        </span>
-      )}
+      {!driving && <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60">Map data: IBGE · Natural Earth</span>}
 
       {/* The bar */}
-      <div className="pointer-events-auto absolute bottom-5 left-1/2 flex -translate-x-1/2 items-stretch gap-px shadow-[0_6px_0_rgba(0,0,0,0.35)]">
-        {driving ? (
-          <button type="button" onClick={() => setDriving(false)} className={bar}>
-            Stop driving
+      {!driving && (
+        <div className="pointer-events-auto absolute bottom-5 left-1/2 flex -translate-x-1/2 items-stretch gap-px shadow-[0_6px_0_rgba(0,0,0,0.35)]">
+          <button type="button" onClick={() => openPanel("states")} className={bar}>
+            States
           </button>
-        ) : (
-          <>
-            <button type="button" onClick={() => openPanel("states")} className={bar}>
-              States
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setState(null);
-                setFocused(null);
-                setPanel(null);
-                camera.current?.flyTo(null);
-              }}
-              className={bar}
-            >
-              Brazil
-            </button>
-            <button type="button" disabled={driveFrom === null} onClick={startDrive} className={`${bar} disabled:opacity-40`}>
-              Drive
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                // On the map: to your building. Not yet: the way in.
-                const mine = home && viewerLogin ? world.placed.get(viewerLogin.toLowerCase()) : undefined;
-                if (mine) openBuilding(mine);
-                else openPicker(null);
-              }}
-              className="flex h-10 items-center gap-2 bg-lime px-4 text-[11px] text-bg"
-            >
-              {home ? (
-                <>
-                  {yours && <span className="h-2.5 w-2.5 border border-bg/40" style={{ background: swatchOf(yours) }} aria-hidden />}
-                  My building
-                </>
-              ) : (
-                "Put my building"
-              )}
-            </button>
-          </>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={() => {
+              setState(null);
+              setFocused(null);
+              setPanel(null);
+              camera.current?.flyTo(null);
+            }}
+            className={bar}
+          >
+            Brazil
+          </button>
+          <button type="button" disabled={driveFrom === null} onClick={startDrive} className={`${bar} disabled:opacity-40`}>
+            Drive
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              // On the map: to your building. Not yet: the way in.
+              const mine = home && viewerLogin ? world.placed.get(viewerLogin.toLowerCase()) : undefined;
+              if (mine) openBuilding(mine);
+              else openPicker(null);
+            }}
+            className="flex h-10 items-center gap-2 bg-lime px-4 text-[11px] text-bg"
+          >
+            {home ? (
+              <>
+                {yours && <span className="h-2.5 w-2.5 border border-bg/40" style={{ background: swatchOf(yours) }} aria-hidden />}
+                My building
+              </>
+            ) : (
+              "Put my building"
+            )}
+          </button>
+        </div>
+      )}
+
+      {driving && (
+        <DriveHud
+          firstRun={false}
+          touchRef={touchUi ? touchRef : undefined}
+          telemetry={telemetry}
+          ready={driveReady}
+          camera={driveCamera}
+          muted={muted}
+          volume={volume}
+          paused={paused}
+          gated={false}
+          held={false}
+          join={!viewerLogin ? { label: "Sign in", short: "Sign in", signIn: true, onClick: signIn } : undefined}
+          drivers={drivers}
+          crown={crownView}
+          map={driveMap}
+          emoteLog={emoteLog}
+          onVolume={changeVolume}
+          onEmote={(e) => emoteApi.current?.send(e)}
+          onStartCrown={() => crownApi.current?.start()}
+          onResume={() => setPaused(false)}
+          onCamera={toggleCamera}
+          onMute={toggleMute}
+          onExit={exitDrive}
+        />
+      )}
 
       {panel === "states" && <BrasilRanking states={world.states} yours={yours} onPick={(s) => openState(s.uf)} onClose={() => setPanel(null)} />}
 
@@ -428,9 +552,7 @@ function Arrival({ uf, states, founder, townPath }: { uf: UF | null; states: Sta
   const s = uf ? states.find((x) => x.uf === uf) : null;
   const invite = () => {
     const url = `${window.location.origin}${townPath}${uf ? `?uf=${uf}` : ""}`;
-    const text = uf
-      ? `I'm on the Brasil map in Git City, in ${stateOf(uf).name}. Put yourself on it: ${url}`
-      : `I'm on the Brasil map in Git City. Put yourself on it: ${url}`;
+    const text = uf ? `I'm on the Brasil map in Git City, in ${stateOf(uf).name}. Put yourself on it: ${url}` : `I'm on the Brasil map in Git City. Put yourself on it: ${url}`;
     navigator.clipboard?.writeText(text).then(
       () => setCopied(true),
       () => setCopied(false),
