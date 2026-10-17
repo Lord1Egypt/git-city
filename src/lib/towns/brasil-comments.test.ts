@@ -42,6 +42,10 @@ describe("replyFor", () => {
     expect(replyFor("added", "srizzon", "SP")).toContain("@srizzon is on the Brasil map in São Paulo");
     expect(replyFor("added", "srizzon", null)).toContain("on the island");
   });
+  it("on a city reel, talks about the city", () => {
+    expect(replyFor("added", "srizzon", null, "city")).toContain("@srizzon has a building in Git City");
+    expect(replyFor("unknown_user", "x", null, "city")).toContain("Couldn't find @x");
+  });
   it("stays quiet on comments without a username", () => {
     expect(replyFor("no_login", null, null)).toBeNull();
     expect(replyFor("blocked", "x", "SP")).toBeNull();

@@ -1,6 +1,6 @@
 // ─── Brasil town: comments from Instagram ───────────────────
-// A comment on a watched reel (brasil_reels) puts its dev on the map and
-// gets a reply. Comments arrive by webhook as they're written, and a sync
+// A comment on a watched reel (brasil_reels) puts its dev on the map (a
+// city reel: just gives them a building in the city) and gets a reply. Comments arrive by webhook as they're written, and a sync
 // reads the watched reels' comments as a safety net for any the webhook
 // missed; either way a comment is imported once and answered once
 // (importBrasilComment's `fresh`). The account's own comments never count.
@@ -9,7 +9,7 @@
 import { getSupabaseAdmin } from "../supabase";
 import { instagramComments, replyToComment } from "../instagram";
 import { getLeagueBySlug } from "../leagues/service";
-import { BRASIL_SLUG, importBrasilComment } from "./brasil-server";
+import { BRASIL_SLUG, importBrasilComment, type ReelKind } from "./brasil-server";
 import { replyFor } from "./brasil-comments";
 
 export interface IncomingComment {
@@ -28,20 +28,20 @@ export async function handleBrasilComments(comments: IncomingComment[]): Promise
   if (!league || league.map !== "brasil") return 0;
   const { data: reels } = await sb
     .from("brasil_reels")
-    .select("media_id, permalink")
+    .select("media_id, permalink, kind")
     .eq("watching", true)
     .in("media_id", [...new Set(comments.map((c) => c.mediaId))]);
-  const watched = new Map((reels ?? []).map((r: { media_id: string; permalink: string | null }) => [r.media_id, r.permalink ?? r.media_id]));
+  const watched = new Map((reels ?? []).map((r: { media_id: string; permalink: string | null; kind: ReelKind }) => [r.media_id, { reel: r.permalink ?? r.media_id, kind: r.kind }]));
 
   let fresh = 0;
   for (const c of comments) {
-    const reel = watched.get(c.mediaId);
-    if (!reel) continue;
+    const w = watched.get(c.mediaId);
+    if (!w) continue;
     try {
-      const r = await importBrasilComment(league, { id: `ig:${c.id}`, reel, igUser: c.igUser, text: c.text });
+      const r = await importBrasilComment(league, { id: `ig:${c.id}`, reel: w.reel, kind: w.kind, igUser: c.igUser, text: c.text });
       if (!r.fresh) continue;
       fresh++;
-      const reply = replyFor(r.outcome, r.login, r.uf);
+      const reply = replyFor(r.outcome, r.login, r.uf, w.kind);
       if (!reply) continue;
       await replyToComment(c.parentId ?? c.id, reply);
       await sb.from("brasil_comments").update({ replied_at: new Date().toISOString() }).eq("id", `ig:${c.id}`);

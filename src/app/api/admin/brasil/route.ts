@@ -31,12 +31,12 @@ export async function GET(req: Request) {
   if (new URL(req.url).searchParams.get("view") === "instagram") {
     const [{ data: account }, { data: reels }] = await Promise.all([
       sb.from("instagram_account").select("username, refreshed_at, expires_at").eq("id", 1).maybeSingle(),
-      sb.from("brasil_reels").select("media_id, watching"),
+      sb.from("brasil_reels").select("media_id, watching, kind"),
     ]);
-    const watching = new Set((reels ?? []).filter((r: { watching: boolean }) => r.watching).map((r: { media_id: string }) => r.media_id));
+    const watching = new Map((reels ?? []).filter((r: { watching: boolean }) => r.watching).map((r: { media_id: string; kind: string }) => [r.media_id, r.kind]));
     try {
       const media = await instagramMedia();
-      return NextResponse.json({ account, media: media.map((m) => ({ ...m, watching: watching.has(m.id) })) });
+      return NextResponse.json({ account, media: media.map((m) => ({ ...m, watching: watching.get(m.id) ?? null })) });
     } catch (err) {
       return NextResponse.json({ account, media: [], error: err instanceof Error ? err.message : String(err) });
     }
@@ -100,7 +100,14 @@ export async function POST(req: Request) {
     if (!/^\d+$/.test(mediaId)) return NextResponse.json({ error: "Bad media id." }, { status: 400 });
     const { error } = await getSupabaseAdmin()
       .from("brasil_reels")
-      .upsert({ media_id: mediaId, permalink: typeof body.permalink === "string" ? body.permalink : null, caption: typeof body.caption === "string" ? body.caption.slice(0, 300) : null, watching: body.watching === true });
+      .upsert({
+        media_id: mediaId,
+        permalink: typeof body.permalink === "string" ? body.permalink : null,
+        caption: typeof body.caption === "string" ? body.caption.slice(0, 300) : null,
+        // watching: "brasil" | "city" watches the post for that; anything else stops.
+        watching: body.watching === "brasil" || body.watching === "city",
+        ...(body.watching === "brasil" || body.watching === "city" ? { kind: body.watching } : {}),
+      });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }

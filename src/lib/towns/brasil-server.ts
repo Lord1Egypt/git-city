@@ -137,7 +137,11 @@ export interface ReelComment {
   reel: string;
   igUser: string | null;
   text: string;
+  /** What the reel is about: the Brasil map (the default), or just a building in the city. */
+  kind?: ReelKind;
 }
+
+export type ReelKind = "brasil" | "city";
 
 export type ImportOutcome = "added" | "already" | "unknown_user" | "no_login" | "blocked" | "capped";
 
@@ -146,7 +150,8 @@ export type ImportOutcome = "added" | "already" | "unknown_user" | "no_login" | 
  * Git City doesn't have them yet), put them on the map in the state they
  * named (none: the island), and log what came of it. A comment seen before
  * returns what it got then, not fresh (so it is never answered twice). One
- * Instagram account puts one GitHub login on the map.
+ * Instagram account puts one GitHub login on the map. A city reel's comment
+ * only gives the dev their building in the city: "added" when it's new.
  */
 export async function importBrasilComment(
   league: Pick<League, "id">,
@@ -174,6 +179,7 @@ export async function importBrasilComment(
   let dev: { id: number; github_login: string } | null = null;
   const { data: known } = await sb.from("developers").select("id, github_login").eq("github_login", login).maybeSingle<{ id: number; github_login: string }>();
   dev = known;
+  if (c.kind === "city" && dev) return log("already", dev.id);
   if (!dev) {
     try {
       dev = await createDeveloperFromGitHub(login);
@@ -185,6 +191,7 @@ export async function importBrasilComment(
       if (err instanceof GitHubFetchError) return log("unknown_user");
       throw err;
     }
+    if (c.kind === "city") return log("added", dev.id);
   }
 
   const placed = await placeBrasilResident(league, { id: dev.id, login: dev.github_login }, uf, "instagram");

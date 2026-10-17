@@ -82,7 +82,11 @@ export function parseComment(text: string): ParsedComment {
  * The reply under a comment once it's imported, or null when it gets none (no
  * username: most comments are just comments; the rest would read as spam).
  */
-export function replyFor(outcome: string, login: string | null, uf: UF | null): string | null {
+export function replyFor(outcome: string, login: string | null, uf: UF | null, kind: "brasil" | "city" = "brasil"): string | null {
+  if (kind === "city") {
+    if (outcome === "added") return `Done! @${login} has a building in Git City now 🏙️ Link in bio to find it.`;
+    if (outcome === "already") return `@${login} already has a building in Git City 🏙️ Link in bio to find it.`;
+  }
   const where = uf ? `in ${STATES.find((s) => s.uf === uf)?.name ?? uf}` : "on the island";
   if (outcome === "added") return `Done! @${login} is on the Brasil map ${where} 🏙️ Link in bio to claim your building.`;
   if (outcome === "already") return `@${login} is already on the map. Link in bio to find your building 🏙️`;

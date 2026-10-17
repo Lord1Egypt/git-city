@@ -25,7 +25,8 @@ interface Post {
   caption?: string;
   media_product_type: string;
   timestamp: string;
-  watching: boolean;
+  /** What the post is watched for, or null. */
+  watching: "brasil" | "city" | null;
 }
 
 interface Instagram {
@@ -161,18 +162,27 @@ export default function BrasilAdminPage() {
             </button>
           </div>
           {(igNote || ig?.error) && <p className="text-[11px] text-muted">{igNote ?? ig?.error}</p>}
-          <p className="text-[11px] text-muted">Only comments on the posts ticked below put devs on the map.</p>
+          <p className="text-[11px] text-muted">Only comments on the posts set below count. City: a building in the city. Brasil: a building on the Brasil map.</p>
           <ul className="flex flex-col">
             {ig?.media.map((m) => (
               <li key={m.id} className="flex items-center gap-3 border-t border-border py-1.5 text-[11px]">
-                <input
-                  type="checkbox"
-                  checked={m.watching}
-                  disabled={igBusy}
-                  onChange={(e) => igAction({ action: "watch", mediaId: m.id, permalink: m.permalink, caption: m.caption ?? "", watching: e.target.checked }, () => (e.target.checked ? "Watching that post." : "Stopped watching that post."))}
-                  className="accent-lime"
-                  aria-label="Watch this post"
-                />
+                <span className="flex shrink-0 gap-px border border-border">
+                  {([null, "city", "brasil"] as const).map((k) => (
+                    <button
+                      key={k ?? "off"}
+                      type="button"
+                      disabled={igBusy || m.watching === k}
+                      onClick={() =>
+                        igAction({ action: "watch", mediaId: m.id, permalink: m.permalink, caption: m.caption ?? "", watching: k }, () =>
+                          k === "city" ? "Comments on that post give a building in the city." : k === "brasil" ? "Comments on that post go on the Brasil map." : "Stopped watching that post.",
+                        )
+                      }
+                      className={`px-2 py-0.5 text-[10px] ${m.watching === k ? "bg-lime text-bg" : "text-muted hover:text-cream"}`}
+                    >
+                      {k === null ? "Off" : k === "city" ? "City" : "Brasil"}
+                    </button>
+                  ))}
+                </span>
                 <span className="w-14 shrink-0 text-dim">{new Date(m.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                 <span className="w-10 shrink-0 text-dim">{m.media_product_type === "REELS" ? "Reel" : "Post"}</span>
                 <a href={m.permalink} target="_blank" rel="noreferrer" className={`min-w-0 flex-1 truncate normal-case hover:text-lime ${m.watching ? "text-cream" : "text-muted"}`}>
