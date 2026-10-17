@@ -86,6 +86,8 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [now] = useState(() => Date.now());
   /** Up close, the city the camera looks at (its cityKey). */
   const [viewKey, setViewKey] = useState<string | null>(null);
+  /** Below the whole-country view, the city with people the camera looks at: where Drive starts. */
+  const [lookKey, setLookKey] = useState<string | null>(null);
   /** Where the map camera opens back from the car. */
   const [cameraStart, setCameraStart] = useState<{ x: number; z: number } | null>(null);
   /** The car starts at this resident's building, fixed when the drive starts. */
@@ -298,6 +300,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     const dev =
       (focused ? world.cityOfLogin.get(focused.loginLower)?.devs.find((d) => d.dev.login.toLowerCase() === focused.loginLower)?.dev : null) ??
       pickIn(place) ??
+      pickIn(lookKey ? world.cityByKey.get(lookKey) : null) ??
       own ??
       pickIn(world.states.find((s) => s.devs > 0)?.capital) ??
       pickIn(layout.island);
@@ -452,7 +455,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         smash={smash}
         pulse={pulse}
         watching={watchedCars}
-        onCity={setViewKey}
+        onCity={(key, looking) => {
+          setViewKey(key);
+          setLookKey(looking);
+        }}
         cameraStart={cameraStart}
       />
 

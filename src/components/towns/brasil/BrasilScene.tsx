@@ -382,6 +382,22 @@ function cityAt(cities: CityLayout[], x: number, z: number): CityLayout | null {
 /** Closer than this, the camera is "in" a city. */
 const CITY_VIEW = 7000;
 
+/** The city with people nearest to where the camera points (what you're looking at, from any height but the whole country). */
+function cityNearest(cities: CityLayout[], x: number, z: number): CityLayout | null {
+  let best: CityLayout | null = null;
+  let bestD = Infinity;
+  for (const c of cities) {
+    if (!c.devs.length) continue;
+    const [cx, cz] = lotToWorld(...c.center);
+    const d = Math.hypot(cx - x, cz - z);
+    if (d < bestD) {
+      best = c;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
 
 const FOV = 45;
 
@@ -416,7 +432,7 @@ function MapCamera({
   onNear: Near;
   store?: MapCameraStore;
   cities: CityLayout[];
-  onCity?: (key: string | null) => void;
+  onCity?: (key: string | null, looking: string | null) => void;
   /** Where to open instead of the whole country (back from the car: where it stopped). */
   start?: { x: number; z: number } | null;
 }) {
@@ -515,11 +531,15 @@ function MapCamera({
     // Which city is in view up close (none from high up), told when it changes.
     if (onCity && performance.now() - lastCityCheck.current > 300) {
       lastCityCheck.current = performance.now();
-      const city = camera.position.distanceTo(c.target) < CITY_VIEW ? cityAt(cities, c.target.x, c.target.z) : null;
+      const dist = camera.position.distanceTo(c.target);
+      const city = dist < CITY_VIEW ? cityAt(cities, c.target.x, c.target.z) : null;
       const key = city ? cityKey(city) : null;
-      if (key !== lastCity.current) {
-        lastCity.current = key;
-        onCity(key);
+      // Below the whole-country view, the city you're looking at (for Drive) even before you're over its streets.
+      const looking = dist < overviewDistance(size.width / size.height) * 0.7 ? cityNearest(cities, c.target.x, c.target.z) : null;
+      const both = `${key}|${looking ? cityKey(looking) : ""}`;
+      if (both !== lastCity.current) {
+        lastCity.current = both;
+        onCity(key, looking ? cityKey(looking) : null);
       }
     }
     if (store && performance.now() - lastStore.current > 120) {
@@ -571,8 +591,8 @@ export interface BrasilSceneProps {
   /** Drive mode: the car and its world (offline in the preview). */
   drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
   smash?: SmashStore;
-  /** Up close, the city in view (its cityKey), or null from high up. */
-  onCity?: (key: string | null) => void;
+  /** Up close, the city in view (its cityKey), or null from high up; and the city with people you're looking at, below the whole-country view. */
+  onCity?: (key: string | null, looking: string | null) => void;
   /** Open the map camera here instead of the whole country. */
   cameraStart?: { x: number; z: number } | null;
   /** Everyone out driving, drawn while you look at the map. */
