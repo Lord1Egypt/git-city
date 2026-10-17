@@ -17,6 +17,7 @@ import { Billboard } from "@/components/league/identity/IdentityPieces";
 import LeagueRoads from "@/components/league/LeagueRoads";
 import LeagueTrees from "@/components/league/LeagueTrees";
 import type { DriveWorldProps } from "@/components/league/drive/DriveWorld";
+import type { CarFeed } from "@/components/league/drive/useDrivePresence";
 import type { CityBuilding, CityDecoration } from "@/lib/github";
 import { InstancedDecorations } from "@/components/city/decorations";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
@@ -496,9 +497,13 @@ export interface BrasilSceneProps {
   /** Drive mode: the car and its world (offline in the preview). */
   drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
   smash?: SmashStore;
+  /** Everyone out driving, drawn while you look at the map. */
+  watching?: CarFeed[];
   /** A lot just taken: a lime ring spreads from it once (a new key plays it again). */
   pulse?: { x: number; z: number; key: number } | null;
 }
+
+const WatchedCars = dynamic(() => import("@/components/league/drive/WatchedCars"), { ssr: false, loading: () => null });
 
 const PULSE_S = 1.8;
 
@@ -537,7 +542,7 @@ function Pulse({ x, z }: { x: number; z: number }) {
   );
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching }: BrasilSceneProps) {
   const driving = !!drive;
   const [near, setNear] = useState(false);
   const decorations = useMemo(() => decorationsOf(objects), [objects]);
@@ -579,6 +584,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} onClick={() => onTag?.(c)} />)}
       {driving && drive && <DriveWorld objects={objects} buildings={buildings} h={MAP_H} smash={smash} {...drive} />}
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
+      {!driving && watching && watching.length > 0 && <WatchedCars cars={watching} />}
     </Canvas>
   );
 }

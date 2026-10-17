@@ -11,6 +11,11 @@ import { createCameraStore, mapNav } from "@/lib/map-nav";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { signInWithGitHub } from "@/lib/sign-in";
 import type { CrownApi } from "@/components/league/drive/CrownMode";
+import { useDriveWatch } from "@/components/league/drive/useDriveWatch";
+import { useTownsLive } from "@/components/towns/live";
+import { applyRoomDamage } from "@/lib/league-city/smash-net";
+import { inTown } from "@/lib/towns/live";
+import type { DriverInfo } from "@/lib/league-city/drive/net";
 import BuildingCard from "@/components/league/hud/BuildingCard";
 import { fmt } from "@/components/league/hud/shared";
 import MapNavControls from "@/components/MapNavControls";
@@ -99,6 +104,16 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   }, [layout, cityDevs, cityNorms, now]);
 
   const smash = useMemo(() => smashStoreFor(world.buildings), [world.buildings]);
+
+  // The town's drive room: everyone driving sees everyone, and the map shows their cars while you look.
+  const [guest] = useState(() => `guest-${Math.random().toString(36).slice(2, 6).padEnd(4, "0")}`);
+  const [drivers, setDrivers] = useState<DriverInfo[]>([]);
+  const watch = useDriveWatch(league.slug, !driving, (msg) => applyRoomDamage(smash, msg, Date.now()));
+  const watchedCars = useMemo(() => watch.drivers.flatMap((d) => watch.remotes.current.get(d.id) ?? []), [watch.drivers, watch.remotes]);
+  // Who's here now (the drive room reports to the towns tally), plus the drivers the room just told us about.
+  const live = useTownsLive()[league.slug];
+  const here = Math.max(live ? inTown(live) : 0, 1);
+  const drivingNow = driving ? drivers.length : watch.drivers.length;
   const noop = useCallback(() => {}, []);
 
   const openState = useCallback(
@@ -155,7 +170,6 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     null;
   const drive = useMemo(
     () => ({
-      offline: true,
       viewerDevId: driveFrom,
       telemetry,
       camera: "chase" as const,
@@ -166,13 +180,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       onReady: noop,
       onFail: () => setDriving(false),
       slug: league.slug,
-      name: "guest",
-      onDrivers: noop,
+      name: viewerLogin ?? guest,
+      onDrivers: setDrivers,
       onHonk: noop,
       crownApi,
       onCrown: noop,
     }),
-    [telemetry, noop, driveFrom, league.slug],
+    [telemetry, noop, driveFrom, league.slug, viewerLogin, guest],
   );
   const startDrive = () => {
     setState(null);
@@ -238,6 +252,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         drive={driving && driveFrom !== null ? drive : undefined}
         smash={smash}
         pulse={pulse}
+        watching={watchedCars}
       />
 
       <div className="pointer-events-auto absolute left-4 top-4">
@@ -253,10 +268,14 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         <span className="bg-bg/85 px-3 py-1 text-[11px] text-muted">
           {world.founders}/27 states with a founder · {layout.island.devs.length} on the island
         </span>
+        <span className="flex items-center gap-1.5 bg-bg/85 px-3 py-1 text-[11px] tabular-nums text-cream">
+          <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
+          {fmt(here)} here now{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
+        </span>
       </div>
 
       {!driving && (
-        <div className="absolute left-1/2 top-[108px] z-30 -translate-x-1/2">
+        <div className="absolute left-1/2 top-[140px] z-30 -translate-x-1/2">
           <BrasilSearchBar
             cities={layout.cities}
             island={layout.island}
