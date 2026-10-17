@@ -31,7 +31,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; at?: string; join?: string; new?: string }>;
+  searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; at?: string; join?: string; new?: string; uf?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -74,7 +74,20 @@ export default async function LeaguePage({ params, searchParams }: Props) {
   if (league.map === "brasil") {
     const { layout, residents } = await getBrasilLayout(league.id);
     const [cityDevs, cityNorms] = await Promise.all([getCityDevsByIds(residents.map((r) => r.dev.id)), getCityNorms()]);
-    return <BrasilTownLoader league={{ slug: league.slug, name: league.name }} layout={layout} cityDevs={cityDevs} cityNorms={cityNorms} viewerLogin={viewer?.github_login ?? null} />;
+    const home = viewer ? residents.find((r) => r.dev.id === viewer.id) : undefined;
+    const uf = typeof query.uf === "string" && /^[A-Za-z]{2}$/.test(query.uf) ? query.uf.toUpperCase() : null;
+    const atLogin = typeof at === "string" && LOGIN_RE.test(at.toLowerCase()) ? at.toLowerCase() : null;
+    return (
+      <BrasilTownLoader
+        league={{ slug: league.slug, name: league.name }}
+        layout={layout}
+        cityDevs={cityDevs}
+        cityNorms={cityNorms}
+        viewerLogin={viewer?.github_login ?? null}
+        home={home ? (home.dev.uf ?? "island") : null}
+        startAt={atLogin ? { login: atLogin } : uf ? { uf } : null}
+      />
+    );
   }
 
   const data = await getLeaguePageData(league, viewer);
