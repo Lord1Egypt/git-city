@@ -695,7 +695,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           viewerLogin={viewerLogin}
           section={
             <>
-              {arrived?.login === focused.loginLower && <Arrival uf={arrived.uf} states={world.states} founder={!!world.ufOf.get(focused.loginLower)?.founder} townPath={`/town/${league.slug}`} />}
+              {arrived?.login === focused.loginLower && <Arrival login={arrived.login} uf={arrived.uf} states={world.states} founder={!!world.ufOf.get(focused.loginLower)?.founder} townPath={`/town/${league.slug}`} />}
               <ResidentRow
                 login={focused.loginLower}
                 ufOf={world.ufOf}
@@ -803,11 +803,12 @@ function FirstVisit({ onPut }: { onPut: () => void }) {
 }
 
 /** Your card right after you're placed: where you landed, what you are there, and the invite. */
-function Arrival({ uf, states, founder, townPath }: { uf: UF | null; states: StateStats[]; founder: boolean; townPath: string }) {
+function Arrival({ login, uf, states, founder, townPath }: { login: string; uf: UF | null; states: StateStats[]; founder: boolean; townPath: string }) {
   const [copied, setCopied] = useState(false);
   const s = uf ? states.find((x) => x.uf === uf) : null;
   const invite = () => {
-    const url = `${window.location.origin}${townPath}${uf ? `?uf=${uf}` : ""}`;
+    // Your link: its share card says where you live.
+    const url = `${window.location.origin}${townPath}?at=${login}`;
     const text = uf ? `I'm on the Brasil map in Git City, in ${stateOf(uf).name}. Put yourself on it: ${url}` : `I'm on the Brasil map in Git City. Put yourself on it: ${url}`;
     posthog.capture("brasil_invite_copied", { uf, from: "arrival" });
     navigator.clipboard?.writeText(text).then(

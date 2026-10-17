@@ -34,10 +34,19 @@ type Props = {
   searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; at?: string; join?: string; new?: string; uf?: string }>;
 };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
   const league = await getLeagueBySlug(slug);
   if (!league) return { title: "Town not found - Git City" };
+  // The Brasil map: its own card, naming the dev (?at=) or the state (?uf=) the link points at.
+  if (league.map === "brasil") {
+    const { at, uf } = await searchParams;
+    const q = at ? `?at=${encodeURIComponent(at)}` : uf ? `?uf=${encodeURIComponent(uf)}` : "";
+    const title = at ? `@${at} on the Brasil map - Git City` : "The Brasil map - Git City";
+    const description = "Every dev in Brazil, a building in their state's city. Comment your GitHub on the reel or put yours on the map.";
+    const image = { url: `/town/${league.slug}/brasil-og${q}`, width: 1200, height: 630, alt: "The Brasil map in Git City" };
+    return { title, description, openGraph: { title, description, images: [image] }, twitter: { card: "summary_large_image", title, description, images: [image] } };
+  }
   const title = `${townDisplayName(league.name)} - Git City`;
   const description = `${townDisplayName(league.name)} in Git City: a skyline built together and a weekly race for the center of Git City.`;
   // The card's URL carries identity_version: a new logo or sky is a new URL.
