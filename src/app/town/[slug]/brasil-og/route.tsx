@@ -1,60 +1,92 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { OG, building } from "@/lib/og/devHero";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { OG } from "@/lib/og/devHero";
+import { BrasilPixels } from "@/lib/og/brasilPixels";
 import { getLeagueBySlug } from "@/lib/leagues/service";
 import { STATES, parseUF } from "@/lib/towns/brasil-map";
-import { BRASIL_SLUG } from "@/lib/towns/brasil-server";
+import { BRASIL_SLUG, getBrasilLayout } from "@/lib/towns/brasil-server";
+import { weekCrown } from "@/components/towns/brasil/stats";
 
-// The Brasil map's share card, in the communities card's layout (one short
-// line, Git City buildings on the right, the tallest lit): ?at=login says
-// where that dev lives, ?uf=SP names the state, nothing names the map.
+// The Brasil map's share card: two short lines on the left, the map of Brazil
+// in pixels on the right with the real cities. Each link shares a moment:
+//   ?at=login  someone on the map: their state lit, their city glowing
+//              ("@login / tá no mapa.", "fundou SP." for a founder, "tá na ilha.")
+//   ?uf=SP     a state: lit, with its place ("#4 do Brasil.", "levou a coroa.", "tá vazio.")
+//   nothing    the whole map: every city lit, "326 devs / e você?"
+// In Portuguese: whoever shares it and whoever gets it is Brazilian.
 
 const size = { width: 1200, height: 630 };
-const PANEL_X = 600;
 const LOGIN_RE = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/i;
+const fmt = (n: number) => n.toLocaleString("pt-BR");
 
-async function lines(q: URLSearchParams): Promise<[string, string, string]> {
-  const at = q.get("at")?.toLowerCase();
-  if (at && LOGIN_RE.test(at)) {
-    const league = await getLeagueBySlug(BRASIL_SLUG);
-    const { data } = league
-      ? await getSupabaseAdmin()
-          .from("brasil_residents")
-          .select("uf, developers!inner(github_login)")
-          .eq("league_id", league.id)
-          .eq("developers.github_login", at)
-          .maybeSingle<{ uf: string | null }>()
-      : { data: null };
-    if (data) {
-      const st = data.uf ? STATES.find((s) => s.uf === data.uf) : null;
-      return [`@${at}`, "LIVES IN", st ? `${st.name}.` : "THE ISLAND."];
-    }
-  }
-  const uf = parseUF(q.get("uf") ?? "");
-  if (uf) return [STATES.find((s) => s.uf === uf)!.name, "IS ON THE", "MAP."];
-  return ["BRAZIL'S", "DEV", "MAP."];
+interface Card {
+  top: string;
+  bottom: string;
+  lit?: (typeof STATES)[number]["uf"] | null;
+  hot?: [number, number] | null;
+  litIsland?: boolean;
 }
 
-/** Big, but a long login or state still fits the left half. */
-const fontFor = (s: string) => (s.length <= 9 ? 68 : s.length <= 13 ? 52 : s.length <= 18 ? 40 : 30);
+/** Big, but a long login or state still fits the left half (Silkscreen is wide: about 1.1 of the size per letter). */
+const TEXT_W = 440;
+const fontFor = (s: string) => Math.max(26, Math.min(80, Math.floor(TEXT_W / (s.length * 1.1))));
+
+/** A long name ("Rio Grande do Norte") on two balanced lines, so it stays big. */
+function linesOf(s: string): string[] {
+  if (s.length <= 12 || !s.includes(" ")) return [s];
+  const words = s.split(" ");
+  let best = [s];
+  let bestW = s.length;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(" ");
+    const b = words.slice(i).join(" ");
+    if (Math.max(a.length, b.length) < bestW) {
+      best = [a, b];
+      bestW = Math.max(a.length, b.length);
+    }
+  }
+  return best;
+}
 
 export async function GET(req: Request) {
-  const [a, b, c] = await lines(new URL(req.url).searchParams);
+  const q = new URL(req.url).searchParams;
+  const league = await getLeagueBySlug(BRASIL_SLUG);
+  const { layout, residents } = league ? await getBrasilLayout(league.id) : { layout: null, residents: [] };
+  const cities = layout ? [...layout.cities, layout.island] : [];
+  const devs = residents.length;
+
+  let card: Card = { top: `${fmt(devs)} devs`, bottom: "e você?" };
+  const at = q.get("at")?.toLowerCase();
+  const uf = parseUF(q.get("uf") ?? "");
+  if (at && LOGIN_RE.test(at)) {
+    const me = residents.find((r) => r.dev.login.toLowerCase() === at);
+    const city = me && cities.find((c) => c.devs.some((d) => d.dev.login.toLowerCase() === at));
+    const founder = !!city?.devs.find((d) => d.dev.login.toLowerCase() === at)?.founder;
+    if (me) card = { top: `@${at}`, bottom: !me.dev.uf ? "tá na ilha." : founder ? `fundou ${me.dev.uf}.` : "tá no mapa.", lit: me.dev.uf, hot: [me.x, me.z], litIsland: !me.dev.uf };
+  } else if (uf && layout) {
+    const counts = STATES.map((s) => ({ uf: s.uf, n: residents.filter((r) => r.dev.uf === s.uf).length })).sort((a, b) => b.n - a.n);
+    const n = counts.find((c) => c.uf === uf)!.n;
+    const place = counts.findIndex((c) => c.uf === uf) + 1;
+    const crowned = weekCrown(layout, Date.now()).crown?.uf === uf;
+    const name = STATES.find((s) => s.uf === uf)!.name;
+    card = { top: name, bottom: crowned ? "levou a coroa." : n === 0 ? "tá vazio." : `#${place} do Brasil.`, lit: uf };
+  }
+
   const font = await readFile(join(process.cwd(), "public/fonts/Silkscreen-Regular.ttf"));
-  const H = size.height;
   return new ImageResponse(
-    <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", backgroundColor: OG.bg, fontFamily: "Silkscreen" }}>
-      <div style={{ width: PANEL_X, height: H, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 64px" }}>
-        <span style={{ fontSize: fontFor(a), lineHeight: 1.15, color: OG.cream, textTransform: "uppercase" }}>{a}</span>
-        <span style={{ fontSize: 68, lineHeight: 1.15, color: OG.cream }}>{b}</span>
-        <span style={{ fontSize: fontFor(c), lineHeight: 1.15, color: OG.accent, textTransform: "uppercase" }}>{c}</span>
+    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", backgroundColor: OG.bg, fontFamily: "Silkscreen" }}>
+      <div style={{ width: 560, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 0 0 72px", overflow: "hidden" }}>
+        {linesOf(card.top).map((l, i, all) => (
+          <span key={i} style={{ fontSize: fontFor(all.reduce((a, b) => (b.length > a.length ? b : a))), lineHeight: 1.1, color: OG.cream, textTransform: "uppercase" }}>
+            {l}
+          </span>
+        ))}
+        <span style={{ fontSize: fontFor(card.bottom), lineHeight: 1.1, color: OG.accent, textTransform: "uppercase", marginTop: 12 }}>{card.bottom}</span>
       </div>
-      {building({ left: PANEL_X + 10, groundY: H, height: 250, width: 110, color: OG.borderLight })}
-      {building({ left: PANEL_X + 130, groundY: H, height: 380, width: 130, color: OG.borderLight })}
-      {building({ left: PANEL_X + 270, groundY: H, height: 520, width: 150, color: OG.accent })}
-      {building({ left: PANEL_X + 430, groundY: H, height: 330, width: 120, color: OG.borderLight })}
+      <div style={{ display: "flex", width: 600, height: 590 }}>
+        <BrasilPixels width={600} height={590} cities={cities} lit={card.lit ?? null} hot={card.hot ?? null} litIsland={card.litIsland} />
+      </div>
     </div>,
     { ...size, fonts: [{ name: "Silkscreen", data: font, style: "normal" }], headers: { "Cache-Control": "public, max-age=600, s-maxage=600" } },
   );
