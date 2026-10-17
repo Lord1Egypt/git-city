@@ -252,6 +252,11 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
 
       {!driving && <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />}
       {!driving && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} />}
+      {!driving && (
+        <span className="pointer-events-none fixed bottom-1 right-1.5 z-20 text-[9px] normal-case leading-none text-muted/60">
+          Map data: IBGE · Natural Earth
+        </span>
+      )}
 
       {/* The bar */}
       <div className="pointer-events-auto absolute bottom-5 left-1/2 flex -translate-x-1/2 items-stretch gap-px shadow-[0_6px_0_rgba(0,0,0,0.35)]">
