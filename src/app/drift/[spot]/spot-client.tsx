@@ -4,6 +4,7 @@ import "@/lib/silenceThreeClockWarning";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { THEMES, ThemeLights, type CityTheme } from "@/components/city/theme";
@@ -28,7 +29,7 @@ import { loadRun, saveRun, type LocalRun } from "@/lib/drift/local";
 import { courseOf, getLiveSpot } from "@/lib/drift/spots";
 import type { LiveSpot, SpotId } from "@/lib/drift/spots/types";
 import { createDriftTelemetry } from "@/lib/drift/telemetry";
-import { SERIES, slotOf, type ClientSeriesMsg, type Series } from "@/lib/drift/series";
+import { SERIES, slotOf, standings, type ClientSeriesMsg, type Series } from "@/lib/drift/series";
 import { roomId } from "@/lib/drift/ticket";
 import { RoomLobby, RoomResults, RoomStandings } from "@/components/drift/RoomScreens";
 
@@ -382,6 +383,42 @@ export default function SpotClient({
     };
     follow();
   }, [room, series, spot.id, inGrid, telemetry, goStage, setPaused, me]);
+
+  // The room in PostHog, once each per driver: in the room, each run's outcome, the series'.
+  const logged = useRef({ joined: false, run: 0, series: false });
+  useEffect(() => {
+    if (!room || !series) return;
+    const l = logged.current;
+    const drivers = series.players.filter((p) => p.online).length;
+    const host = series.host?.toLowerCase() === me.toLowerCase();
+    if (!l.joined) {
+      l.joined = true;
+      posthog.capture("drift_room_joined", { code: room.code, drivers, host, round: series.round });
+    }
+    const mine = series.grid.findIndex((e) => e.login.toLowerCase() === me.toLowerCase());
+    if ((series.phase === "results" || series.phase === "final") && mine >= 0 && l.run !== series.round) {
+      l.run = series.round;
+      const e = series.grid[mine];
+      posthog.capture("drift_room_run_ended", {
+        code: room.code,
+        round: series.round,
+        spot: series.spot,
+        drivers: series.grid.length,
+        place: e.score === null ? null : mine + 1,
+        points: e.gained,
+        score: e.score,
+        host,
+      });
+    }
+    if (series.phase === "final" && !l.series) {
+      l.series = true;
+      const table = standings(series);
+      const at = table.findIndex((p) => p.login.toLowerCase() === me.toLowerCase());
+      if (at >= 0) posthog.capture("drift_room_series_ended", { code: room.code, drivers: table.length, place: at + 1, points: table[at].points, won: at === 0, host });
+    }
+    // A rematch is a new series.
+    if (series.phase === "lobby" && series.round === 0) Object.assign(l, { run: 0, series: false });
+  }, [room, series, me]);
 
   // Your score for the room's standings, twice a second through the run.
   useEffect(() => {

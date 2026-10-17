@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { Backdrop, Band, Chip } from "@/components/drift/ui";
 import { PixelSelect, type PixelOption } from "@/components/ui/PixelSelect";
 import { MEDAL_COLORS, fmt } from "@/components/drift/DriftHud";
@@ -111,9 +112,17 @@ export default function DriftClient({
     [viewerLogin],
   );
 
-  const keys = useRef({ go, sel });
+  const openRoom = useCallback(
+    (from: "button" | "key") => {
+      const code = roomCode();
+      posthog.capture("drift_room_created", { code, from });
+      router.push(`/drift/r/${code}`);
+    },
+    [router],
+  );
+  const keys = useRef({ go, sel, openRoom });
   useEffect(() => {
-    keys.current = { go, sel };
+    keys.current = { go, sel, openRoom };
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -132,7 +141,7 @@ export default function DriftClient({
       else if (e.code === "Enter" || e.code === "Space") {
         e.preventDefault();
         keys.current.go();
-      } else if (e.code === "KeyF") router.push(`/drift/r/${roomCode()}`);
+      } else if (e.code === "KeyF") keys.current.openRoom("key");
       else if (e.key === "Escape") router.push("/towns");
     };
     window.addEventListener("keydown", onKey);
@@ -208,7 +217,7 @@ export default function DriftClient({
             </div>
             <button
               type="button"
-              onClick={() => router.push(`/drift/r/${roomCode()}`)}
+              onClick={() => openRoom("button")}
               className="drift-band flex w-[min(560px,90vw)] items-center justify-between gap-4 bg-lime px-5 py-3.5 text-left text-bg shadow-[0_6px_0_rgba(0,0,0,0.35)] outline-none hover:bg-cream focus-visible:bg-cream"
               style={{ animationDelay: "540ms", fontSize: T.body }}
             >
