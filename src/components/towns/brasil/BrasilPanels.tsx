@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CityBuilding } from "@/lib/github";
 import Panel from "@/components/league/hud/Panel";
 import { Avatar, fmt } from "@/components/league/hud/shared";
@@ -71,6 +71,8 @@ export function BrasilSearchBar({
           else if (devs[0]) pick(() => onPickBuilding(devs[0]));
           else if (missing) pick(() => onPutOnMap(missing));
         }}
+        role="search"
+        data-bwignore="true"
         className="flex items-stretch shadow-[0_6px_0_rgba(0,0,0,0.35)]"
       >
         <input
@@ -84,10 +86,17 @@ export function BrasilSearchBar({
           onKeyDown={(e) => e.key === "Escape" && (e.currentTarget.blur(), setOpen(false))}
           placeholder="Your @username, a city or a state"
           aria-label="Find your building: GitHub username, city or state"
+          // A search, not a login: password managers (Bitwarden, 1Password, LastPass) keep their icon off it.
+          type="search"
+          name="brasil-find"
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          className="min-w-0 flex-1 border-[3px] border-border bg-bg/90 px-3 py-2 text-base normal-case text-cream outline-none backdrop-blur-sm placeholder:text-dim focus:border-lime/70 sm:text-[12px]"
+          data-bwignore="true"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-form-type="other"
+          className="min-w-0 flex-1 border-[3px] border-border bg-bg/90 px-3 py-2 [&::-webkit-search-cancel-button]:hidden text-base normal-case text-cream outline-none backdrop-blur-sm placeholder:text-dim focus:border-lime/70 sm:text-[12px]"
         />
         <button type="submit" className="bg-lime px-4 text-[11px] uppercase text-bg">
           Find
@@ -150,13 +159,17 @@ export function BrasilRanking({ states, yours, onPick, onClose }: { states: Stat
   );
 }
 
-/** Pick your state (or none: the island). Moving gives you a new lot in the new state. */
-export function BrasilJoin({
+/**
+ * Pick your state (or none: the island), right under the search: where you
+ * typed your name is where you choose. Moving gives you a new lot in the new
+ * state. While your lot is found the picked state says so.
+ */
+export function BrasilPicker({
   signedIn,
   viewerLogin,
   forLogin,
   current,
-  busy,
+  pending,
   error,
   onPick,
   onSignIn,
@@ -168,44 +181,63 @@ export function BrasilJoin({
   forLogin: string | null;
   /** Where you live now: a state, "island", or null when you're not on the map. */
   current: UF | "island" | null;
-  busy: boolean;
+  /** The state being placed in right now. */
+  pending: UF | "island" | null;
   error: string | null;
   onPick: (uf: UF | null) => void;
   onSignIn: () => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !pending && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, pending]);
+  const someoneElse = !!forLogin && !!viewerLogin && forLogin !== viewerLogin.toLowerCase();
+  const who = forLogin ?? viewerLogin?.toLowerCase() ?? null;
+  const busy = pending !== null;
+  const pendingName = pending === "island" ? "the island" : pending ? (STATES.find((s) => s.uf === pending)?.name ?? pending) : "";
+
   return (
-    <Panel title={current ? "Your state" : "Put your building on the map"} onClose={onClose}>
-      {forLogin && viewerLogin && forLogin !== viewerLogin.toLowerCase() ? (
+    <div className="pointer-events-auto mt-1 w-[min(420px,calc(100vw-32px))] border-[3px] border-border bg-bg/95 p-3 font-pixel uppercase text-cream shadow-[0_6px_0_rgba(0,0,0,0.35)] backdrop-blur-sm">
+      <div className="mb-2.5 flex items-baseline justify-between gap-3">
+        <p className="min-w-0 truncate text-[11px]">
+          {current && !someoneElse ? "Move to another state" : who ? <>Put <span className="normal-case text-lime">@{who}</span> on the map</> : "Put your building on the map"}
+        </p>
+        <button type="button" disabled={busy} onClick={onClose} className="shrink-0 text-[10px] text-muted hover:text-cream disabled:opacity-40">
+          ESC
+        </button>
+      </div>
+
+      {someoneElse ? (
         <p className="text-[10px] normal-case text-muted">
           Only @{forLogin} can put their building here: they sign in with GitHub on this page, or comment their @ and state on the reel. You&apos;re signed in as @{viewerLogin}.
         </p>
       ) : !signedIn ? (
-        <div className="flex flex-col gap-3">
-          <p className="text-[10px] normal-case text-muted">
-            {forLogin ? `Is @${forLogin} you? ` : ""}Sign in with GitHub, pick your state, and your building goes up in its city.
-          </p>
+        <div className="flex flex-col gap-2.5">
+          <p className="text-[10px] normal-case text-muted">{forLogin ? `Is @${forLogin} you? ` : ""}Sign in with GitHub, pick your state, and your building goes up in its city.</p>
           <button type="button" onClick={onSignIn} className="btn-press border-2 border-lime bg-lime py-2 text-[11px] text-bg">
             Sign in with GitHub
           </button>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-col gap-3">
+        <div className="flex flex-col gap-2">
           <p className="text-[10px] normal-case text-muted">
-            {current
-              ? "Moving to another state gives you a new lot there. You can move once a week."
-              : "Your building goes up in your state's city. The first dev in a state is its founder."}
+            {current ? "Your building moves to a new lot there. You can move once a week." : "Your building goes up in your state's city. The first dev in a state founds it."}
           </p>
-          <div className="grid grid-cols-3 gap-1 overflow-y-auto">
+          <div className="grid grid-cols-7 gap-1">
             {STATES.map((s) => (
               <button
                 key={s.uf}
                 type="button"
+                title={s.name}
                 disabled={busy || current === s.uf}
                 onClick={() => onPick(s.uf)}
-                className={`flex items-center gap-1.5 border-2 px-2 py-1.5 text-left text-[10px] ${current === s.uf ? "border-lime text-lime" : "border-border text-cream hover:border-lime/60"} disabled:cursor-default`}
+                className={`flex items-center justify-center gap-1 border-2 py-1.5 text-[10px] transition-opacity ${
+                  pending === s.uf ? "border-lime bg-lime text-bg" : current === s.uf ? "border-lime text-lime" : "border-border text-cream hover:border-lime/60"
+                } ${busy && pending !== s.uf ? "opacity-30" : ""} disabled:cursor-default`}
               >
-                <span className="h-2 w-2 shrink-0" style={{ background: swatchOf(s.uf) }} aria-hidden />
+                <span className="h-2 w-2 shrink-0 border border-border-light" style={{ background: swatchOf(s.uf) }} aria-hidden />
                 {s.uf}
               </button>
             ))}
@@ -214,13 +246,21 @@ export function BrasilJoin({
             type="button"
             disabled={busy || current === "island"}
             onClick={() => onPick(null)}
-            className={`border-2 py-1.5 text-[10px] ${current === "island" ? "border-lime text-lime" : "border-border text-muted hover:text-cream"}`}
+            className={`border-2 py-1.5 text-[10px] transition-opacity ${
+              pending === "island" ? "border-lime bg-lime text-bg" : current === "island" ? "border-lime text-lime" : "border-border text-muted hover:text-cream"
+            } ${busy && pending !== "island" ? "opacity-30" : ""}`}
           >
             No state · live on the island
           </button>
-          {error && <p className="text-[9px] normal-case text-red-400">{error}</p>}
+          {busy && (
+            <div className="flex flex-col gap-1.5 pt-1">
+              <p className="text-[10px] normal-case text-lime">Finding your lot in {pendingName}…</p>
+              <div className="h-1 animate-pulse bg-lime" />
+            </div>
+          )}
+          {error && <p className="text-[10px] normal-case text-red-400">{error}</p>}
         </div>
       )}
-    </Panel>
+    </div>
   );
 }

@@ -496,9 +496,48 @@ export interface BrasilSceneProps {
   /** Drive mode: the car and its world (offline in the preview). */
   drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
   smash?: SmashStore;
+  /** A lot just taken: a lime ring spreads from it once (a new key plays it again). */
+  pulse?: { x: number; z: number; key: number } | null;
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash }: BrasilSceneProps) {
+const PULSE_S = 1.8;
+
+/** Three lime rings spreading from a lot and fading, once. */
+function Pulse({ x, z }: { x: number; z: number }) {
+  const group = useRef<THREE.Group>(null);
+  const born = useRef<number | null>(null);
+  const mats = useMemo(() => [0, 1, 2].map(() => new THREE.MeshBasicMaterial({ color: "#c8e64a", transparent: true, depthWrite: false, side: THREE.DoubleSide })), []);
+  const geo = useMemo(() => new THREE.RingGeometry(0.86, 1, 64).rotateX(-Math.PI / 2), []);
+  useEffect(
+    () => () => {
+      geo.dispose();
+      mats.forEach((m) => m.dispose());
+    },
+    [geo, mats],
+  );
+  useFrame(({ clock }) => {
+    const g = group.current;
+    if (!g) return;
+    born.current ??= clock.elapsedTime;
+    const t = clock.elapsedTime - born.current;
+    g.visible = t < PULSE_S + 0.6;
+    g.children.forEach((ring, i) => {
+      const k = Math.min(1, Math.max(0, (t - i * 0.3) / PULSE_S));
+      const r = 20 + k * LOT * 3;
+      ring.scale.set(r, 1, r);
+      mats[i].opacity = k > 0 ? (1 - k) * 0.9 : 0;
+    });
+  });
+  return (
+    <group ref={group} position={[x, MAP_H + 2, z]}>
+      {mats.map((m, i) => (
+        <mesh key={i} geometry={geo} material={m} renderOrder={10} />
+      ))}
+    </group>
+  );
+}
+
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null }: BrasilSceneProps) {
   const driving = !!drive;
   const [near, setNear] = useState(false);
   const decorations = useMemo(() => decorationsOf(objects), [objects]);
@@ -539,6 +578,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       {!driving && <NearPlates buildings={buildings} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} onClick={() => onTag?.(c)} />)}
       {driving && drive && <DriveWorld objects={objects} buildings={buildings} h={MAP_H} smash={smash} {...drive} />}
+      {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
     </Canvas>
   );
 }

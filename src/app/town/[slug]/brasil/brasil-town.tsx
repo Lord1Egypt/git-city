@@ -16,7 +16,7 @@ import { fmt } from "@/components/league/hud/shared";
 import MapNavControls from "@/components/MapNavControls";
 import BrasilScene, { type CameraApi } from "@/components/towns/brasil/BrasilScene";
 import BrasilMinimap from "@/components/towns/brasil/BrasilMinimap";
-import { BrasilJoin, BrasilRanking, BrasilSearchBar } from "@/components/towns/brasil/BrasilPanels";
+import { BrasilPicker, BrasilRanking, BrasilSearchBar } from "@/components/towns/brasil/BrasilPanels";
 import StateCard from "@/components/towns/brasil/StateCard";
 import { stateStats, swatchOf, type StateStats } from "@/components/towns/brasil/stats";
 import { stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
@@ -42,7 +42,7 @@ export interface BrasilTownProps {
   startAt: { uf: string } | { login: string } | null;
 }
 
-type PanelId = "states" | "join" | null;
+type PanelId = "states" | null;
 const LIME = "#c8e64a";
 
 export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt }: BrasilTownProps) {
@@ -57,16 +57,31 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [focused, setFocused] = useState<CityBuilding | null>(null);
   /** The state card a building was opened from: closing the building brings it back. */
   const [backTo, setBackTo] = useState<StateStats | null>(null);
-  const [joining, setJoining] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
-  /** The username typed in the search that isn't on the map (the join panel speaks to them). */
-  const [joinFor, setJoinFor] = useState<string | null>(null);
+  /** The state picker under the search, for a username typed there (null: yours). */
+  const [picker, setPicker] = useState<{ forLogin: string | null } | null>(null);
+  const [joining, setJoining] = useState<{ pending: UF | "island" | null; error: string | null }>({ pending: null, error: null });
+  /** Just placed: where, until the refreshed map has the building (then the camera goes there). */
+  const [arriving, setArriving] = useState<{ uf: UF | null } | null>(null);
+  /** The arrival the open card celebrates, and the ring under the new lot. */
+  const [arrived, setArrived] = useState<{ login: string; uf: UF | null } | null>(null);
+  const [pulse, setPulse] = useState<{ x: number; z: number; key: number } | null>(null);
   const [now] = useState(() => Date.now());
   /** A panel takes the right side: any card closes. */
   const openPanel = (p: PanelId) => {
     setState(null);
     setFocused(null);
     setBackTo(null);
+    setPicker(null);
     setPanel(p);
+  };
+  /** The picker takes over: cards and panels close. */
+  const openPicker = (forLogin: string | null) => {
+    setState(null);
+    setFocused(null);
+    setBackTo(null);
+    setPanel(null);
+    setJoining({ pending: null, error: null });
+    setPicker({ forLogin });
   };
 
   const world = useMemo(() => {
@@ -93,6 +108,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       setFocused(null);
       setBackTo(null);
       setPanel(null);
+      setPicker(null);
       setState(s);
       camera.current?.flyTo(s.capital.center, s.capital.radius);
     },
@@ -167,18 +183,35 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   };
 
   const pickState = async (uf: UF | null) => {
-    setJoining({ busy: true, error: null });
+    setJoining({ pending: uf ?? "island", error: null });
     try {
       const res = await fetch(`/api/towns/${league.slug}/brasil/place`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uf }) });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) return setJoining({ busy: false, error: body.error ?? "Couldn't put you on the map." });
-      setJoining({ busy: false, error: null });
-      setPanel(null);
+      if (!res.ok) return setJoining({ pending: null, error: body.error ?? "Couldn't put you on the map." });
+      // The picker stays (saying "finding your lot") until the refreshed map has the building.
+      setArriving({ uf });
       router.refresh();
     } catch {
-      setJoining({ busy: false, error: "Couldn't put you on the map." });
+      setJoining({ pending: null, error: "Couldn't put you on the map." });
     }
   };
+
+  // The refreshed map has your building where you picked: fly there, ring the lot, open your card.
+  useEffect(() => {
+    if (!arriving || !viewerLogin) return;
+    const login = viewerLogin.toLowerCase();
+    const b = world.placed.get(login);
+    if (!b || (world.ufOf.get(login)?.uf ?? null) !== arriving.uf) return;
+    const t = setTimeout(() => {
+      setArriving(null);
+      setPicker(null);
+      setJoining({ pending: null, error: null });
+      setArrived({ login, uf: arriving.uf });
+      setPulse({ x: b.position[0], z: b.position[2], key: Date.now() });
+      openBuilding(b);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [arriving, viewerLogin, world, openBuilding]);
   const signIn = () => void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=/town/${league.slug}`);
 
   const yours = home && home !== "island" ? home : null;
@@ -204,6 +237,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         focused={focused?.loginLower ?? null}
         drive={driving && driveFrom !== null ? drive : undefined}
         smash={smash}
+        pulse={pulse}
       />
 
       <div className="pointer-events-auto absolute left-4 top-4">
@@ -227,13 +261,23 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             cities={layout.cities}
             island={layout.island}
             buildings={world.buildings}
-            onPickCity={openCity}
-            onPickBuilding={openBuilding}
-            onPutOnMap={(login) => {
-              setJoinFor(login);
-              openPanel("join");
-            }}
+            onPickCity={(c) => (setPicker(null), openCity(c))}
+            onPickBuilding={(b) => (setPicker(null), openBuilding(b))}
+            onPutOnMap={openPicker}
           />
+          {picker && (
+            <BrasilPicker
+              signedIn={!!viewerLogin}
+              viewerLogin={viewerLogin}
+              forLogin={picker.forLogin}
+              current={home}
+              pending={joining.pending}
+              error={joining.error}
+              onPick={pickState}
+              onSignIn={signIn}
+              onClose={() => setPicker(null)}
+            />
+          )}
         </div>
       )}
 
@@ -290,10 +334,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
                 // On the map: to your building. Not yet: the way in.
                 const mine = home && viewerLogin ? world.placed.get(viewerLogin.toLowerCase()) : undefined;
                 if (mine) openBuilding(mine);
-                else {
-                  setJoinFor(null);
-                  openPanel("join");
-                }
+                else openPicker(null);
               }}
               className="flex h-10 items-center gap-2 bg-lime px-4 text-[11px] text-bg"
             >
@@ -311,19 +352,6 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       </div>
 
       {panel === "states" && <BrasilRanking states={world.states} yours={yours} onPick={(s) => openState(s.uf)} onClose={() => setPanel(null)} />}
-      {panel === "join" && (
-        <BrasilJoin
-          signedIn={!!viewerLogin}
-          viewerLogin={viewerLogin}
-          forLogin={joinFor}
-          current={home}
-          busy={joining.busy}
-          error={joining.error}
-          onPick={pickState}
-          onSignIn={signIn}
-          onClose={() => setPanel(null)}
-        />
-      )}
 
       {state && !driving && (
         <StateCard
@@ -347,17 +375,21 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           building={focused}
           viewerLogin={viewerLogin}
           section={
-            <ResidentRow
-              login={focused.loginLower}
-              ufOf={world.ufOf}
-              states={world.states}
-              onState={openState}
-              onMove={viewerLogin?.toLowerCase() === focused.loginLower ? () => (setJoinFor(null), openPanel("join")) : undefined}
-            />
+            <>
+              {arrived?.login === focused.loginLower && <Arrival uf={arrived.uf} states={world.states} founder={!!world.ufOf.get(focused.loginLower)?.founder} townPath={`/town/${league.slug}`} />}
+              <ResidentRow
+                login={focused.loginLower}
+                ufOf={world.ufOf}
+                states={world.states}
+                onState={openState}
+                onMove={viewerLogin?.toLowerCase() === focused.loginLower ? () => openPicker(null) : undefined}
+              />
+            </>
           }
           onDriveTo={startDrive}
           onClose={() => {
             setFocused(null);
+            setArrived(null);
             // Opened from a state's card: back to it, and back over its city.
             if (backTo) {
               setState(backTo);
@@ -368,6 +400,34 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         />
       )}
     </main>
+  );
+}
+
+/** Your card right after you're placed: where you landed, what you are there, and the invite. */
+function Arrival({ uf, states, founder, townPath }: { uf: UF | null; states: StateStats[]; founder: boolean; townPath: string }) {
+  const [copied, setCopied] = useState(false);
+  const s = uf ? states.find((x) => x.uf === uf) : null;
+  const invite = () => {
+    const url = `${window.location.origin}${townPath}${uf ? `?uf=${uf}` : ""}`;
+    const text = uf
+      ? `I'm on the Brasil map in Git City, in ${stateOf(uf).name}. Put yourself on it: ${url}`
+      : `I'm on the Brasil map in Git City. Put yourself on it: ${url}`;
+    navigator.clipboard?.writeText(text).then(
+      () => setCopied(true),
+      () => setCopied(false),
+    );
+  };
+  return (
+    <div className="mx-4 mb-3 border-2 border-lime px-3 py-2.5">
+      <p className="text-[8px] text-lime">You&apos;re on the map</p>
+      <p className="mt-1 text-sm text-cream">{s ? (founder ? `Founder of ${s.name}` : `You're in ${s.name}`) : "You're on the island"}</p>
+      <p className="mt-0.5 text-[9px] normal-case text-muted">
+        {s ? (founder ? `The first dev in ${s.uf}. Everyone after you lives in your city.` : `Dev #${fmt(s.devs)} in ${s.uf} · #${s.place} of 27 states`) : "No state yet. Pick one anytime with Move."}
+      </p>
+      <button type="button" onClick={invite} className="btn-press mt-2 w-full border-2 border-lime bg-lime py-1.5 text-[10px] text-bg">
+        {copied ? "Invite copied" : s ? `Invite to ${s.uf}` : "Invite a friend"}
+      </button>
+    </div>
   );
 }
 
