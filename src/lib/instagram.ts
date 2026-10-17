@@ -16,6 +16,9 @@ export interface IgMedia {
   caption?: string;
   media_product_type: string;
   timestamp: string;
+  thumbnail_url?: string;
+  media_url?: string;
+  comments_count?: number;
 }
 
 export async function instagramToken(): Promise<string | null> {
@@ -40,7 +43,7 @@ export function instagramMe() {
 }
 
 export async function instagramMedia(limit = 24): Promise<IgMedia[]> {
-  const { data } = await graph<{ data: IgMedia[] }>("/me/media", { fields: "id,permalink,caption,media_product_type,timestamp", limit: String(limit) });
+  const { data } = await graph<{ data: IgMedia[] }>("/me/media", { fields: "id,permalink,caption,media_product_type,timestamp,thumbnail_url,media_url,comments_count", limit: String(limit) });
   return data;
 }
 

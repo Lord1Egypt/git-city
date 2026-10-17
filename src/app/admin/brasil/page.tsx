@@ -25,15 +25,22 @@ interface Post {
   caption?: string;
   media_product_type: string;
   timestamp: string;
-  /** What the post is watched for, or null. */
+  thumbnail_url?: string;
+  media_url?: string;
+  comments_count?: number;
+  /** What the reel is watched for, or null. */
   watching: "brasil" | "city" | null;
+  /** What its comments brought in: imported, and new buildings. */
+  stats: { comments: number; added: number };
 }
 
 interface Instagram {
-  account: { username: string | null; refreshed_at: string; expires_at: string | null } | null;
+  account: { username: string | null } | null;
   media: Post[];
-  error?: string;
+  error?: string | null;
 }
+
+const KIND = { city: "City", brasil: "Brasil" } as const;
 
 interface Result {
   line: string;
@@ -50,6 +57,17 @@ const OUTCOME: Record<string, { label: string; tone: string }> = {
   blocked: { label: "Account already used", tone: "text-orange-300" },
   capped: { label: "Hourly cap", tone: "text-orange-300" },
 };
+
+/** A reel's picture, small. */
+function Thumb({ post }: { post: Post }) {
+  const src = post.thumbnail_url ?? post.media_url;
+  return (
+    <a href={post.permalink} target="_blank" rel="noreferrer" className="block h-14 w-11 shrink-0 overflow-hidden bg-bg">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {src && <img src={src} alt="" className="h-full w-full object-cover" />}
+    </a>
+  );
+}
 
 export default function BrasilAdminPage() {
   const [log, setLog] = useState<{ comments: CommentRow[]; residents: number } | null>(null);
@@ -77,6 +95,14 @@ export default function BrasilAdminPage() {
       live = false;
     };
   }, []);
+
+  const [showAll, setShowAll] = useState(false);
+  const watched = ig?.media.filter((m) => m.watching) ?? [];
+  const others = ig?.media.filter((m) => !m.watching) ?? [];
+  const watch = (m: Post, kind: "city" | "brasil" | null) =>
+    igAction({ action: "watch", mediaId: m.id, permalink: m.permalink, caption: m.caption ?? "", watching: kind }, () =>
+      kind ? `Watching as ${KIND[kind]}. New comments get a building and a reply; Sync now answers the ones already there.` : "Stopped watching that reel.",
+    );
 
   const igAction = async (body: Record<string, unknown>, done: (json: Record<string, unknown>) => string) => {
     setIgBusy(true);
@@ -146,51 +172,73 @@ export default function BrasilAdminPage() {
           </p>
         </header>
 
-        <section className="flex flex-col gap-3 border border-border bg-bg-raised p-4">
-          <div className="flex items-baseline justify-between gap-3">
+        <section className="flex flex-col gap-4 border border-border bg-bg-raised p-4">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="text-[11px] uppercase tracking-wider text-dim">Instagram</h2>
-            <span className="text-[11px] text-muted">
-              {!ig ? "Loading…" : ig.account ? `@${ig.account.username} · connected` : "Not connected"}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={igBusy} onClick={() => igAction({ action: "connect" }, (j) => `Connected @${j.username}, comment webhooks on.`)} className="border border-border px-3 py-1.5 text-[11px] text-cream hover:border-lime hover:text-lime disabled:opacity-40">
-              {ig?.account ? "Reconnect" : "Connect"}
-            </button>
-            <button type="button" disabled={igBusy || !ig?.account} onClick={() => igAction({ action: "sync" }, (j) => `Read ${j.reels} reel${j.reels === 1 ? "" : "s"}: ${j.fresh} new comment${j.fresh === 1 ? "" : "s"}.`)} className="border border-border px-3 py-1.5 text-[11px] text-cream hover:border-lime hover:text-lime disabled:opacity-40">
-              {igBusy ? "Working…" : "Sync comments now"}
-            </button>
+            <div className="flex items-center gap-3 text-[11px]">
+              <span className={ig?.account ? "text-lime" : "text-muted"}>{!ig ? "Loading…" : ig.account ? `@${ig.account.username}` : "Not connected"}</span>
+              <button type="button" disabled={igBusy || !ig?.account} onClick={() => igAction({ action: "sync" }, (j) => (j.fresh ? `${j.fresh} new comment${j.fresh === 1 ? "" : "s"} answered.` : "No new comments."))} className="border border-border px-3 py-1.5 text-cream hover:border-lime hover:text-lime disabled:opacity-40">
+                {igBusy ? "Working…" : "Sync now"}
+              </button>
+            </div>
           </div>
           {(igNote || ig?.error) && <p className="text-[11px] text-muted">{igNote ?? ig?.error}</p>}
-          <p className="text-[11px] text-muted">Only comments on the posts set below count. City: a building in the city. Brasil: a building on the Brasil map.</p>
-          <ul className="flex flex-col">
-            {ig?.media.map((m) => (
-              <li key={m.id} className="flex items-center gap-3 border-t border-border py-1.5 text-[11px]">
-                <span className="flex shrink-0 gap-px border border-border">
-                  {([null, "city", "brasil"] as const).map((k) => (
-                    <button
-                      key={k ?? "off"}
-                      type="button"
-                      disabled={igBusy || m.watching === k}
-                      onClick={() =>
-                        igAction({ action: "watch", mediaId: m.id, permalink: m.permalink, caption: m.caption ?? "", watching: k }, () =>
-                          k === "city" ? "Comments on that post give a building in the city." : k === "brasil" ? "Comments on that post go on the Brasil map." : "Stopped watching that post.",
-                        )
-                      }
-                      className={`px-2 py-0.5 text-[10px] ${m.watching === k ? "bg-lime text-bg" : "text-muted hover:text-cream"}`}
-                    >
-                      {k === null ? "Off" : k === "city" ? "City" : "Brasil"}
-                    </button>
-                  ))}
-                </span>
-                <span className="w-14 shrink-0 text-dim">{new Date(m.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                <span className="w-10 shrink-0 text-dim">{m.media_product_type === "REELS" ? "Reel" : "Post"}</span>
-                <a href={m.permalink} target="_blank" rel="noreferrer" className={`min-w-0 flex-1 truncate normal-case hover:text-lime ${m.watching ? "text-cream" : "text-muted"}`}>
-                  {m.caption?.split("\n")[0] || m.permalink}
-                </a>
-              </li>
-            ))}
-          </ul>
+
+          {/* The reels whose comments count right now. */}
+          <div className="flex flex-col gap-2">
+            <h3 className="text-[10px] uppercase tracking-wider text-dim">Watching</h3>
+            {watched.length === 0 ? (
+              <p className="text-[11px] text-muted">No reel yet. Pick one below: comments on it get a building and a reply.</p>
+            ) : (
+              watched.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 border border-lime/40 p-2">
+                  <Thumb post={m} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] normal-case text-cream">{m.caption?.split("\n")[0] || m.permalink}</p>
+                    <p className="mt-1 text-[10px] text-muted">
+                      <span className="bg-lime px-1.5 py-0.5 text-bg">{KIND[m.watching!]}</span> {m.stats.comments} comment{m.stats.comments === 1 ? "" : "s"} in · {m.stats.added} new building{m.stats.added === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <button type="button" disabled={igBusy} onClick={() => watch(m, null)} className="shrink-0 border border-border px-2.5 py-1 text-[10px] text-muted hover:border-red-400 hover:text-red-400 disabled:opacity-40">
+                    Stop
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Every other reel, newest first. */}
+          <div className="flex flex-col gap-2">
+            <h3 className="text-[10px] uppercase tracking-wider text-dim">Add a reel</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {others.slice(0, showAll ? others.length : 8).map((m) => (
+                <div key={m.id} className="flex flex-col border border-border">
+                  <a href={m.permalink} target="_blank" rel="noreferrer" className="relative block aspect-[4/5] overflow-hidden bg-bg">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {(m.thumbnail_url ?? m.media_url) && <img src={m.thumbnail_url ?? m.media_url} alt="" className="h-full w-full object-cover opacity-80" />}
+                    <span className="absolute left-1.5 top-1.5 bg-bg/90 px-1.5 py-0.5 text-[9px] text-cream">
+                      {new Date(m.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {m.comments_count ?? 0} comments
+                    </span>
+                  </a>
+                  <p className="truncate px-2 pt-1.5 text-[10px] normal-case text-muted">{m.caption?.split("\n")[0] || "No caption"}</p>
+                  <div className="flex items-center gap-1 p-2 pt-1.5">
+                    <span className="mr-auto text-[9px] text-dim">Watch as</span>
+                    {(["city", "brasil"] as const).map((k) => (
+                      <button key={k} type="button" disabled={igBusy} onClick={() => watch(m, k)} className="border border-border px-2 py-1 text-[10px] text-cream hover:border-lime hover:text-lime disabled:opacity-40">
+                        {KIND[k]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {others.length > 8 && (
+              <button type="button" onClick={() => setShowAll((v) => !v)} className="self-start text-[10px] text-muted hover:text-cream">
+                {showAll ? "Show fewer" : `Show ${others.length - 8} more`}
+              </button>
+            )}
+            <p className="text-[10px] text-dim">City: a building in Git City. Brasil: a building in Git City and on the Brasil map, in the state they name.</p>
+          </div>
         </section>
 
         <section className="flex flex-col gap-3 border border-border bg-bg-raised p-4">

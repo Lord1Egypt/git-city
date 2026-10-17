@@ -29,14 +29,41 @@ export async function GET(req: Request) {
   if (!(await requireAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const sb = getSupabaseAdmin();
   if (new URL(req.url).searchParams.get("view") === "instagram") {
-    const [{ data: account }, { data: reels }] = await Promise.all([
-      sb.from("instagram_account").select("username, refreshed_at, expires_at").eq("id", 1).maybeSingle(),
-      sb.from("brasil_reels").select("media_id, watching, kind"),
+    const [{ data: stored }, { data: reels }] = await Promise.all([
+      sb.from("instagram_account").select("username").eq("id", 1).maybeSingle<{ username: string | null }>(),
+      sb.from("brasil_reels").select("media_id, permalink, watching, kind"),
     ]);
-    const watching = new Map((reels ?? []).filter((r: { watching: boolean }) => r.watching).map((r: { media_id: string; kind: string }) => [r.media_id, r.kind]));
+    // Not connected yet: connect with the env token, no button to press.
+    let account = stored;
+    let error: string | null = null;
+    if (!account && process.env.INSTAGRAM_ACCESS_TOKEN) {
+      try {
+        const me = await connectInstagram();
+        await subscribeToComments();
+        account = { username: me.username };
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err);
+      }
+    }
+    // What each watched reel has brought in so far.
+    const watched = (reels ?? []).filter((r: { watching: boolean }) => r.watching) as { media_id: string; permalink: string | null; kind: string }[];
+    const stats: Record<string, { comments: number; added: number }> = {};
+    if (watched.length) {
+      const { data: rows } = await sb.from("brasil_comments").select("reel, outcome").in("reel", watched.map((r) => r.permalink ?? r.media_id));
+      for (const r of (rows ?? []) as { reel: string; outcome: string }[]) {
+        const s = (stats[r.reel] ??= { comments: 0, added: 0 });
+        s.comments++;
+        if (r.outcome === "added") s.added++;
+      }
+    }
+    const kindOf = new Map(watched.map((r) => [r.media_id, r.kind]));
     try {
-      const media = await instagramMedia();
-      return NextResponse.json({ account, media: media.map((m) => ({ ...m, watching: watching.get(m.id) ?? null })) });
+      const media = (await instagramMedia(50)).filter((m) => m.media_product_type === "REELS" || kindOf.has(m.id));
+      return NextResponse.json({
+        account,
+        error,
+        media: media.map((m) => ({ ...m, watching: kindOf.get(m.id) ?? null, stats: stats[m.permalink] ?? stats[m.id] ?? { comments: 0, added: 0 } })),
+      });
     } catch (err) {
       return NextResponse.json({ account, media: [], error: err instanceof Error ? err.message : String(err) });
     }
