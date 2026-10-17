@@ -1,0 +1,72 @@
+// ─── Brasil town: reading a comment ─────────────────────────
+// What someone wrote under a reel, as the GitHub username and the state to
+// put on the map. People write it every way: "@login SP", "login sp",
+// "github.com/login - São Paulo", "SP: login", "sou de Recife PE @login".
+// The username: a github.com/ link first, else the first @handle, else a
+// bare word, only when the comment also names a state and that word is the
+// only thing it could be. The state: a UF on its own, or a state's name. An
+// @handle may be an Instagram handle rather than a GitHub one; the importer
+// checks GitHub before placing anyone. Pure.
+
+import { STATES, parseUF, type UF } from "./brasil-map";
+
+export interface ParsedComment {
+  login: string | null;
+  uf: UF | null;
+}
+
+/** A GitHub login: letters, digits and single hyphens, 39 at most, no hyphen at either end. */
+const GITHUB_LOGIN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/;
+const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/** Words that are never a username in these comments (Portuguese and English filler, the ask itself). */
+const NOT_LOGINS = new Set([
+  "eu", "sou", "de", "do", "da", "dos", "das", "e", "o", "a", "os", "as", "meu", "minha", "aqui", "estado", "cidade", "github", "user", "usuario",
+  "me", "coloca", "coloque", "bota", "quero", "por", "favor", "pf", "pfv", "obrigado", "obrigada", "vlw", "valeu", "ai", "ae", "manda", "the", "my",
+  "is", "from", "in", "im", "i", "am", "please", "add", "put", "here", "brasil", "brazil", "sim", "top", "show", "massa", "kkk", "kkkk", "haha",
+]);
+
+const STATE_NAMES: [string, UF][] = STATES.map((s) => [fold(s.name), s.uf] as [string, UF]).sort((a, b) => b[0].length - a[0].length);
+
+export function parseComment(text: string): ParsedComment {
+  const raw = text.trim();
+  const lower = fold(raw);
+
+  // The state: a full name first ("rio grande do sul" before "rio de janeiro" can't clash: longest first), else a UF word.
+  let uf: UF | null = null;
+  let rest = lower;
+  for (const [name, code] of STATE_NAMES) {
+    const at = rest.indexOf(name);
+    if (at >= 0 && (at === 0 || /[^a-z0-9]/.test(rest[at - 1])) && (at + name.length === rest.length || /[^a-z0-9]/.test(rest[at + name.length]))) {
+      uf = code;
+      rest = rest.slice(0, at) + " " + rest.slice(at + name.length);
+      break;
+    }
+  }
+
+  // The username: a github.com link, else an @handle, else a plain word.
+  let login: string | null = null;
+  const link = /github\.com\/([a-z0-9-]+)/i.exec(rest);
+  if (link && GITHUB_LOGIN.test(link[1].toLowerCase())) login = link[1].toLowerCase();
+  const words = rest.replace(/github\.com\/[a-z0-9-]+/gi, " ").split(/[\s,;:|/()!?.]+/).filter(Boolean);
+  if (!uf) {
+    for (const w of words) {
+      const code = parseUF(w.replace(/^@/, ""));
+      if (code && w.length === 2) {
+        uf = code;
+        break;
+      }
+    }
+  }
+  if (!login) {
+    const handle = words.find((w) => w.startsWith("@") && GITHUB_LOGIN.test(w.slice(1)));
+    if (handle) login = handle.slice(1);
+  }
+  // A bare word only counts next to a state and with nothing else it could be ("srizzon sp"),
+  // so a comment like "top demais" never puts a stranger called "demais" on the map.
+  if (!login && uf) {
+    const plain = words.filter((w) => GITHUB_LOGIN.test(w) && !NOT_LOGINS.has(w) && !(w.length === 2 && parseUF(w)) && !/^\d+$/.test(w));
+    if (plain.length === 1) login = plain[0];
+  }
+  return { login, uf };
+}
