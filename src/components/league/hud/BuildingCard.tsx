@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { CityBuilding } from "@/lib/github";
 import type { LeaguePageData } from "@/lib/leagues/queries";
@@ -9,24 +9,33 @@ import { Avatar, fmt } from "./shared";
 import { useSheet } from "./useSheet";
 
 // Same card as the home city's building profile (header, level, stats,
-// actions), plus the dev's place in this league and a kudos button.
+// actions), plus the dev's place in this league and a kudos button. A town
+// drawn another way (the Brasil map) passes its own `section` instead of the
+// league's, and the viewer's login instead of the league's page data.
 
 export default function BuildingCard({
   building: b,
   data,
+  viewerLogin,
+  section,
   onDriveTo,
   onClose,
 }: {
   building: CityBuilding;
-  data: LeaguePageData;
+  data?: LeaguePageData;
+  /** Without league data: who's looking (null signed out). */
+  viewerLogin?: string | null;
+  /** Without league data: what goes where the league's "Joined / this week" row is. */
+  section?: ReactNode;
   /** Get in the car with an arrow pointing here (left out while driving and on your own building). */
   onDriveTo?: () => void;
   onClose: () => void;
 }) {
   const [kudos, setKudos] = useState<{ state: "idle" | "sending" | "sent" | "error"; message?: string }>({ state: "idle" });
-  const isSelf = data.viewer?.login.toLowerCase() === b.loginLower;
+  const viewer = data ? (data.viewer?.login ?? null) : (viewerLogin ?? null);
+  const isSelf = viewer?.toLowerCase() === b.loginLower;
   const giveKudos = async () => {
-    if (!data.viewer) {
+    if (!viewer) {
       setKudos({ state: "error", message: "Sign in to give kudos" });
       return;
     }
@@ -60,8 +69,8 @@ export default function BuildingCard({
     return () => window.removeEventListener("keydown", onKey);
   }, [close]);
 
-  const member = data.members.find((m) => m.login.toLowerCase() === b.loginLower);
-  const standing = data.week.standings.find((s) => s.login.toLowerCase() === b.loginLower);
+  const member = data?.members.find((m) => m.login.toLowerCase() === b.loginLower);
+  const standing = data?.week.standings.find((s) => s.login.toLowerCase() === b.loginLower);
   const level = b.xp_level ?? 1;
   const tier = tierFromLevel(level);
   const rank = rankFromLevel(level);
@@ -149,6 +158,7 @@ export default function BuildingCard({
           </div>
 
           {/* This league */}
+          {section ?? (data && (
           <div className="mx-4 mb-3 flex items-center justify-between border-2 border-border px-3 py-2">
             <span className={`text-[9px] ${member?.status === "invited" ? "text-dim" : "text-cream"}`}>
               {member?.status === "invited" ? "Invited · not joined yet" : "Joined"}
@@ -161,6 +171,7 @@ export default function BuildingCard({
               <span className="text-[9px] text-dim">Not racing</span>
             )}
           </div>
+          ))}
 
           {/* Stats */}
           <div className="mx-4 mb-3 grid grid-cols-3 gap-px border border-border/50 bg-border/30">
