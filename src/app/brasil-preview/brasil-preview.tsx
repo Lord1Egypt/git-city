@@ -73,7 +73,7 @@ export default function BrasilPreview() {
     );
     const buildings = leagueBuildings(objects, scaleTownHeights(byDevId));
     const top = ranking(layout);
-    const founders = layout.cities.filter((c) => c.devs.length > 0).length;
+    const founders = layout.cities.filter((c) => !c.second && c.devs.length > 0).length;
     return { layout, objects, buildings, founders, top: top.slice(0, 3) };
   }, [n, seed]);
 
@@ -81,7 +81,7 @@ export default function BrasilPreview() {
   const noop = useCallback(() => {}, []);
   // The car starts by the founder of the state in view (or the biggest one).
   const driveFrom = useMemo(() => {
-    const city = world.layout.cities.find((c) => c.uf === focus && c.devs.length > 0) ?? world.layout.cities.find((c) => c.uf === world.top[0]?.uf);
+    const city = world.layout.cities.find((c) => c.uf === focus && !c.second && c.devs.length > 0) ?? world.layout.cities.find((c) => c.uf === world.top[0]?.uf && !c.second);
     return city?.devs[0]?.dev.id ?? null;
   }, [world, focus]);
   const drive = useMemo(
@@ -127,9 +127,9 @@ export default function BrasilPreview() {
 
       {/* The series' counter, as an episode would show it */}
       <div className="pointer-events-none absolute left-1/2 top-5 flex -translate-x-1/2 flex-col items-center gap-1 text-center">
-        <span className="bg-bg/85 px-4 py-2 text-2xl text-lime">{n.toLocaleString("pt-BR")} devs</span>
+        <span className="bg-bg/85 px-4 py-2 text-2xl text-lime">{n.toLocaleString("en-US")} devs</span>
         <span className="bg-bg/85 px-3 py-1 text-[11px] text-muted">
-          {world.founders}/27 estados com fundador · {world.layout.island.devs.length} na ilha
+          {world.founders}/27 states with a founder · {world.layout.island.devs.length} on the island
         </span>
       </div>
 
@@ -158,7 +158,7 @@ export default function BrasilPreview() {
             }}
             className={`px-3 py-2 ${i === step ? "bg-lime text-bg" : "bg-[#141417] text-cream hover:text-lime"}`}
           >
-            {s === 0 ? "Dia 1" : `${s} devs`}
+            {s === 0 ? "Day 1" : `${s} devs`}
           </button>
         ))}
         <button type="button" onClick={() => setSeed((v) => v + 1)} className="bg-[#141417] px-3 py-2 text-cream hover:text-lime">
@@ -173,7 +173,7 @@ export default function BrasilPreview() {
           }}
           className="bg-[#141417] px-3 py-2 text-cream hover:text-lime"
         >
-          Brasil
+          Brazil
         </button>
         <button type="button" disabled={driveFrom === null} onClick={() => setDriving((d) => !d)} className="bg-cream px-3 py-2 text-bg disabled:opacity-40">
           {driving ? "Stop" : focus ? `Drive ${focus}` : "Drive"}

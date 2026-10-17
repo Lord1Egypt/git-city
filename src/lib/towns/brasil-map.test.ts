@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LOT } from "../league-city/grid";
 import { MAP_BOUNDS, OUTLINE, STATE_RINGS, coastDistance, inState, onLand } from "./brasil-geo";
-import { CITY, STATES, layoutBrasil, parseUF, ranking, type MapDev, type UF } from "./brasil-map";
+import { CITY, STATES, layoutBrasil, layoutFromResidents, parseUF, ranking, type MapDev, type UF } from "./brasil-map";
 
 const devs = (spec: [UF | null, number][]): MapDev[] => {
   let id = 0;
@@ -57,14 +57,35 @@ describe("brasil cities", () => {
     expect(l.highways.length).toBeGreaterThan(200);
   });
 
-  it("keeps the island out at sea, clear of the coast however big it gets, with no avenues", () => {
+  it("keeps the island out at sea: it grows away from the coast, with no avenues", () => {
     for (const n of [0, 50, 600]) {
       const { island } = layoutBrasil(devs([[null, n]]));
-      const [x, z] = island.hub;
-      expect(coastDistance(x * LOT, z * LOT)).toBeGreaterThan((island.radius + CITY.islandSea - 2) * LOT);
-      expect(onLand(x * LOT, z * LOT)).toBe(false);
+      expect(onLand(island.hub[0] * LOT, island.hub[1] * LOT)).toBe(false);
+      for (const d of island.devs) {
+        expect(onLand(d.x * LOT, d.z * LOT)).toBe(false);
+        expect(coastDistance(d.x * LOT, d.z * LOT)).toBeGreaterThanOrEqual(CITY.islandShore * LOT);
+      }
       expect(island.devs).toHaveLength(n);
     }
+  });
+
+  it("never moves anyone already placed when others arrive", () => {
+    const first = devs([["SP", 40], ["RJ", 20], ["MG", 10], [null, 5]]);
+    const before = layoutBrasil(first);
+    let id = 1000;
+    const more = [...first, ...Array.from({ length: 300 }, (_, i) => ({ id: ++id, login: `late${i}`, uf: (["SP", "RJ", "MG", "ES", null] as const)[i % 5] }))];
+    const after = layoutBrasil(more);
+    const where = (l: typeof before) => new Map([...l.cities, l.island].flatMap((c) => c.devs.map((d) => [d.dev.id, `${d.x},${d.z}`] as const)));
+    const a = where(before);
+    const b = where(after);
+    for (const [devId, lot] of a) expect(b.get(devId)).toBe(lot);
+  });
+
+  it("places a stored resident back exactly where they were", () => {
+    const l = layoutBrasil(devs([["BA", 12], ["PE", 3]]));
+    const residents = l.cities.flatMap((c) => c.devs.map((d, i) => ({ dev: d.dev, x: d.x, z: d.z, hub: c.second ? 1 : 0, at: i })));
+    const again = layoutFromResidents(residents);
+    expect(again.cities.find((c) => c.uf === "BA")!.devs.map((d) => `${d.x},${d.z}`)).toEqual(l.cities.find((c) => c.uf === "BA")!.devs.map((d) => `${d.x},${d.z}`));
   });
 
   it("makes the first dev the founder, next to the square", () => {

@@ -103,8 +103,8 @@ export function brasilWorld(layout: BrasilLayout, building: (dev: MapDev, founde
     }
   }
 
-  // Copses out in the country, clear of the cities.
-  for (const city of layout.cities) {
+  // Copses out in the country (once per state), clear of the cities.
+  for (const city of layout.cities.filter((c) => !c.second)) {
     const uf = city.uf as UF;
     const ring = STATE_RINGS[uf][0];
     const xs = ring.map((p) => p[0]);
@@ -132,9 +132,9 @@ export function brasilWorld(layout: BrasilLayout, building: (dev: MapDev, founde
 
   const top = ranking(layout)[0];
   if (top) {
-    const lead = layout.cities.find((c) => c.uf === top.uf)!;
+    const lead = layout.cities.find((c) => c.uf === top.uf && !c.second)!;
     const [x, z] = lead.center;
-    item("blimp-lead", "blimp", x, z, { px: x * LOT, pz: z * LOT, props: { text: `${top.uf} LIDERA · ${top.devs} DEVS`, color: "#c8e64a", bg: "#0b0f19", alt: 220 } });
+    item("blimp-lead", "blimp", x, z, { px: x * LOT, pz: z * LOT, props: { text: `${top.uf} LEADS · ${top.devs} DEVS`, color: "#c8e64a", bg: "#0b0f19", alt: 220 } });
   }
   return { objects, byDevId };
 }

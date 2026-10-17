@@ -1,22 +1,28 @@
 // ─── Brasil town: the cities ────────────────────────────────
 // Brazil on its real outline (brasil-geo.ts), and in every state a city that
 // grows around its capital with the devs who live there. A city is a street
-// grid of small blocks (three lots a side, a street all round); its first
-// block is the square with the founder, then blocks fill outward, the order
-// bent by a little noise per state so no two cities have the same outline.
-// In a block, two lots in three get a building: the rest, and the middle lot,
-// are lawn and trees, so there's always room to drive. The map isn't to
-// scale (a drive across it is minutes, not hours), so cities don't fit in
-// their states: the biggest grows first and the others grow round it, a
-// block apart, always on land. A capital on the coast moves inland.
-// Highways are streets too: out along one capital's avenue, in along the
-// other's.
+// grid of small blocks (three lots a side, a street all round) laid out from
+// its hub (the capital, moved inland). Its blocks are taken nearest first by
+// a wobbly distance, so no two cities have the same outline. Its first block
+// holds the square with the founder; in the others, two lots in three get a
+// building and the rest are lawn and trees, so there's room to drive.
 //
-// Devs who never said their state live on the island (Fernando de Noronha),
-// which grows the same way. Pure: lots in, lots out (lib/league-city/grid).
+// A dev's lot is chosen once, when they arrive, and stored (BrasilPlacer):
+// the next free lot of their state's city, in a block clear of every other
+// city. Nothing already placed ever moves, so people find their building
+// where they left it. The map isn't to scale (a drive across it is minutes),
+// so a city may spill past its state's border, never onto another city.
+// When a state's capital is boxed in (by the sea, by its neighbors), the
+// state grows a second city where its biggest interior city is; if that
+// fills too, the dev goes to the island, so nobody is ever left out.
+// Highways are streets too: out along one capital's avenue, in along the
+// other's. Devs who never said their state live on the island off the
+// north-east coast (Fernando de Noronha), which grows out to sea.
+//
+// Pure: lots in, lots out (lib/league-city/grid).
 
 import { LOT } from "../league-city/grid";
-import { CAPITALS, ISLAND, coastDistance, inState, onLand, project, stateMiddle } from "./brasil-geo";
+import { CAPITALS, ISLAND, SECOND_CITIES, coastDistance, inState, onLand, project, stateMiddle } from "./brasil-geo";
 
 export type UF =
   | "AC" | "AL" | "AP" | "AM" | "BA" | "CE" | "DF" | "ES" | "GO" | "MA" | "MT" | "MS" | "MG" | "PA"
@@ -84,15 +90,18 @@ export const CITY = {
   inlandLots: 4,
   /** Lots of open country kept between two cities. */
   gapLots: 3,
-  /** The island's smallest radius (lots). */
+  /** The island's smallest radius (lots), for its shore. */
   islandMin: 5,
-  /** Open sea (lots) between the island's shore and the coast. */
+  /** Open sea (lots) between the island's hub and the coast; its blocks keep islandShore of it. */
   islandSea: 16,
+  islandShore: 10,
 } as const;
 
 const P = CITY.block + 1;
+/** Blocks considered round a hub, each way: far more than any city needs. */
+const R = 40;
 
-/** A dev living on the map, in the order they came. */
+/** A dev living on the map. */
 export interface MapDev {
   id: number;
   login: string;
@@ -100,16 +109,31 @@ export interface MapDev {
   uf: UF | null;
 }
 
+/** Which of a state's cities a lot is in: its capital, its second city, or the island (a full state's overflow). */
+export const HUB = { capital: 0, second: 1, island: 9 } as const;
+
+/** A dev with their stored lot, in the order they arrived (`at`: ms, or any increasing number). */
+export interface Resident {
+  dev: MapDev;
+  x: number;
+  z: number;
+  /** HUB: the city the lot belongs to. */
+  hub: number;
+  at: number;
+}
+
 export interface CityLayout {
   uf: UF | null;
   name: string;
+  /** A state's second city (no tag of its own, no founder). */
+  second: boolean;
   /** The city's square (lot): its tag stands here. */
   center: [number, number];
   devs: { dev: MapDev; x: number; z: number; founder: boolean }[];
   roads: [number, number][];
   /** Lawn lots inside the city (trees go here). */
   lawns: [number, number][];
-  /** How far the city reaches from its square (lots), for the island's land and the camera. */
+  /** How far the city reaches from its hub (lots), for the island's shore and the camera. */
   radius: number;
   /** The blocks in use: each one's north-west lot (inside its streets), for the paving. */
   blocks: [number, number][];
@@ -131,10 +155,12 @@ function hash(x: number, z: number, s: number): number {
 }
 
 const toLot = ([x, z]: [number, number]): [number, number] => [Math.round(x / LOT), Math.round(z / LOT)];
+const key = (x: number, z: number) => `${x},${z}`;
+type Owner = UF | "island";
 
-/** The capital's lot, moved toward the state's middle until it stands clear of the coast. */
-function citySquare(uf: UF): [number, number] {
-  const [cx, cz] = project(CAPITALS[uf].at);
+/** A city's lot near `at`, moved toward the state's middle until it stands clear of the coast. */
+function cityHub(uf: UF, at: [number, number]): [number, number] {
+  const [cx, cz] = project(at);
   const [mx, mz] = stateMiddle(uf);
   const need = CITY.inlandLots * LOT;
   for (let t = 0; t <= 1; t += 0.02) {
@@ -145,181 +171,336 @@ function citySquare(uf: UF): [number, number] {
   return toLot([mx, mz]);
 }
 
-/**
- * Grows one city: `fits` says whether a lot is land the city may use.
- * Blocks are taken nearest first (by a wobbly distance), whole, so the
- * neighborhood fills before the next one starts.
- */
-function grow(
-  uf: UF | null,
-  name: string,
-  center: [number, number],
-  devs: MapDev[],
-  seed: number,
-  fits: (x: number, z: number) => boolean,
-  /** The two avenues run on past the last block (to meet the highways); the island's don't. */
-  avenues = true,
-): CityLayout {
-  const [cx, cz] = center;
-  const blockOf = (bx: number, bz: number) => {
-    const lots: [number, number][] = [];
-    for (let u = 1; u <= CITY.block; u++) for (let v = 1; v <= CITY.block; v++) lots.push([cx + bx * P + u, cz + bz * P + v]);
-    return lots;
-  };
+/** Fernando de Noronha, pushed out to sea until it's well clear of the coast. */
+function islandHub(): [number, number] {
+  const [x, z] = toLot(project(ISLAND.at));
+  let dx = 0;
+  while (onLand((x + dx) * LOT, z * LOT) || coastDistance((x + dx) * LOT, z * LOT) < CITY.islandSea * LOT) dx++;
+  return [x + dx, z];
+}
+
+/** A city's fixed plan: where it starts, which land it may use, the order it takes its blocks in. */
+interface Plan {
+  id: string;
+  owner: Owner;
+  /** HUB: which of the owner's cities. */
+  hub: number;
+  name: string;
+  seed: number;
+  fits: (x: number, z: number) => boolean;
+  /** Block indices (bx, bz) nearest first, by a wobbly distance. */
+  order: [number, number][];
+  /** The plan's hub lot. */
+  at: [number, number];
+}
+
+const plans = new Map<string, Plan>();
+
+/** The cities a dev may live in, in the order they fill. */
+function hubsOf(owner: Owner): number[] {
+  if (owner === "island") return [HUB.island];
+  return SECOND_CITIES[owner] ? [HUB.capital, HUB.second, HUB.island] : [HUB.capital, HUB.island];
+}
+
+function planOf(owner: Owner, hubIndex: number = owner === "island" ? HUB.island : HUB.capital): Plan {
+  // A full state's overflow lives on the island's grid, like the islanders.
+  if (hubIndex === HUB.island) owner = "island";
+  const id = `${owner}#${hubIndex}`;
+  const cached = plans.get(id);
+  if (cached) return cached;
+  const base = owner === "island" ? 99 : STATES.findIndex((s) => s.uf === owner) + 1;
+  const seed = base + hubIndex * 31;
+  const second = owner !== "island" && hubIndex === HUB.second ? SECOND_CITIES[owner] : undefined;
+  const hub = owner === "island" ? islandHub() : cityHub(owner, (second ?? CAPITALS[owner]).at);
+  const coast = CITY.coastLots * LOT;
+  const fits =
+    owner === "island"
+      ? (x: number, z: number) => !onLand(x * LOT, z * LOT) && coastDistance(x * LOT, z * LOT) >= CITY.islandShore * LOT
+      : (x: number, z: number) => onLand(x * LOT, z * LOT) && coastDistance(x * LOT, z * LOT) >= coast;
   const phase = hash(seed, 7, 3) * Math.PI * 2;
   const wob = (a: number) => 1 + CITY.wobble * (0.6 * Math.sin(2 * a + phase) + 0.4 * Math.sin(3 * a + phase * 1.7));
-  const blocks: { bx: number; bz: number; d: number }[] = [];
-  const R = 40;
+  const order: { b: [number, number]; d: number }[] = [];
   for (let bx = -R; bx <= R; bx++) {
-    for (let bz = -R; bz <= R; bz++) {
-      const a = Math.atan2(bz + 0.5, bx + 0.5);
-      blocks.push({ bx, bz, d: Math.hypot(bx + 0.5, bz + 0.5) / wob(a) });
+    for (let bz = -R; bz <= R; bz++) order.push({ b: [bx, bz], d: Math.hypot(bx + 0.5, bz + 0.5) / wob(Math.atan2(bz + 0.5, bx + 0.5)) });
+  }
+  order.sort((a, b) => a.d - b.d || a.b[0] - b.b[0] || a.b[1] - b.b[1]);
+  const name = owner === "island" ? ISLAND.name : (second ?? CAPITALS[owner]).city;
+  const plan: Plan = { id, owner, hub: hubIndex, name, seed, fits, order: order.map((o) => o.b), at: hub };
+  plans.set(id, plan);
+  return plan;
+}
+
+/** A block's lots (inside its streets), and its middle lot. */
+function blockLots(plan: Plan, [bx, bz]: [number, number]): { lots: [number, number][]; mid: [number, number] } {
+  const [hx, hz] = plan.at;
+  const lots: [number, number][] = [];
+  for (let u = 1; u <= CITY.block; u++) for (let v = 1; v <= CITY.block; v++) lots.push([hx + bx * P + u, hz + bz * P + v]);
+  return { lots, mid: lots[Math.floor(lots.length / 2)] };
+}
+
+/** The block (bx, bz) of a city's grid a lot falls in, or null on a street. */
+function blockAt(plan: Plan, x: number, z: number): [number, number] | null {
+  const u = x - plan.at[0];
+  const v = z - plan.at[1];
+  const mu = ((u % P) + P) % P;
+  const mv = ((v % P) + P) % P;
+  if (mu === 0 || mv === 0) return null;
+  return [Math.floor(u / P), Math.floor(v / P)];
+}
+
+/** The lots a block may hold buildings on, in the order they fill. The first block keeps its middle as the square. */
+function buildLots(plan: Plan, block: [number, number], first: boolean): [number, number][] {
+  const { lots, mid } = blockLots(plan, block);
+  return lots.filter(([x, z]) => !(x === mid[0] && z === mid[1]) && (first || hash(x, z, plan.seed) >= CITY.lawn));
+}
+
+const ownerOf = (dev: MapDev): Owner => (dev.uf && BY_UF.has(dev.uf) ? dev.uf : "island");
+const planOfResident = (r: Resident) => planOf(ownerOf(r.dev), r.hub);
+
+/**
+ * Chooses lots for arriving devs, given everyone already placed. Keeps, per
+ * city, the blocks it uses (its first block is the founder's), and every lot
+ * claimed by a city's blocks plus the gap round them.
+ */
+export class BrasilPlacer {
+  private taken = new Set<string>();
+  private claims = new Map<string, string>();
+  private used = new Map<string, { blocks: string[]; set: Set<string> }>();
+  /**
+   * Per city, how far down its block order every block is settled for good:
+   * full, or closed to it (another city's ground, or not land). Neither ever
+   * changes back, so the next search starts there.
+   */
+  private cursor = new Map<string, number>();
+
+  constructor(residents: readonly Resident[] = []) {
+    for (const r of [...residents].sort((a, b) => a.at - b.at)) this.record(planOfResident(r), r.x, r.z);
+  }
+
+  private usedOf(plan: Plan) {
+    let u = this.used.get(plan.id);
+    if (!u) this.used.set(plan.id, (u = { blocks: [], set: new Set() }));
+    return u;
+  }
+
+  private record(plan: Plan, x: number, z: number) {
+    this.taken.add(key(x, z));
+    const b = blockAt(plan, x, z);
+    if (!b) return;
+    const u = this.usedOf(plan);
+    const bk = key(b[0], b[1]);
+    if (u.set.has(bk)) return;
+    u.set.add(bk);
+    u.blocks.push(bk);
+    // The block, its streets and the gap round them belong to this city now.
+    const [hx, hz] = plan.at;
+    const g = CITY.gapLots;
+    for (let lx = hx + b[0] * P - g; lx <= hx + b[0] * P + P + g; lx++) {
+      for (let lz = hz + b[1] * P - g; lz <= hz + b[1] * P + P + g; lz++) if (!this.claims.has(key(lx, lz))) this.claims.set(key(lx, lz), plan.id);
     }
   }
-  blocks.sort((a, b) => a.d - b.d || a.bx - b.bx || a.bz - b.bz);
 
-  const placed: CityLayout["devs"] = [];
-  const lawns: [number, number][] = [];
-  const used: { bx: number; bz: number }[] = [];
-  let square: [number, number] | null = null;
-  let i = 0;
-  for (const b of blocks) {
-    if (placed.length >= devs.length && square) break;
-    const lots = blockOf(b.bx, b.bz);
-    if (!lots.every(([x, z]) => fits(x, z))) continue;
-    used.push(b);
-    const mid = lots[Math.floor(lots.length / 2)];
-    if (!square) {
-      // The first block: the square in the middle, the founder beside it.
-      square = mid;
-      for (const [x, z] of lots) {
-        if (x === mid[0] && z === mid[1]) continue;
-        if (i < devs.length) placed.push({ dev: devs[i], x, z, founder: i++ === 0 });
-        else lawns.push([x, z]);
+  /** Whether a city may start using a block: on its land, and nobody else's ground. */
+  private free(plan: Plan, block: [number, number]): boolean {
+    const [hx, hz] = plan.at;
+    for (let lx = hx + block[0] * P; lx <= hx + block[0] * P + P; lx++) {
+      for (let lz = hz + block[1] * P; lz <= hz + block[1] * P + P; lz++) {
+        const c = this.claims.get(key(lx, lz));
+        if (c && c !== plan.id) return false;
       }
-      continue;
     }
-    for (const [x, z] of lots) {
-      const lawn = (x === mid[0] && z === mid[1]) || hash(x, z, seed) < CITY.lawn;
-      if (!lawn && i < devs.length) placed.push({ dev: devs[i], x, z, founder: i++ === 0 });
-      else lawns.push([x, z]);
-    }
+    return blockLots(plan, block).lots.every(([x, z]) => plan.fits(x, z));
   }
 
-  // A street round every block in use, and the two avenues out of the square a block further.
+  /** A city's first block (the founder's), or where it would start if it had nobody yet. */
+  firstBlock(plan: Plan): [number, number] | null {
+    const u = this.used.get(plan.id);
+    if (u?.blocks.length) return u.blocks[0].split(",").map(Number) as [number, number];
+    return plan.order.find((b) => this.free(plan, b)) ?? null;
+  }
+
+  /** The next free lot in one city, or null when it can't grow any more. */
+  private placeIn(plan: Plan): [number, number] | null {
+    const u = this.usedOf(plan);
+    // The city's first block is the first one it ever used (the founder's); with nobody yet, the one about to be.
+    const first = u.blocks[0]?.split(",").map(Number) as [number, number] | undefined;
+    for (let i = this.cursor.get(plan.id) ?? 0; i < plan.order.length; i++) {
+      const b = plan.order[i];
+      if (!u.set.has(key(b[0], b[1])) && !this.free(plan, b)) {
+        this.cursor.set(plan.id, i + 1);
+        continue;
+      }
+      const isFirst = first ? b[0] === first[0] && b[1] === first[1] : u.blocks.length === 0;
+      const lots = buildLots(plan, b, isFirst);
+      const lot = lots.find(([x, z]) => !this.taken.has(key(x, z)));
+      if (!lot) {
+        this.cursor.set(plan.id, i + 1);
+        continue;
+      }
+      this.record(plan, lot[0], lot[1]);
+      // This block just filled up: nothing more to look for in it.
+      if (lots.every(([x, z]) => this.taken.has(key(x, z)))) this.cursor.set(plan.id, i + 1);
+      return lot;
+    }
+    return null;
+  }
+
+  /** The next lot for a dev: their capital's, else their second city's, else the island's. */
+  place(dev: MapDev): { x: number; z: number; hub: number } | null {
+    const owner = ownerOf(dev);
+    for (const hub of hubsOf(owner)) {
+      const lot = this.placeIn(planOf(owner, hub));
+      if (lot) return { x: lot[0], z: lot[1], hub };
+    }
+    return null;
+  }
+
+  /** The blocks a city uses, in the order it took them. */
+  blocksOf(plan: Plan): [number, number][] {
+    return (this.used.get(plan.id)?.blocks ?? []).map((k) => k.split(",").map(Number) as [number, number]);
+  }
+}
+
+/** One city from its stored residents (and the placer, for an empty city's square). */
+function cityLayout(plan: Plan, residents: Resident[], placer: BrasilPlacer, foundedHere: boolean): CityLayout {
+  const [hx, hz] = plan.at;
+  const sorted = [...residents].sort((a, b) => a.at - b.at);
+  const first = placer.firstBlock(plan);
+  const blocks = placer.blocksOf(plan);
+  const square = first ? blockLots(plan, first).mid : plan.at;
+  const taken = new Set(sorted.map((r) => key(r.x, r.z)));
+  taken.add(key(square[0], square[1]));
+
+  // A street round every block in use (the square's block even when nobody lives there yet).
+  const streetBlocks = blocks.length ? blocks : first ? [first] : [];
   const roads = new Set<string>();
   let radius = 2;
-  for (const b of used) {
-    const x0 = cx + b.bx * P;
-    const z0 = cz + b.bz * P;
+  for (const [bx, bz] of streetBlocks) {
+    const x0 = hx + bx * P;
+    const z0 = hz + bz * P;
     for (let k = 0; k <= P; k++) {
-      roads.add(`${x0 + k},${z0}`);
-      roads.add(`${x0 + k},${z0 + P}`);
-      roads.add(`${x0},${z0 + k}`);
-      roads.add(`${x0 + P},${z0 + k}`);
+      roads.add(key(x0 + k, z0));
+      roads.add(key(x0 + k, z0 + P));
+      roads.add(key(x0, z0 + k));
+      roads.add(key(x0 + P, z0 + k));
     }
-    radius = Math.max(radius, Math.hypot(b.bx + 0.5, b.bz + 0.5) * P + P);
+    radius = Math.max(radius, Math.hypot(bx + 0.5, bz + 0.5) * P + P);
   }
-  const reach = Math.ceil(radius) + P;
-  for (let k = -reach; k <= reach && avenues; k++) {
-    if (fits(cx + k, cz)) roads.add(`${cx + k},${cz}`);
-    if (fits(cx, cz + k)) roads.add(`${cx},${cz + k}`);
+  // The mainland's two avenues run on a block past the city, to meet the highways.
+  if (plan.owner !== "island") {
+    const reach = Math.ceil(radius) + P;
+    for (let k = -reach; k <= reach; k++) {
+      if (plan.fits(hx + k, hz)) roads.add(key(hx + k, hz));
+      if (plan.fits(hx, hz + k)) roads.add(key(hx, hz + k));
+    }
   }
-  const taken = new Set([...placed.map((p) => `${p.x},${p.z}`), ...(square ? [square.join()] : [])]);
+  const lawns: [number, number][] = [];
+  for (const b of streetBlocks) for (const [x, z] of blockLots(plan, b).lots) if (!taken.has(key(x, z)) && !roads.has(key(x, z))) lawns.push([x, z]);
+
   return {
-    uf,
-    name,
-    center: square ?? center,
-    devs: placed,
+    uf: plan.owner === "island" ? null : plan.owner,
+    name: plan.name,
+    second: plan.hub === HUB.second,
+    center: square,
+    devs: sorted.map((r, i) => ({ dev: r.dev, x: r.x, z: r.z, founder: foundedHere && i === 0 })),
     roads: [...roads].filter((k) => !taken.has(k)).map((k) => k.split(",").map(Number) as [number, number]),
-    lawns: lawns.filter(([x, z]) => !roads.has(`${x},${z}`)),
+    lawns,
     radius,
-    blocks: used.map((b) => [cx + b.bx * P + 1, cz + b.bz * P + 1] as [number, number]),
-    hub: center,
+    blocks: streetBlocks.map(([bx, bz]) => [hx + bx * P + 1, hz + bz * P + 1] as [number, number]),
+    hub: plan.at,
   };
 }
 
-/** Every state's city around its capital, the island, and the highways between them. */
-export function layoutBrasil(devs: readonly MapDev[]): BrasilLayout {
-  const byUf = new Map<UF, MapDev[]>();
-  const islanders: MapDev[] = [];
-  for (const d of devs) {
-    if (d.uf && BY_UF.has(d.uf)) byUf.set(d.uf, [...(byUf.get(d.uf) ?? []), d]);
-    else islanders.push(d);
+/**
+ * The whole map from stored residents: every state's capital (and its second
+ * city once it has anyone), the island, the highways.
+ */
+export function layoutFromResidents(residents: readonly Resident[]): BrasilLayout {
+  const placer = new BrasilPlacer(residents);
+  const byPlan = new Map<string, Resident[]>();
+  for (const r of residents) {
+    const id = planOfResident(r).id;
+    byPlan.set(id, [...(byPlan.get(id) ?? []), r]);
   }
-  const coast = CITY.coastLots * LOT;
-  // Lots a city has claimed (its blocks and streets, plus the gap round them): no one else builds there.
-  const claimed = new Set<string>();
-  const claim = (c: CityLayout) => {
-    const g = CITY.gapLots;
-    for (const [x0, z0] of c.blocks) {
-      for (let x = x0 - 1 - g; x <= x0 + CITY.block + g; x++) for (let z = z0 - 1 - g; z <= z0 + CITY.block + g; z++) claimed.add(`${x},${z}`);
-    }
-  };
-  // The biggest city first: it keeps its capital's ground.
-  const order = STATES.map((s, k) => ({ s, k, n: byUf.get(s.uf)?.length ?? 0 })).sort((a, b) => b.n - a.n || a.k - b.k);
-  const grown = new Map<UF, CityLayout>();
-  for (const { s, k } of order) {
-    const city = grow(s.uf, CAPITALS[s.uf].city, citySquare(s.uf), byUf.get(s.uf) ?? [], k + 1, (x, z) => {
-      const wx = x * LOT;
-      const wz = z * LOT;
-      return !claimed.has(`${x},${z}`) && onLand(wx, wz) && coastDistance(wx, wz) >= coast;
-    });
-    claim(city);
-    grown.set(s.uf, city);
+  const cities: CityLayout[] = [];
+  for (const s of STATES) {
+    const capital = planOf(s.uf, HUB.capital);
+    cities.push(cityLayout(capital, byPlan.get(capital.id) ?? [], placer, true));
   }
-  const cities = STATES.map((s) => grown.get(s.uf) as CityLayout);
-  // The island is as big as it needs to be: grown on open water, its shore drawn round it,
-  // then pushed out to sea until that shore is well clear of the coast.
-  const at = toLot(project(ISLAND.at));
-  let island = grow(null, ISLAND.name, at, islanders, 99, () => true, false);
-  const reachLots = Math.max(CITY.islandMin, island.radius) + CITY.islandSea;
-  let dx = 0;
-  while (coastDistance((at[0] + dx) * LOT, at[1] * LOT) < reachLots * LOT || onLand((at[0] + dx) * LOT, at[1] * LOT)) dx++;
-  if (dx > 0) island = grow(null, ISLAND.name, [at[0] + dx, at[1]], islanders, 99, () => true, false);
+  for (const s of STATES) {
+    if (!SECOND_CITIES[s.uf]) continue;
+    const second = planOf(s.uf, HUB.second);
+    const here = byPlan.get(second.id);
+    if (here?.length) cities.push(cityLayout(second, here, placer, false));
+  }
+  const islandPlan = planOf("island");
+  const island = cityLayout(islandPlan, byPlan.get(islandPlan.id) ?? [], placer, false);
+  // The island's first arrival who never said a state is its founder (overflow from full states isn't).
+  const firstIslander = island.devs.find((d) => d.dev.uf === null);
+  if (firstIslander) firstIslander.founder = true;
   island.radius = Math.max(CITY.islandMin, island.radius);
+  // A street never runs over anyone's building, lawn or square (an avenue reaching into a neighbor stops there).
+  const solid = new Set([...cities, island].flatMap((c) => [...c.devs.map((d) => key(d.x, d.z)), ...c.lawns.map((l) => l.join()), c.center.join()]));
+  for (const c of [...cities, island]) c.roads = c.roads.filter(([x, z]) => !solid.has(key(x, z)));
   return { cities, island, highways: highways(cities) };
+}
+
+/** Devs arriving one by one in this order (the preview, the tests): each placed as the site would. */
+export function layoutBrasil(devs: readonly MapDev[]): BrasilLayout {
+  const placer = new BrasilPlacer();
+  const residents: Resident[] = [];
+  devs.forEach((dev, i) => {
+    const lot = placer.place(dev);
+    if (lot) residents.push({ dev, x: lot.x, z: lot.z, hub: lot.hub, at: i });
+  });
+  return layoutFromResidents(residents);
 }
 
 /**
  * Each capital to its two nearest, once per pair: out along one's east-west
- * avenue, in along the other's north-south one. Never over a building or a
- * lawn (a highway through a city runs on its streets, or around).
+ * avenue, in along the other's north-south one. Never over a building, a lawn
+ * or the sea (a highway through a city runs on its streets).
  */
 function highways(cities: CityLayout[]): [number, number][] {
-  const blocked = new Set(cities.flatMap((c) => [...c.devs.map((d) => `${d.x},${d.z}`), ...c.lawns.map((l) => l.join()), c.center.join()]));
+  const blocked = new Set(cities.flatMap((c) => [...c.devs.map((d) => key(d.x, d.z)), ...c.lawns.map((l) => l.join()), c.center.join()]));
   const streets = new Set(cities.flatMap((c) => c.roads.map((r) => r.join())));
   const out = new Set<string>();
+  const link = (a: CityLayout, b: CityLayout) => {
+    const [ax, az] = a.hub;
+    const [bx, bz] = b.hub;
+    const lots: [number, number][] = [];
+    for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) lots.push([x, az]);
+    for (let z = Math.min(az, bz); z <= Math.max(az, bz); z++) lots.push([bx, z]);
+    for (const [x, z] of lots) {
+      const k = key(x, z);
+      if (!blocked.has(k) && !streets.has(k) && onLand(x * LOT, z * LOT)) out.add(k);
+    }
+  };
+  const capitals = cities.filter((c) => !c.second);
   const seen = new Set<string>();
-  cities.forEach((a, i) => {
-    cities
-      .map((b, j) => ({ j, d: Math.hypot(b.center[0] - a.center[0], b.center[1] - a.center[1]) }))
+  capitals.forEach((a, i) => {
+    capitals
+      .map((b, j) => ({ j, d: Math.hypot(b.hub[0] - a.hub[0], b.hub[1] - a.hub[1]) }))
       .filter((e) => e.j !== i)
       .sort((p, q) => p.d - q.d)
       .slice(0, 2)
       .forEach(({ j }) => {
-        const key = i < j ? `${i}-${j}` : `${j}-${i}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        const b = cities[j];
-        const [ax, az] = a.hub;
-        const [bx, bz] = b.hub;
-        const lots: [number, number][] = [];
-        for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) lots.push([x, az]);
-        for (let z = Math.min(az, bz); z <= Math.max(az, bz); z++) lots.push([bx, z]);
-        for (const [x, z] of lots) {
-          const k = `${x},${z}`;
-          if (!blocked.has(k) && !streets.has(k) && onLand(x * LOT, z * LOT)) out.add(k);
-        }
+        const pair = i < j ? `${i}-${j}` : `${j}-${i}`;
+        if (seen.has(pair)) return;
+        seen.add(pair);
+        link(a, capitals[j]);
       });
   });
+  // A second city hangs off its capital.
+  for (const c of cities) if (c.second) link(c, capitals.find((k) => k.uf === c.uf)!);
   return [...out].map((k) => k.split(",").map(Number) as [number, number]);
 }
 
-/** States by devs, most first; ties by name order. */
+/** States by devs (all their cities, and their overflow on the island), most first; ties by name order. */
 export function ranking(layout: BrasilLayout): { uf: UF; devs: number }[] {
-  return layout.cities
-    .filter((c): c is CityLayout & { uf: UF } => c.uf !== null && c.devs.length > 0)
-    .map((c) => ({ uf: c.uf, devs: c.devs.length }))
+  const n = new Map<UF, number>();
+  for (const c of [...layout.cities, layout.island]) for (const d of c.devs) if (d.dev.uf) n.set(d.dev.uf, (n.get(d.dev.uf) ?? 0) + 1);
+  return STATES.filter((s) => n.has(s.uf))
+    .map((s) => ({ uf: s.uf, devs: n.get(s.uf)! }))
     .sort((a, b) => b.devs - a.devs);
 }

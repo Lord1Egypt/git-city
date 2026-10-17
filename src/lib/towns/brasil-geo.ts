@@ -52,6 +52,40 @@ export const CAPITALS: Record<UF, { city: string; at: LonLat }> = {
 
 export const ISLAND = { name: "Fernando de Noronha", at: [-32.42, -3.85] as LonLat };
 
+/**
+ * Each state's second city, where it grows once its capital is full: the
+ * biggest city of the interior, far enough from the capital to have room
+ * (so Ribeirão Preto, not Campinas). The Federal District has none.
+ */
+export const SECOND_CITIES: Partial<Record<UF, { city: string; at: LonLat }>> = {
+  AC: { city: "Cruzeiro do Sul", at: [-72.67, -7.63] },
+  AL: { city: "Arapiraca", at: [-36.66, -9.75] },
+  AP: { city: "Oiapoque", at: [-51.83, 3.84] },
+  AM: { city: "Parintins", at: [-56.74, -2.63] },
+  BA: { city: "Feira de Santana", at: [-38.97, -12.27] },
+  CE: { city: "Juazeiro do Norte", at: [-39.31, -7.21] },
+  ES: { city: "Cachoeiro de Itapemirim", at: [-41.11, -20.85] },
+  GO: { city: "Rio Verde", at: [-50.93, -17.79] },
+  MA: { city: "Imperatriz", at: [-47.49, -5.53] },
+  MT: { city: "Rondonópolis", at: [-54.64, -16.47] },
+  MS: { city: "Dourados", at: [-54.81, -22.22] },
+  MG: { city: "Uberlândia", at: [-48.28, -18.92] },
+  PA: { city: "Santarém", at: [-54.71, -2.44] },
+  PB: { city: "Campina Grande", at: [-35.88, -7.23] },
+  PR: { city: "Londrina", at: [-51.16, -23.31] },
+  PE: { city: "Caruaru", at: [-35.98, -8.28] },
+  PI: { city: "Parnaíba", at: [-41.78, -2.9] },
+  RJ: { city: "Campos dos Goytacazes", at: [-41.32, -21.75] },
+  RN: { city: "Mossoró", at: [-37.34, -5.19] },
+  RS: { city: "Caxias do Sul", at: [-51.18, -29.17] },
+  RO: { city: "Ji-Paraná", at: [-61.95, -10.88] },
+  RR: { city: "Rorainópolis", at: [-60.43, 0.94] },
+  SC: { city: "Joinville", at: [-48.85, -26.3] },
+  SP: { city: "Ribeirão Preto", at: [-47.81, -21.18] },
+  SE: { city: "Itabaiana", at: [-37.42, -10.69] },
+  TO: { city: "Araguaína", at: [-48.21, -7.19] },
+};
+
 const GEO = RAW_GEO as unknown as { outline: LonLat[][]; states: Record<string, LonLat[][]> };
 
 const raw = ([lon, lat]: LonLat): [number, number] => [lon * K * COS0, -lat * K];

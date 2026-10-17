@@ -269,7 +269,7 @@ function CitySign({ city }: { city: CityLayout }) {
     ctx.fillText(name, 128, 54);
     ctx.font = "18px Silkscreen, monospace";
     ctx.fillStyle = "#8a93a6";
-    ctx.fillText(city.uf ?? "ILHA", 128, 96);
+    ctx.fillText(city.uf ?? "ISLAND", 128, 96);
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     t.magFilter = THREE.NearestFilter;
@@ -329,7 +329,7 @@ function Tag({ city, near, onClick }: { city: CityLayout; near: boolean; onClick
       <button type="button" onClick={onClick} className="flex cursor-pointer flex-col items-center whitespace-nowrap font-pixel uppercase">
         <span className="flex items-center gap-1.5 border-2 border-border bg-bg/85 px-1.5 py-0.5 text-[11px] text-cream hover:border-lime">
           <span className="h-2 w-2" style={{ background: swatch }} aria-hidden />
-          {city.uf ?? "Ilha"}
+          {city.second ? city.name : (city.uf ?? "Island")}
           {city.devs.length > 0 && <span className="text-lime">{city.devs.length}</span>}
         </span>
         {near && (
@@ -484,7 +484,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       <Paving cities={[...cities, island]} />
       <Squares cities={[...cities, island]} />
       {[...cities, island].map((c) => (
-        <CitySign key={`sign-${c.uf ?? "island"}`} city={c} />
+        <CitySign key={`sign-${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} />
       ))}
       <InstancedDecorations items={decorations} roadMarkingColor={NIGHT.roadMarkingColor} sidewalkColor={NIGHT.sidewalkColor} />
       <LeagueRoads objects={objects} markingColor={NIGHT.roadMarkingColor} />
@@ -494,7 +494,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       <IdentityLayer objects={objects} identity={identity} name="Brasil" h={MAP_H} hillColor={LAND} />
       <CityScene buildings={buildings} colors={NIGHT.building} accentColor={NIGHT.building.accent} smash={smash} />
       {!driving && <NearPlates buildings={buildings} />}
-      {!driving && [...cities, island].map((c) => <Tag key={c.uf ?? "island"} city={c} near={near} onClick={() => onTag?.(c)} />)}
+      {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} onClick={() => onTag?.(c)} />)}
       {driving && drive && <DriveWorld objects={objects} buildings={buildings} h={MAP_H} smash={smash} {...drive} />}
     </Canvas>
   );
