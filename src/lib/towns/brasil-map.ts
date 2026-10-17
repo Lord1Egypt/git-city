@@ -129,7 +129,8 @@ export interface CityLayout {
   second: boolean;
   /** The city's square (lot): its tag stands here. */
   center: [number, number];
-  devs: { dev: MapDev; x: number; z: number; founder: boolean }[];
+  /** In the order they arrived (`at`, as stored). */
+  devs: { dev: MapDev; x: number; z: number; founder: boolean; at: number }[];
   roads: [number, number][];
   /** Lawn lots inside the city (trees go here). */
   lawns: [number, number][];
@@ -402,7 +403,7 @@ function cityLayout(plan: Plan, residents: Resident[], placer: BrasilPlacer, fou
     name: plan.name,
     second: plan.hub === HUB.second,
     center: square,
-    devs: sorted.map((r, i) => ({ dev: r.dev, x: r.x, z: r.z, founder: foundedHere && i === 0 })),
+    devs: sorted.map((r, i) => ({ dev: r.dev, x: r.x, z: r.z, founder: foundedHere && i === 0, at: r.at })),
     roads: [...roads].filter((k) => !taken.has(k)).map((k) => k.split(",").map(Number) as [number, number]),
     lawns,
     radius,

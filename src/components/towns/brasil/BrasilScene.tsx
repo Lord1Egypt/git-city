@@ -23,6 +23,7 @@ import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import type { CityObject } from "@/lib/league-city/types";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { MAP_BOUNDS, MAP_H, OUTLINE, RIVERS, STATE_RINGS, type Ring } from "@/lib/towns/brasil-geo";
+import { mapNav, type MapCameraStore } from "@/lib/map-nav";
 import { stateOf, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 
 // The Brasil town: the country on its real outline under the towns' night
@@ -291,14 +292,14 @@ function NearPlates({ buildings }: { buildings: CityBuilding[] }) {
     last.current = clock.elapsedTime;
     const target = (controls as unknown as { target?: THREE.Vector3 } | null)?.target;
     if (!target) return;
-    const far = camera.position.distanceTo(target) > 2200;
+    const far = camera.position.distanceTo(target) > 1500;
     const near = far
       ? []
       : buildings
           .map((b) => ({ b, d: Math.hypot(b.position[0] - target.x, b.position[2] - target.z) }))
-          .filter((e) => e.d < 650)
+          .filter((e) => e.d < 420)
           .sort((p, q) => p.d - q.d)
-          .slice(0, 18)
+          .slice(0, 8)
           .map((e) => e.b);
     const k = near.map((b) => b.login).join();
     if (k !== key.current) {
@@ -358,6 +359,7 @@ export interface CameraApi {
   flyTo: (lot: [number, number] | null, radiusLots?: number) => void;
 }
 
+
 const FOV = 45;
 
 /** The whole country in frame, a little tilted, north up. */
@@ -372,8 +374,9 @@ function overviewPose(aspect: number) {
   return { target: new THREE.Vector3(cx, 0, cz), position: new THREE.Vector3(cx, dist * Math.sin(tilt), cz + dist * Math.cos(tilt)) };
 }
 
-function MapCamera({ apiRef, onNear }: { apiRef?: React.MutableRefObject<CameraApi | null>; onNear: Near }) {
+function MapCamera({ apiRef, onNear, store }: { apiRef?: React.MutableRefObject<CameraApi | null>; onNear: Near; store?: MapCameraStore }) {
   const near = useRef(false);
+  const lastStore = useRef(0);
   const controls = useRef<MapControlsImpl>(null);
   const { size } = useThree();
   const flight = useRef<{ from: [THREE.Vector3, THREE.Vector3]; to: [THREE.Vector3, THREE.Vector3]; t: number } | null>(null);
@@ -403,6 +406,30 @@ function MapCamera({ apiRef, onNear }: { apiRef?: React.MutableRefObject<CameraA
     };
   }, [apiRef, size]);
 
+  // The compass and zoom buttons (MapNavControls), and the minimap's clicks.
+  useEffect(
+    () =>
+      mapNav.subscribe((cmd) => {
+        const c = controls.current;
+        if (!c) return;
+        const pos = c.object.position;
+        const tgt = c.target;
+        if (cmd.type === "zoom") {
+          const to = pos.clone().sub(tgt).multiplyScalar(cmd.factor).add(tgt);
+          flight.current = { from: [pos.clone(), tgt.clone()], to: [to, tgt.clone()], t: 0 };
+        } else if (cmd.type === "north") {
+          const d = pos.distanceTo(tgt);
+          const h = pos.y - tgt.y;
+          const flat = Math.sqrt(Math.max(1, d * d - h * h));
+          flight.current = { from: [pos.clone(), tgt.clone()], to: [new THREE.Vector3(tgt.x, pos.y, tgt.z + flat), tgt.clone()], t: 0 };
+        } else if (cmd.type === "flyTo") {
+          const d = cmd.distance ?? 2400;
+          flight.current = { from: [pos.clone(), tgt.clone()], to: [new THREE.Vector3(cmd.x, d * 0.75, cmd.z + d * 0.7), new THREE.Vector3(cmd.x, 0, cmd.z)], t: 0 };
+        }
+      }),
+    [],
+  );
+
   useFrame(({ camera, scene }, dt) => {
     const c = controls.current;
     if (!c) return;
@@ -419,6 +446,10 @@ function MapCamera({ apiRef, onNear }: { apiRef?: React.MutableRefObject<CameraA
       camera.position.lerpVectors(f.from[0], f.to[0], k);
       c.target.lerpVectors(f.from[1], f.to[1], k);
       if (f.t >= 1) flight.current = null;
+    }
+    if (store && performance.now() - lastStore.current > 120) {
+      lastStore.current = performance.now();
+      store.set(camera.position.x, camera.position.z, c.target.x, c.target.z);
     }
     // Haze scaled to how far up the camera is: the whole country from the top, the streets up close.
     const h = camera.position.distanceTo(c.target);
@@ -456,13 +487,18 @@ export interface BrasilSceneProps {
   objects: CityObject[];
   buildings: CityBuilding[];
   cameraApi?: React.MutableRefObject<CameraApi | null>;
+  /** Filled with where the camera is, for the compass. */
+  cameraStore?: MapCameraStore;
   onTag?: (city: CityLayout) => void;
+  onBuildingClick?: (b: CityBuilding) => void;
+  /** The building whose card is open (lit up). */
+  focused?: string | null;
   /** Drive mode: the car and its world (offline in the preview). */
   drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
   smash?: SmashStore;
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, onTag, drive, smash }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash }: BrasilSceneProps) {
   const driving = !!drive;
   const [near, setNear] = useState(false);
   const decorations = useMemo(() => decorationsOf(objects), [objects]);
@@ -479,7 +515,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
     >
       <ThemeLights theme={NIGHT} themeIndex={NIGHT_KEY} />
       <ThemeSkyFX themeIndex={NIGHT_FX} theme={NIGHT} lowSky />
-      {!driving && <MapCamera apiRef={cameraApi} onNear={setNear} />}
+      {!driving && <MapCamera apiRef={cameraApi} onNear={setNear} store={cameraStore} />}
       <Ground island={island} />
       <Paving cities={[...cities, island]} />
       <Squares cities={[...cities, island]} />
@@ -492,7 +528,14 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
         <LeagueTrees objects={objects} />
       </Suspense>
       <IdentityLayer objects={objects} identity={identity} name="Brasil" h={MAP_H} hillColor={LAND} />
-      <CityScene buildings={buildings} colors={NIGHT.building} accentColor={NIGHT.building.accent} smash={smash} />
+      <CityScene
+        buildings={buildings}
+        colors={NIGHT.building}
+        accentColor={NIGHT.building.accent}
+        smash={smash}
+        focusedBuilding={driving ? null : focused}
+        onBuildingClick={driving ? undefined : onBuildingClick}
+      />
       {!driving && <NearPlates buildings={buildings} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} onClick={() => onTag?.(c)} />)}
       {driving && drive && <DriveWorld objects={objects} buildings={buildings} h={MAP_H} smash={smash} {...drive} />}
