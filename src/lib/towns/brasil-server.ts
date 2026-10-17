@@ -139,6 +139,10 @@ export interface ReelComment {
   text: string;
   /** What the reel is about: the Brasil map (the default), or just a building in the city. */
   kind?: ReelKind;
+  /** The comment already read (by the model, or as a "sim" to our suggestion); else the rules read it. */
+  parsed?: { login: string | null; uf: UF | null };
+  /** Its log row is already there (the caller claimed it): fill it in instead of adding one. */
+  claimed?: boolean;
 }
 
 export type ReelKind = "brasil" | "city";
@@ -158,12 +162,16 @@ export async function importBrasilComment(
   c: ReelComment,
 ): Promise<{ outcome: ImportOutcome; login: string | null; uf: UF | null; fresh: boolean }> {
   const sb = getSupabaseAdmin();
-  const { data: seen } = await sb.from("brasil_comments").select("outcome, github_login, uf").eq("id", c.id).maybeSingle<{ outcome: ImportOutcome; github_login: string | null; uf: UF | null }>();
+  const { data: seen } = c.claimed
+    ? { data: null }
+    : await sb.from("brasil_comments").select("outcome, github_login, uf").eq("id", c.id).maybeSingle<{ outcome: ImportOutcome; github_login: string | null; uf: UF | null }>();
   if (seen) return { outcome: seen.outcome, login: seen.github_login, uf: seen.uf, fresh: false };
 
-  const { login, uf } = parseComment(c.text);
+  const { login, uf } = c.parsed ?? parseComment(c.text);
   const log = async (outcome: ImportOutcome, developerId: number | null = null) => {
-    await sb.from("brasil_comments").insert({ id: c.id, reel: c.reel, ig_user: c.igUser, github_login: login, uf, developer_id: developerId, outcome });
+    const row = { reel: c.reel, ig_user: c.igUser, github_login: login, uf, developer_id: developerId, outcome };
+    if (c.claimed) await sb.from("brasil_comments").update(row).eq("id", c.id);
+    else await sb.from("brasil_comments").insert({ id: c.id, ...row });
     return { outcome, login, uf, fresh: true };
   };
   if (!login) return log("no_login");

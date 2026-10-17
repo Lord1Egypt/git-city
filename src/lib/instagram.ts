@@ -113,3 +113,18 @@ export async function instagramComments(mediaId: string, pages = 4): Promise<IgC
   }
   return out;
 }
+
+/** A thread: the top-level comment then its replies, oldest first, each with who wrote it (at most 8 replies, the latest). */
+export async function instagramThread(parentId: string): Promise<{ id: string; text: string; username: string | null; at: string }[]> {
+  const parent = await graph<{ id: string; text: string; timestamp: string; from?: { username?: string }; replies?: { data: { id: string; timestamp: string }[] } }>(`/${parentId}`, {
+    fields: "id,text,timestamp,from,replies{id,timestamp}",
+  });
+  // The replies list leaves out who wrote each one: fetch them one by one.
+  const ids = (parent.replies?.data ?? []).sort((a, b) => a.timestamp.localeCompare(b.timestamp)).slice(-8);
+  const replies = await Promise.all(
+    ids.map((r) =>
+      graph<{ id: string; text: string; timestamp: string; from?: { username?: string } }>(`/${r.id}`, { fields: "id,text,timestamp,from" }).catch(() => null),
+    ),
+  );
+  return [parent, ...replies.filter((r): r is NonNullable<typeof r> => !!r)].map((c) => ({ id: c.id, text: c.text, username: c.from?.username?.toLowerCase() ?? null, at: c.timestamp }));
+}

@@ -32,6 +32,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const raw = await req.text();
+  // Meta's payloads are small; anything big is someone else.
+  if (raw.length > 64_000) return NextResponse.json({ error: "Too large" }, { status: 413 });
   if (!validInstagramSignature(raw, req.headers.get("x-hub-signature-256"))) {
     return NextResponse.json({ error: "Bad signature" }, { status: 401 });
   }

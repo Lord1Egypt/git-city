@@ -32,8 +32,11 @@ const LAUGH = /^(k{2,}|(ha){2,}h?|(rs){2,}|(he){2,})$/;
 
 const STATE_NAMES: [string, UF][] = STATES.map((s) => [fold(s.name), s.uf] as [string, UF]).sort((a, b) => b[0].length - a[0].length);
 
-export function parseComment(text: string): ParsedComment {
-  const raw = text.trim();
+export function parseComment(text: string, opts: { ignore?: string[]; reply?: boolean } = {}): ParsedComment {
+  let raw = text.trim();
+  // The account's own @ is never the username, nor the @ Instagram puts at the start of a reply.
+  for (const handle of opts.ignore ?? []) raw = raw.replace(new RegExp(`@${handle.replace(/[.]/g, "\\.")}\\b`, "gi"), " ").trim();
+  if (opts.reply) raw = raw.replace(/^@[a-z0-9._]+\s*/i, "").trim();
   const lower = fold(raw);
 
   // The state: a full name first ("rio grande do sul" before "rio de janeiro" can't clash: longest first), else a UF word.
@@ -86,11 +89,13 @@ export function parseComment(text: string): ParsedComment {
  * that handle there. Each reply has a few wordings, picked by the login, so
  * a hundred replies don't read as one copied line.
  */
-export function replyFor(outcome: string, login: string | null, uf: UF | null, kind: "brasil" | "city" = "brasil"): string | null {
+export function replyFor(outcome: string, login: string | null, uf: UF | null, kind: "brasil" | "city" = "brasil", suggestion: string | null = null): string | null {
   // FNV-1a over the login, so neighbouring logins land on different wordings.
   const hash = [...(login ?? "")].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
   const pick = (lines: string[]) => lines[hash % lines.length];
   const where = uf ? `em ${STATES.find((s) => s.uf === uf)?.name ?? uf}` : "na ilha";
+  // "É o X?" is read back by confirmedLogin (comment-ai.ts) when they answer "sim": keep the wording.
+  if (outcome === "unknown_user" && suggestion) return `Não achei o ${login} no GitHub 🤔 É o ${suggestion}? Responde "sim" que eu coloco`;
   if (outcome === "unknown_user") return pick([`Não achei o ${login} no GitHub 😕 Confere o user e comenta de novo`, `Hmm, ${login} não existe no GitHub. Confere aí e manda de novo!`, `Não encontrei ${login} no GitHub 🤔 Vê se o user tá certinho e comenta de novo`]);
   if (kind === "city") {
     if (outcome === "added") return pick([`Pronto! O prédio do ${login} já tá na Git City 🏙️ Link na bio pra ver`, `Feito! ${login} já tem prédio na cidade 🏙️ Corre no link da bio`, `Tá na mão! Prédio do ${login} subiu na Git City 🏙️ Link na bio`]);

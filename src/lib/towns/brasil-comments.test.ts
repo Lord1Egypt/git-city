@@ -59,3 +59,14 @@ describe("replyFor", () => {
     expect(replyFor("blocked", "x", "SP")).toBeNull();
   });
 });
+
+describe("parseComment in a reply", () => {
+  it("skips the account's own @ and the @ a reply starts with", () => {
+    expect(parseComment("@samuelrizzondev Slickinh0", { ignore: ["samuelrizzondev"], reply: true }).login).toBe("slickinh0");
+    expect(parseComment("@samuelrizzondev", { ignore: ["samuelrizzondev"] }).login).toBeNull();
+    expect(parseComment("@amigo valeu", { reply: true }).login).toBeNull();
+  });
+  it("asks about a suggestion in the wording confirmedLogin reads back", () => {
+    expect(replyFor("unknown_user", "slickinh0", null, "city", "slickinho")).toContain("É o slickinho?");
+  });
+});

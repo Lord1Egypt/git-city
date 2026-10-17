@@ -1,16 +1,29 @@
 // ─── Brasil town: comments from Instagram ───────────────────
-// A comment on a watched reel (brasil_reels) puts its dev on the map (a
-// city reel: just gives them a building in the city) and gets a reply. Comments arrive by webhook as they're written, and a sync
-// reads the watched reels' comments as a safety net for any the webhook
-// missed; either way a comment is imported once and answered once
-// (importBrasilComment's `fresh`). The account's own comments never count.
-// Server only.
+// A comment on a watched reel (brasil_reels) puts its dev on the map (a city
+// reel: just gives them a building in the city) and gets a reply. Comments
+// arrive by webhook as they're written, and a sync reads the watched reels'
+// comments as a safety net for any the webhook missed; either way a comment
+// is imported once and answered once (importBrasilComment's `fresh`). The
+// account's own comments never count.
+//
+// Reading one: a "sim" to our suggestion needs nothing more; a one-word
+// top-level comment (most of them) goes to the rules; anything else goes to
+// the model with its thread (comment-ai.ts), the rules again if the model
+// fails or the day's budget is spent. A login that isn't on GitHub gets a
+// suggestion ("É o slickinho?") when one is a typo away.
+//
+// Limits: per Instagram account, LIMITS.perUserHour comments read and
+// LIMITS.repliesPerUserHour replies an hour (the rest are logged, unread or
+// unanswered); LIMITS.modelPerDay model reads a day for everyone. Server only.
 
 import { getSupabaseAdmin } from "../supabase";
-import { instagramComments, instagramMe, replyToComment } from "../instagram";
+import { instagramComments, instagramMe, instagramThread, replyToComment } from "../instagram";
 import { getLeagueBySlug } from "../leagues/service";
 import { BRASIL_SLUG, importBrasilComment, type ReelKind } from "./brasil-server";
-import { replyFor } from "./brasil-comments";
+import { parseComment, replyFor } from "./brasil-comments";
+import { confirmedLogin, readComment, suggestLogin, type ThreadLine } from "./comment-ai";
+
+export const LIMITS = { perUserHour: 5, repliesPerUserHour: 3, modelPerDay: 2_000 } as const;
 
 export interface IncomingComment {
   id: string;
@@ -20,6 +33,17 @@ export interface IncomingComment {
   /** The top-level comment it answers (Instagram replies only under top-level ones). */
   parentId?: string;
 }
+
+/** The connected account's username (stored when it connected, else asked once). */
+let ownCache: string | null = null;
+async function ownUsername(): Promise<string> {
+  if (ownCache) return ownCache;
+  const { data } = await getSupabaseAdmin().from("instagram_account").select("username").eq("id", 1).maybeSingle<{ username: string | null }>();
+  ownCache = (data?.username ?? (await instagramMe()).username).toLowerCase();
+  return ownCache;
+}
+
+const hourAgo = () => new Date(Date.now() - 3_600_000).toISOString();
 
 export async function handleBrasilComments(comments: IncomingComment[]): Promise<number> {
   if (!comments.length) return 0;
@@ -32,24 +56,81 @@ export async function handleBrasilComments(comments: IncomingComment[]): Promise
     .eq("watching", true)
     .in("media_id", [...new Set(comments.map((c) => c.mediaId))]);
   const watched = new Map((reels ?? []).map((r: { media_id: string; permalink: string | null; kind: ReelKind }) => [r.media_id, { reel: r.permalink ?? r.media_id, kind: r.kind }]));
+  const own = await ownUsername();
 
   let fresh = 0;
   for (const c of comments) {
     const w = watched.get(c.mediaId);
-    if (!w) continue;
+    if (!w || c.igUser === own) continue;
+    const id = `ig:${c.id}`;
     try {
-      const r = await importBrasilComment(league, { id: `ig:${c.id}`, reel: w.reel, kind: w.kind, igUser: c.igUser, text: c.text });
+      // Claim the comment before reading it: a second delivery of it fails here (the id is the key), and
+      // webhooks running at once for one account see each other's claims, so the hourly limit holds.
+      const { error: taken } = await sb.from("brasil_comments").insert({ id, reel: w.reel, ig_user: c.igUser, outcome: "no_login" });
+      if (taken) continue;
+      if (c.igUser) {
+        const { data: first } = await sb
+          .from("brasil_comments")
+          .select("id")
+          .eq("ig_user", c.igUser)
+          .gte("created_at", hourAgo())
+          .order("created_at", { ascending: true })
+          .limit(LIMITS.perUserHour);
+        if (!(first ?? []).some((r: { id: string }) => r.id === id)) {
+          await sb.from("brasil_comments").update({ outcome: "capped" }).eq("id", id);
+          continue;
+        }
+      }
+
+      const parsed = await read(c, own);
+      const r = await importBrasilComment(league, { id, reel: w.reel, kind: w.kind, igUser: c.igUser, text: c.text, parsed, claimed: true });
       if (!r.fresh) continue;
       fresh++;
-      const reply = replyFor(r.outcome, r.login, r.uf, w.kind);
+      const suggestion = r.outcome === "unknown_user" && r.login ? await suggestLogin(r.login) : null;
+      const reply = replyFor(r.outcome, r.login, r.uf, w.kind, suggestion);
       if (!reply) continue;
+      if (c.igUser) {
+        const { count } = await sb.from("brasil_comments").select("id", { count: "exact", head: true }).eq("ig_user", c.igUser).gte("replied_at", hourAgo());
+        if ((count ?? 0) >= LIMITS.repliesPerUserHour) continue;
+      }
+      // Only production speaks on Instagram: local and preview runs read real comments but just log the reply.
+      if (process.env.VERCEL_ENV !== "production") {
+        console.info(`[brasil] would reply to ${c.id}: ${reply}`);
+        continue;
+      }
       await replyToComment(c.parentId ?? c.id, reply);
-      await sb.from("brasil_comments").update({ replied_at: new Date().toISOString() }).eq("id", `ig:${c.id}`);
+      await sb.from("brasil_comments").update({ replied_at: new Date().toISOString() }).eq("id", id);
     } catch (err) {
       console.error("[brasil] instagram comment", c.id, err);
     }
   }
   return fresh;
+}
+
+/** What a comment says: a yes to our suggestion, the rules for a plain one-word comment, else the model (the rules if it can't). */
+async function read(c: IncomingComment, own: string) {
+  const rules = parseComment(c.text, { ignore: [own], reply: !!c.parentId });
+  const plain = c.text.trim().split(/\s+/).length === 1 && !c.text.includes("@");
+  if (!c.parentId && plain) return rules;
+
+  let thread: ThreadLine[] = [];
+  if (c.parentId) {
+    try {
+      thread = (await instagramThread(c.parentId)).filter((t) => t.id !== c.id).map((t) => ({ who: t.username === own ? "us" : "them", text: t.text }));
+    } catch {
+      // no thread: read the comment alone
+    }
+    const yes = confirmedLogin(c.text, own, thread);
+    if (yes) return { login: yes, uf: null };
+  }
+
+  const { count } = await getSupabaseAdmin()
+    .from("brasil_comments")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", new Date(Date.now() - 86_400_000).toISOString());
+  if ((count ?? 0) >= LIMITS.modelPerDay) return rules;
+  const reading = await readComment({ text: c.text, commenter: c.igUser, own, thread });
+  return reading ? { login: reading.login, uf: reading.uf } : rules;
 }
 
 /** Reads every watched reel's comments and imports the ones not seen yet. */
