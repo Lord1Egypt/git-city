@@ -43,7 +43,8 @@ export default function StateCard({
 
   const invite = () => {
     const url = `${window.location.origin}${townPath}?uf=${s.uf}`;
-    const text = `Put yourself on the Brasil map in Git City: comment your GitHub @ and ${s.uf} on the reel, or join here: ${url}`;
+    // Shared by Brazilians to Brazilians: Portuguese, one line, a nudge for the state.
+    const text = s.devs === 0 ? `${s.name} ainda não tem ninguém no mapa dos devs. Bora fundar? ${url}` : `${s.name} tá em #${s.place} no mapa dos devs. Bora subir? ${url}`;
     posthog.capture("brasil_invite_copied", { uf: s.uf, from: "state_card" });
     navigator.clipboard?.writeText(text).then(
       () => setCopied(true),

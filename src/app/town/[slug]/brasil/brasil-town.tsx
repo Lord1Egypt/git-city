@@ -822,7 +822,8 @@ function Arrival({ login, uf, states, founder, townPath }: { login: string; uf: 
   const invite = () => {
     // Your link: its share card says where you live.
     const url = `${window.location.origin}${townPath}?at=${login}`;
-    const text = uf ? `I'm on the Brasil map in Git City, in ${stateOf(uf).name}. Put yourself on it: ${url}` : `I'm on the Brasil map in Git City. Put yourself on it: ${url}`;
+    // Shared on WhatsApp and stories, by and to Brazilians: Portuguese, one line, the link does the rest.
+    const text = founder && uf ? `Fundei ${stateOf(uf).name} no mapa dos devs 🇧🇷 ${url}` : `Tô no mapa dos devs do Brasil 🇧🇷 ${url}`;
     posthog.capture("brasil_invite_copied", { uf, from: "arrival" });
     navigator.clipboard?.writeText(text).then(
       () => setCopied(true),

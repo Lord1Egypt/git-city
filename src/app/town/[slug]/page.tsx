@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { STATES } from "@/lib/towns/brasil-map";
 import { notFound, permanentRedirect } from "next/navigation";
 import { headers } from "next/headers";
 import {
@@ -42,8 +43,10 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   if (league.map === "brasil") {
     const { at, uf } = await searchParams;
     const q = at ? `?at=${encodeURIComponent(at)}` : uf ? `?uf=${encodeURIComponent(uf)}` : "";
-    const title = at ? `@${at} on the Brasil map - Git City` : "The Brasil map - Git City";
-    const description = "Every dev in Brazil, a building in their state's city. Comment your GitHub on the reel or put yours on the map.";
+    // Portuguese: the link travels between Brazilians (WhatsApp, stories), and the preview speaks to them.
+    const st = uf ? STATES.find((s) => s.uf === uf.toUpperCase()) : undefined;
+    const title = at ? `@${at} tá no mapa dos devs · Git City` : st ? `${st.name} no mapa dos devs · Git City` : "Mapa dos devs do Brasil · Git City";
+    const description = "Cada dev vira um prédio na cidade do seu estado. Onde você tá?";
     const image = { url: `/town/${league.slug}/brasil-og${q}`, width: 1200, height: 630, alt: "The Brasil map in Git City" };
     return { title, description, openGraph: { title, description, images: [image] }, twitter: { card: "summary_large_image", title, description, images: [image] } };
   }
