@@ -11,7 +11,10 @@
 import { getSupabaseAdmin } from "../supabase";
 import { invalidateLeague } from "../leagues/cache";
 import type { League } from "../leagues/service";
+import { createDeveloperFromGitHub } from "../create-developer";
+import { GitHubFetchError } from "../github-api";
 import { BrasilPlacer, layoutFromResidents, type BrasilLayout, type MapDev, type Resident, type UF } from "./brasil-map";
+import { parseComment } from "./brasil-comments";
 
 export const BRASIL_SLUG = "brasil-town";
 
@@ -119,4 +122,68 @@ async function ensureMember(leagueId: string, devId: number, source: ResidentSou
     { onConflict: "league_id,developer_id" },
   );
   if (error) throw new Error(`brasil member: ${error.message}`);
+}
+
+// ─── Comments from the reels ────────────────────────────────
+
+export const IMPORT = {
+  /** Most new residents one reel adds in an hour (a flood is someone gaming it). */
+  perReelHour: 400,
+} as const;
+
+export interface ReelComment {
+  /** The platform's comment id: a comment is imported once. */
+  id: string;
+  reel: string;
+  igUser: string | null;
+  text: string;
+}
+
+export type ImportOutcome = "added" | "already" | "unknown_user" | "no_login" | "blocked" | "capped";
+
+/**
+ * One comment: read it, check the username on GitHub (creating the dev if
+ * Git City doesn't have them yet), put them on the map in the state they
+ * named (none: the island), and log what came of it. A comment seen before
+ * returns what it got then. One Instagram account puts one GitHub login on
+ * the map.
+ */
+export async function importBrasilComment(league: Pick<League, "id">, c: ReelComment): Promise<{ outcome: ImportOutcome; login: string | null; uf: UF | null }> {
+  const sb = getSupabaseAdmin();
+  const { data: seen } = await sb.from("brasil_comments").select("outcome, github_login, uf").eq("id", c.id).maybeSingle<{ outcome: ImportOutcome; github_login: string | null; uf: UF | null }>();
+  if (seen) return { outcome: seen.outcome, login: seen.github_login, uf: seen.uf };
+
+  const { login, uf } = parseComment(c.text);
+  const log = async (outcome: ImportOutcome, developerId: number | null = null) => {
+    await sb.from("brasil_comments").insert({ id: c.id, reel: c.reel, ig_user: c.igUser, github_login: login, uf, developer_id: developerId, outcome });
+    return { outcome, login, uf };
+  };
+  if (!login) return log("no_login");
+
+  if (c.igUser) {
+    const { data: earlier } = await sb.from("brasil_comments").select("github_login").eq("ig_user", c.igUser).eq("outcome", "added").limit(1).maybeSingle<{ github_login: string }>();
+    if (earlier && earlier.github_login !== login) return log("blocked");
+  }
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count } = await sb.from("brasil_comments").select("id", { count: "exact", head: true }).eq("reel", c.reel).eq("outcome", "added").gte("created_at", hourAgo);
+  if ((count ?? 0) >= IMPORT.perReelHour) return log("capped");
+
+  let dev: { id: number; github_login: string } | null = null;
+  const { data: known } = await sb.from("developers").select("id, github_login").eq("github_login", login).maybeSingle<{ id: number; github_login: string }>();
+  dev = known;
+  if (!dev) {
+    try {
+      dev = await createDeveloperFromGitHub(login);
+      sb.rpc("recalculate_ranks").then(
+        () => {},
+        () => {},
+      );
+    } catch (err) {
+      if (err instanceof GitHubFetchError) return log("unknown_user");
+      throw err;
+    }
+  }
+
+  const placed = await placeBrasilResident(league, { id: dev.id, login: dev.github_login }, uf, "instagram");
+  return log(placed.status === "already" ? "already" : "added", dev.id);
 }
