@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
-// The Brasil town's comments desk: paste comments from a reel (one per line,
-// "insta_user: the comment" or just the comment) and each one puts its dev
-// on the map; the log of every comment imported and what came of it; and
-// taking someone off the map.
+// The Brasil town's comments desk: the connected Instagram account and which
+// of its reels count (their comments arrive by webhook, with a sync as the
+// safety net); pasting comments by hand (one per line, "insta_user: the
+// comment" or just the comment); the log of every comment imported and what
+// came of it; and taking someone off the map.
 
 interface CommentRow {
   id: string;
@@ -16,6 +17,21 @@ interface CommentRow {
   uf: string | null;
   outcome: string;
   created_at: string;
+}
+
+interface Post {
+  id: string;
+  permalink: string;
+  caption?: string;
+  media_product_type: string;
+  timestamp: string;
+  watching: boolean;
+}
+
+interface Instagram {
+  account: { username: string | null; refreshed_at: string; expires_at: string | null } | null;
+  media: Post[];
+  error?: string;
 }
 
 interface Result {
@@ -42,6 +58,36 @@ export default function BrasilAdminPage() {
   const [results, setResults] = useState<Result[] | null>(null);
   const [removeLogin, setRemoveLogin] = useState("");
   const [note, setNote] = useState<string | null>(null);
+  const [ig, setIg] = useState<Instagram | null>(null);
+  const [igNote, setIgNote] = useState<string | null>(null);
+  const [igBusy, setIgBusy] = useState(false);
+
+  const loadIg = useCallback(async () => {
+    const res = await fetch("/api/admin/brasil?view=instagram", { cache: "no-store" });
+    if (res.ok) setIg((await res.json()) as Instagram);
+  }, []);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/admin/brasil?view=instagram", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => live && j && setIg(j as Instagram))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const igAction = async (body: Record<string, unknown>, done: (json: Record<string, unknown>) => string) => {
+    setIgBusy(true);
+    try {
+      const res = await fetch("/api/admin/brasil", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const json = (await res.json()) as Record<string, unknown>;
+      setIgNote(res.ok ? done(json) : String(json.error ?? "Failed."));
+      await Promise.all([loadIg(), load()]);
+    } finally {
+      setIgBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/brasil", { cache: "no-store" });
@@ -98,6 +144,44 @@ export default function BrasilAdminPage() {
             </Link>
           </p>
         </header>
+
+        <section className="flex flex-col gap-3 border border-border bg-bg-raised p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-[11px] uppercase tracking-wider text-dim">Instagram</h2>
+            <span className="text-[11px] text-muted">
+              {!ig ? "Loading…" : ig.account ? `@${ig.account.username} · connected` : "Not connected"}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={igBusy} onClick={() => igAction({ action: "connect" }, (j) => `Connected @${j.username}, comment webhooks on.`)} className="border border-border px-3 py-1.5 text-[11px] text-cream hover:border-lime hover:text-lime disabled:opacity-40">
+              {ig?.account ? "Reconnect" : "Connect"}
+            </button>
+            <button type="button" disabled={igBusy || !ig?.account} onClick={() => igAction({ action: "sync" }, (j) => `Read ${j.reels} reel${j.reels === 1 ? "" : "s"}: ${j.fresh} new comment${j.fresh === 1 ? "" : "s"}.`)} className="border border-border px-3 py-1.5 text-[11px] text-cream hover:border-lime hover:text-lime disabled:opacity-40">
+              {igBusy ? "Working…" : "Sync comments now"}
+            </button>
+          </div>
+          {(igNote || ig?.error) && <p className="text-[11px] text-muted">{igNote ?? ig?.error}</p>}
+          <p className="text-[11px] text-muted">Only comments on the posts ticked below put devs on the map.</p>
+          <ul className="flex flex-col">
+            {ig?.media.map((m) => (
+              <li key={m.id} className="flex items-center gap-3 border-t border-border py-1.5 text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={m.watching}
+                  disabled={igBusy}
+                  onChange={(e) => igAction({ action: "watch", mediaId: m.id, permalink: m.permalink, caption: m.caption ?? "", watching: e.target.checked }, () => (e.target.checked ? "Watching that post." : "Stopped watching that post."))}
+                  className="accent-lime"
+                  aria-label="Watch this post"
+                />
+                <span className="w-14 shrink-0 text-dim">{new Date(m.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                <span className="w-10 shrink-0 text-dim">{m.media_product_type === "REELS" ? "Reel" : "Post"}</span>
+                <a href={m.permalink} target="_blank" rel="noreferrer" className={`min-w-0 flex-1 truncate normal-case hover:text-lime ${m.watching ? "text-cream" : "text-muted"}`}>
+                  {m.caption?.split("\n")[0] || m.permalink}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <section className="flex flex-col gap-3 border border-border bg-bg-raised p-4">
           <h2 className="text-[11px] uppercase tracking-wider text-dim">Paste comments</h2>

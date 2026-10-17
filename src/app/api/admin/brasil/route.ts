@@ -6,6 +6,8 @@ import { isAdminUser } from "@/lib/auth-identity";
 import { invalidateLeague } from "@/lib/leagues/cache";
 import { getLeagueBySlug } from "@/lib/leagues/service";
 import { BRASIL_SLUG, importBrasilComment, type ImportOutcome } from "@/lib/towns/brasil-server";
+import { connectInstagram, instagramMedia, subscribeToComments } from "@/lib/instagram";
+import { syncBrasilReels } from "@/lib/towns/brasil-instagram";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -22,9 +24,23 @@ async function requireAdmin() {
 }
 
 // GET: the latest imported comments, what came of each, and the totals.
-export async function GET() {
+// ?view=instagram: the connected account and its latest posts, each marked watched or not.
+export async function GET(req: Request) {
   if (!(await requireAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const sb = getSupabaseAdmin();
+  if (new URL(req.url).searchParams.get("view") === "instagram") {
+    const [{ data: account }, { data: reels }] = await Promise.all([
+      sb.from("instagram_account").select("username, refreshed_at, expires_at").eq("id", 1).maybeSingle(),
+      sb.from("brasil_reels").select("media_id, watching"),
+    ]);
+    const watching = new Set((reels ?? []).filter((r: { watching: boolean }) => r.watching).map((r: { media_id: string }) => r.media_id));
+    try {
+      const media = await instagramMedia();
+      return NextResponse.json({ account, media: media.map((m) => ({ ...m, watching: watching.has(m.id) })) });
+    } catch (err) {
+      return NextResponse.json({ account, media: [], error: err instanceof Error ? err.message : String(err) });
+    }
+  }
   const [{ data: comments }, { count: residents }] = await Promise.all([
     sb.from("brasil_comments").select("id, reel, ig_user, github_login, uf, outcome, created_at").order("created_at", { ascending: false }).limit(150),
     sb.from("brasil_residents").select("developer_id", { count: "exact", head: true }),
@@ -77,6 +93,37 @@ export async function POST(req: Request) {
       }
     }
     return NextResponse.json({ results });
+  }
+
+  if (body.action === "watch") {
+    const mediaId = typeof body.mediaId === "string" ? body.mediaId : "";
+    if (!/^\d+$/.test(mediaId)) return NextResponse.json({ error: "Bad media id." }, { status: 400 });
+    const { error } = await getSupabaseAdmin()
+      .from("brasil_reels")
+      .upsert({ media_id: mediaId, permalink: typeof body.permalink === "string" ? body.permalink : null, caption: typeof body.caption === "string" ? body.caption.slice(0, 300) : null, watching: body.watching === true });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  // Stores the account and its token, and turns on its comment webhooks.
+  if (body.action === "connect") {
+    try {
+      const me = await connectInstagram();
+      await subscribeToComments();
+      return NextResponse.json({ username: me.username });
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 502 });
+    }
+  }
+
+  // Reads every watched reel's comments now (the webhook's safety net, also on the cron).
+  if (body.action === "sync") {
+    try {
+      const { data: account } = await getSupabaseAdmin().from("instagram_account").select("ig_user_id").eq("id", 1).maybeSingle<{ ig_user_id: string | null }>();
+      return NextResponse.json(await syncBrasilReels(account?.ig_user_id ?? null));
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 502 });
+    }
   }
 
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });
