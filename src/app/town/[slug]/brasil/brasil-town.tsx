@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Building2, Car, ChevronLeft, Map as MapIcon, Trophy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { generateCityLayout, type CityBuilding, type DeveloperRecord, type LayoutNorms } from "@/lib/github";
@@ -328,7 +329,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
 
   const yours = home && home !== "island" ? home : null;
   const top = world.states.filter((s) => s.devs > 0).slice(0, 3);
-  const bar = "flex h-10 items-center gap-2 bg-[#141417] px-3 text-[11px] text-cream hover:text-lime";
+  const bar = "flex flex-col items-center justify-center gap-1 bg-[#141417] py-2 text-[9px] text-cream hover:text-lime sm:h-10 sm:flex-row sm:gap-2 sm:px-3 sm:py-0 sm:text-[11px]";
 
   return (
     <main className="fixed inset-0 bg-bg font-pixel uppercase text-cream">
@@ -353,31 +354,33 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         watching={watchedCars}
       />
 
+      {/* The top: one line of how the map is doing (with the way back on a phone), the search under it. */}
       {!driving && (
-        <div className="pointer-events-auto absolute left-4 top-4">
-          <Link href="/towns" className="bg-bg/85 px-3 py-2 text-[11px] text-muted hover:text-cream">
-            ← Towns
-          </Link>
+        <Link href="/towns" className="pointer-events-auto absolute left-4 top-4 bg-bg/85 px-3 py-2 text-[11px] text-muted hover:text-cream max-sm:hidden">
+          ← Towns
+        </Link>
+      )}
+      {!driving && (
+        <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-center sm:inset-x-auto sm:left-1/2 sm:top-4 sm:-translate-x-1/2">
+          <div className="flex h-9 min-w-0 items-stretch bg-bg/90 text-[10px] tabular-nums sm:h-8 sm:text-[11px] max-sm:w-full">
+            <Link href="/towns" aria-label="Back to towns" className="pointer-events-auto flex w-9 shrink-0 items-center justify-center border-r border-border text-muted sm:hidden">
+              <ChevronLeft size={16} aria-hidden />
+            </Link>
+            <p className="flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap px-3">
+              <span style={{ color: LIME }}>Brasil</span>
+              <span className="text-cream">{fmt(world.devs)} devs</span>
+              <span className="text-muted max-sm:hidden">{world.founders}/27 founded</span>
+              <span className="flex items-center gap-1.5 text-cream">
+                <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
+                {fmt(here)} here{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
+              </span>
+            </p>
+          </div>
         </div>
       )}
 
       {!driving && (
-        <div className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 flex-col items-center gap-1 text-center">
-          <span className="bg-bg/85 px-4 py-2 text-2xl" style={{ color: LIME }}>
-            {fmt(world.devs)} devs
-          </span>
-          <span className="bg-bg/85 px-3 py-1 text-[11px] text-muted">
-            {world.founders}/27 states with a founder · {layout.island.devs.length} on the island
-          </span>
-          <span className="flex items-center gap-1.5 bg-bg/85 px-3 py-1 text-[11px] tabular-nums text-cream">
-            <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
-            {fmt(here)} here now{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
-          </span>
-        </div>
-      )}
-
-      {!driving && (
-        <div className="absolute left-1/2 top-[140px] z-30 -translate-x-1/2">
+        <div className="absolute inset-x-3 top-[52px] z-30 sm:inset-x-auto sm:left-1/2 sm:top-[48px] sm:-translate-x-1/2">
           <BrasilSearchBar
             cities={layout.cities}
             island={layout.island}
@@ -403,7 +406,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       )}
 
       {top.length > 0 && !driving && !state && !focused && !panel && (
-        <div className="pointer-events-auto absolute right-4 top-4 flex flex-col gap-1 text-[11px]">
+        <div className="pointer-events-auto absolute right-4 top-4 flex flex-col gap-1 text-[11px] max-sm:hidden">
           {top.map((t, i) => (
             <button
               key={t.uf}
@@ -422,12 +425,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
 
       {!driving && <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />}
       {!driving && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} />}
-      {!driving && <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60">Map data: IBGE · Natural Earth</span>}
+      {!driving && <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60 max-sm:bottom-[66px] max-sm:text-[8px]">Map data: IBGE · Natural Earth</span>}
 
-      {/* The bar */}
+      {/* The bar: a row of words on a desktop, a tab bar of icons on a phone. */}
       {!driving && (
-        <div className="pointer-events-auto absolute bottom-5 left-1/2 flex -translate-x-1/2 items-stretch gap-px shadow-[0_6px_0_rgba(0,0,0,0.35)]">
+        <nav className="pointer-events-auto absolute inset-x-0 bottom-0 grid grid-cols-4 gap-px border-t-2 border-border bg-border pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_0_rgba(0,0,0,0.25)] sm:inset-x-auto sm:bottom-5 sm:left-1/2 sm:flex sm:-translate-x-1/2 sm:border-t-0 sm:bg-transparent sm:pb-0 sm:shadow-[0_6px_0_rgba(0,0,0,0.35)]">
           <button type="button" onClick={() => openPanel("states")} className={bar}>
+            <Trophy size={16} className="sm:hidden" aria-hidden />
             States
           </button>
           <button
@@ -436,13 +440,16 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
               setState(null);
               setFocused(null);
               setPanel(null);
+              setPicker(null);
               camera.current?.flyTo(null);
             }}
             className={bar}
           >
+            <MapIcon size={16} className="sm:hidden" aria-hidden />
             Brazil
           </button>
           <button type="button" disabled={driveFrom === null} onClick={startDrive} className={`${bar} disabled:opacity-40`}>
+            <Car size={16} className="sm:hidden" aria-hidden />
             Drive
           </button>
           <button
@@ -453,18 +460,19 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
               if (mine) openBuilding(mine);
               else openPicker(null);
             }}
-            className="flex h-10 items-center gap-2 bg-lime px-4 text-[11px] text-bg"
+            className="flex flex-col items-center justify-center gap-1 bg-lime py-2 text-[9px] text-bg sm:h-10 sm:flex-row sm:gap-2 sm:px-4 sm:py-0 sm:text-[11px]"
           >
+            {yours ? <span className="h-3 w-3 border border-bg/40 sm:h-2.5 sm:w-2.5" style={{ background: swatchOf(yours) }} aria-hidden /> : <Building2 size={16} className="sm:hidden" aria-hidden />}
             {home ? (
-              <>
-                {yours && <span className="h-2.5 w-2.5 border border-bg/40" style={{ background: swatchOf(yours) }} aria-hidden />}
-                My building
-              </>
+              "My building"
             ) : (
-              "Put my building"
+              <>
+                <span className="sm:hidden">Put mine</span>
+                <span className="max-sm:hidden">Put my building</span>
+              </>
             )}
           </button>
-        </div>
+        </nav>
       )}
 
       {driving && (

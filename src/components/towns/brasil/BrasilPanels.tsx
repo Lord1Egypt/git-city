@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import type { CityBuilding } from "@/lib/github";
 import Panel from "@/components/league/hud/Panel";
 import { Avatar, fmt } from "@/components/league/hud/shared";
@@ -61,7 +62,7 @@ export function BrasilSearchBar({
   };
 
   return (
-    <div className="pointer-events-auto relative w-[min(420px,calc(100vw-32px))] font-pixel">
+    <div className="pointer-events-auto relative w-full font-pixel sm:w-[min(420px,calc(100vw-32px))]">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -84,7 +85,7 @@ export function BrasilSearchBar({
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={(e) => e.key === "Escape" && (e.currentTarget.blur(), setOpen(false))}
-          placeholder="Your @username, a city or a state"
+          placeholder="@username, city or state"
           aria-label="Find your building: GitHub username, city or state"
           // A search, not a login: password managers (Bitwarden, 1Password, LastPass) keep their icon off it.
           type="search"
@@ -96,10 +97,11 @@ export function BrasilSearchBar({
           data-1p-ignore="true"
           data-lpignore="true"
           data-form-type="other"
-          className="min-w-0 flex-1 border-[3px] border-border bg-bg/90 px-3 py-2 [&::-webkit-search-cancel-button]:hidden text-base normal-case text-cream outline-none backdrop-blur-sm placeholder:text-dim focus:border-lime/70 sm:text-[12px]"
+          className="h-10 min-w-0 flex-1 border-[3px] border-border bg-bg/90 px-3 [&::-webkit-search-cancel-button]:hidden text-base normal-case text-cream outline-none backdrop-blur-sm placeholder:text-dim focus:border-lime/70 sm:text-[12px]"
         />
-        <button type="submit" className="bg-lime px-4 text-[11px] uppercase text-bg">
-          Find
+        <button type="submit" aria-label="Find" className="flex items-center bg-lime px-3 text-[11px] uppercase text-bg sm:px-4">
+          <Search size={16} className="sm:hidden" aria-hidden />
+          <span className="max-sm:hidden">Find</span>
         </button>
       </form>
       {open && q && (
@@ -199,7 +201,7 @@ export function BrasilPicker({
   const pendingName = pending === "island" ? "the island" : pending ? (STATES.find((s) => s.uf === pending)?.name ?? pending) : "";
 
   return (
-    <div className="pointer-events-auto mt-1 w-[min(420px,calc(100vw-32px))] border-[3px] border-border bg-bg/95 p-3 font-pixel uppercase text-cream shadow-[0_6px_0_rgba(0,0,0,0.35)] backdrop-blur-sm">
+    <div className="pointer-events-auto mt-1 w-full border-[3px] sm:w-[min(420px,calc(100vw-32px))] border-border bg-bg/95 p-3 font-pixel uppercase text-cream shadow-[0_6px_0_rgba(0,0,0,0.35)] backdrop-blur-sm">
       <div className="mb-2.5 flex items-baseline justify-between gap-3">
         <p className="min-w-0 truncate text-[11px]">
           {current && !someoneElse ? "Move to another state" : who ? <>Put <span className="normal-case text-lime">@{who}</span> on the map</> : "Put your building on the map"}

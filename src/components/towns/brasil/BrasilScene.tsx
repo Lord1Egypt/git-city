@@ -329,8 +329,8 @@ function Tag({ city, near, onClick }: { city: CityLayout; near: boolean; onClick
   return (
     <Html position={[x, 60, z]} center zIndexRange={[20, 0]} style={{ pointerEvents: "auto" }}>
       <button type="button" onClick={onClick} className="flex cursor-pointer flex-col items-center whitespace-nowrap font-pixel uppercase">
-        <span className="flex items-center gap-1.5 border-2 border-border bg-bg/85 px-1.5 py-0.5 text-[11px] text-cream hover:border-lime">
-          <span className="h-2 w-2" style={{ background: swatch }} aria-hidden />
+        <span className="flex items-center gap-1 border-2 border-border bg-bg/85 px-1 py-px text-[9px] text-cream hover:border-lime sm:gap-1.5 sm:px-1.5 sm:py-0.5 sm:text-[11px]">
+          <span className="h-1.5 w-1.5 sm:h-2 sm:w-2" style={{ background: swatch }} aria-hidden />
           {city.second ? city.name : (city.uf ?? "Island")}
           {city.devs.length > 0 && <span className="text-lime">{city.devs.length}</span>}
         </span>
@@ -370,9 +370,16 @@ function overviewPose(aspect: number) {
   const w = MAP_BOUNDS.maxX - MAP_BOUNDS.minX;
   const d = MAP_BOUNDS.maxZ - MAP_BOUNDS.minZ;
   const half = Math.tan(((FOV / 2) * Math.PI) / 180);
-  const dist = (Math.max(w / aspect, d) / (2 * half)) * 1.08;
+  // A phone held upright: the width decides, with room for the coast and the island past it.
+  const dist = (Math.max(w / aspect, d) / (2 * half)) * (aspect < 1 ? 1.05 : 1.08);
   const tilt = (72 * Math.PI) / 180;
   return { target: new THREE.Vector3(cx, 0, cz), position: new THREE.Vector3(cx, dist * Math.sin(tilt), cz + dist * Math.cos(tilt)) };
+}
+
+/** How far the overview sits: zooming out stops a little past it, on any screen shape. */
+function overviewDistance(aspect: number) {
+  const p = overviewPose(aspect);
+  return p.position.distanceTo(p.target);
 }
 
 function MapCamera({ apiRef, onNear, store }: { apiRef?: React.MutableRefObject<CameraApi | null>; onNear: Near; store?: MapCameraStore }) {
@@ -474,7 +481,7 @@ function MapCamera({ apiRef, onNear, store }: { apiRef?: React.MutableRefObject<
       dampingFactor={0.12}
       screenSpacePanning={false}
       minDistance={180}
-      maxDistance={(MAP_BOUNDS.maxX - MAP_BOUNDS.minX) * 1.6}
+      maxDistance={Math.max((MAP_BOUNDS.maxX - MAP_BOUNDS.minX) * 1.6, overviewDistance(size.width / size.height) * 1.15)}
       maxPolarAngle={Math.PI / 2.4}
     />
   );
