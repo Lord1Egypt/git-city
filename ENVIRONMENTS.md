@@ -24,15 +24,13 @@ than `main` is enough to get a full working preview backed by staging.
    - `supabase migration new my_feature` and write the SQL by hand, or
    - edit through the local Studio and snapshot it: `supabase db diff -f my_feature`.
    - Verify it applies cleanly from scratch: `npm run db:reset`.
-3. `git push` the branch. Two things happen automatically:
-   - **GitHub Actions** (`deploy-staging-migrations.yml`) validates every
-     migration from scratch and pushes pending ones to the staging project.
-   - **Vercel** builds a preview deployment whose Preview-scoped env vars
-     point at staging. Share that URL with anyone for testing.
+3. `git push` the branch. **Vercel** builds a preview deployment whose
+   Preview-scoped env vars point at staging. Share that URL with anyone for
+   testing. Apply the branch's migrations to staging by hand.
 4. Happy with it? Merge into `main` (no PR needed):
    `git checkout main && git merge feature/xyz && git push`.
-   The existing `deploy-migrations.yml` workflow pushes the migrations to
-   prod, and Vercel deploys production.
+   Vercel deploys production. Migrations reach prod by hand (with an explicit
+   OK), each version recorded in `supabase_migrations.schema_migrations`.
 
 ### Migration etiquette
 

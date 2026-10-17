@@ -43,8 +43,7 @@ supabase/
 
 - Three environments, one-directional flow: local → staging → prod (see `ENVIRONMENTS.md`)
 - `main` = production. Any other pushed branch = Vercel preview + staging Supabase
-- Pushing a branch with migration changes triggers `deploy-staging-migrations.yml` (validate + `db push` to staging)
-- Merging into `main` triggers `deploy-migrations.yml` (validate + `db push` to prod) — migrations deploy automatically, never push them to prod by hand
+- No migration CI: migrations are applied by hand, to staging first, then to prod with the user's explicit OK, and each version is recorded in `supabase_migrations.schema_migrations` so a later `db push` won't re-run it
 - Vercel Preview-scoped env vars point at the staging Supabase project; Production-scoped at prod
 - Staging is disposable: reset with `supabase db reset --linked` while linked to staging. Never copy prod data into it
 
