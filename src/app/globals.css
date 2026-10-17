@@ -47,6 +47,16 @@ body {
   80% { opacity: 1; transform: translateY(0) scale(1); }
   100% { opacity: 0; transform: translateY(-14px) scale(1); }
 }
+/* Brasil, driving: the name of the city you just came into fades in, holds, fades out. */
+@keyframes area-title {
+  0% { opacity: 0; transform: translateY(6px); }
+  12% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.area-title {
+  animation: area-title 3.2s ease-out forwards;
+}
 /* Smash: "+N" points rising off the building you hit. */
 @keyframes floor-pop {
   0% { opacity: 0; transform: translateY(4px); }

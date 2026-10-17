@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Building2, Car, ChevronLeft, Map as MapIcon, Trophy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -26,7 +25,8 @@ import type { DriverInfo } from "@/lib/league-city/drive/net";
 import BuildingCard from "@/components/league/hud/BuildingCard";
 import { fmt } from "@/components/league/hud/shared";
 import MapNavControls from "@/components/MapNavControls";
-import BrasilScene, { type CameraApi } from "@/components/towns/brasil/BrasilScene";
+import BrasilScene, { cityKey, type CameraApi } from "@/components/towns/brasil/BrasilScene";
+import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import BrasilMinimap from "@/components/towns/brasil/BrasilMinimap";
 import { BrasilPicker, BrasilRanking, BrasilSearchBar } from "@/components/towns/brasil/BrasilPanels";
 import StateCard from "@/components/towns/brasil/StateCard";
@@ -84,6 +84,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [arrived, setArrived] = useState<{ login: string; uf: UF | null } | null>(null);
   const [pulse, setPulse] = useState<{ x: number; z: number; key: number } | null>(null);
   const [now] = useState(() => Date.now());
+  /** Up close, the city the camera looks at (its cityKey). */
+  const [viewKey, setViewKey] = useState<string | null>(null);
+  /** Where the map camera opens back from the car. */
+  const [cameraStart, setCameraStart] = useState<{ x: number; z: number } | null>(null);
+  /** The car starts at this resident's building, fixed when the drive starts. */
+  const [driveDev, setDriveDev] = useState<number | null>(null);
+  const [launching, setLaunching] = useState(false);
   /** A panel takes the right side: any card closes. */
   const openPanel = (p: PanelId) => {
     setState(null);
@@ -113,7 +120,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     const founders = layout.cities.filter((c) => !c.second && c.devs.length > 0).length;
     // Which state each resident said, for their card.
     const ufOf = new Map([...layout.cities, layout.island].flatMap((c) => c.devs.map((d) => [d.dev.login.toLowerCase(), { uf: d.dev.uf, founder: d.founder }] as const)));
-    return { objects, buildings, placed, states, devs, founders, ufOf };
+    const allCities = [...layout.cities, layout.island];
+    const cityByKey = new Map(allCities.map((c) => [cityKey(c), c]));
+    const cityOfLogin = new Map(allCities.flatMap((c) => c.devs.map((d) => [d.dev.login.toLowerCase(), c] as const)));
+    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin };
   }, [layout, cityDevs, cityNorms, now]);
 
   const smash = useMemo(() => smashStoreFor(world.buildings), [world.buildings]);
@@ -157,12 +167,15 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     }
   }, []);
   const exitDrive = useCallback(() => {
+    // The map opens where the car stopped.
+    const r = telemetry.radar;
+    setCameraStart(r && (r.x || r.z) ? { x: r.x, z: r.z } : null);
     setDriving(false);
     setPaused(false);
     setDrivers([]);
     setCrownView(null);
     emoteLog.clear();
-  }, [emoteLog]);
+  }, [emoteLog, telemetry]);
   // Esc pauses; Esc again on the pause menu leaves the car.
   useEffect(() => {
     if (!driving) return;
@@ -183,10 +196,23 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const drivingNow = driving ? drivers.length : watch.drivers.length;
   const noop = useCallback(() => {}, []);
 
+  // The phone's back button walks the same steps as ‹: a building, its state, the whole country.
+  const applying = useRef(false);
+  const pushUrl = useCallback((q: string) => {
+    if (applying.current) return;
+    const next = q ? `${window.location.pathname}?${q}` : window.location.pathname;
+    if (next === window.location.pathname + window.location.search) return;
+    window.history.pushState({ brasil: true }, "", next);
+  }, []);
+
+  /** Closing a card: the address follows without a new step. */
+  const replaceUrl = (q: string) => window.history.replaceState(window.history.state, "", q ? `${window.location.pathname}?${q}` : window.location.pathname);
+
   const openState = useCallback(
     (uf: UF) => {
       const s = world.states.find((x) => x.uf === uf);
       if (!s) return;
+      pushUrl(`uf=${uf}`);
       setFocused(null);
       setBackTo(null);
       setPanel(null);
@@ -194,14 +220,48 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       setState(s);
       camera.current?.flyTo(s.capital.center, s.capital.radius);
     },
-    [world.states],
+    [world.states, pushUrl],
   );
-  const openBuilding = useCallback((b: CityBuilding) => {
+  const openBuilding = useCallback(
+    (b: CityBuilding) => {
+      pushUrl(`at=${b.loginLower}`);
+      setState(null);
+      setPanel(null);
+      setFocused(b);
+      mapNav.send({ type: "flyTo", x: b.position[0], z: b.position[2], distance: 700 });
+    },
+    [pushUrl],
+  );
+  /** Back to the whole country: every card closes. */
+  const toBrazil = useCallback(() => {
     setState(null);
+    setFocused(null);
+    setBackTo(null);
     setPanel(null);
-    setFocused(b);
-    mapNav.send({ type: "flyTo", x: b.position[0], z: b.position[2], distance: 700 });
+    setPicker(null);
+    camera.current?.flyTo(null);
   }, []);
+  // Back (the phone's, or ‹ after a step this page took): show what the address says.
+  useEffect(() => {
+    const onPop = () => {
+      const q = new URLSearchParams(window.location.search);
+      applying.current = true;
+      const at = q.get("at");
+      const uf = q.get("uf");
+      const b = at ? world.placed.get(at.toLowerCase()) : undefined;
+      if (b) openBuilding(b);
+      else if (uf && world.states.some((s) => s.uf === uf)) openState(uf as UF);
+      else if (state) toBrazil();
+      else {
+        // Back from a building opened on the map: close it, stay over its streets.
+        setFocused(null);
+        setBackTo(null);
+      }
+      applying.current = false;
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [world, openBuilding, openState, toBrazil, state]);
   const openCity = useCallback(
     (c: CityLayout) => {
       if (c.uf) return openState(c.uf);
@@ -229,17 +289,43 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     return () => clearTimeout(t);
   }, [startAt, world, openState, openBuilding]);
 
-  // Drive from the building or the state in view (or the biggest state).
-  const driveFrom =
-    (focused
-      ? layout.cities
-          .concat(layout.island)
-          .flatMap((c) => c.devs)
-          .find((d) => d.dev.login.toLowerCase() === focused.loginLower)?.dev.id
-      : undefined) ??
-    state?.capital.devs[0]?.dev.id ??
-    world.states.find((s) => s.devs > 0)?.capital.devs[0]?.dev.id ??
-    null;
+  // Where you are: the building's city, the open state, or the city the camera is over.
+  const place = (focused ? world.cityOfLogin.get(focused.loginLower) : undefined) ?? state?.capital ?? (viewKey ? world.cityByKey.get(viewKey) : undefined) ?? null;
+  /** The building the car starts at: the open one, else the city you're over, else yours, else the biggest state's. */
+  const driveStartDev = (): { id: number; login: string } | null => {
+    const pickIn = (c: CityLayout | null | undefined) => (c && c.devs.length ? c.devs[0].dev : null);
+    const own = viewerLogin ? world.cityOfLogin.get(viewerLogin.toLowerCase())?.devs.find((d) => d.dev.login.toLowerCase() === viewerLogin.toLowerCase())?.dev : null;
+    const dev =
+      (focused ? world.cityOfLogin.get(focused.loginLower)?.devs.find((d) => d.dev.login.toLowerCase() === focused.loginLower)?.dev : null) ??
+      pickIn(place) ??
+      own ??
+      pickIn(world.states.find((s) => s.devs > 0)?.capital) ??
+      pickIn(layout.island);
+    return dev ? { id: dev.id, login: dev.login } : null;
+  };
+  const driveFrom = driveDev;
+
+  /** ‹: one step up. A building goes back to its state's card (or just closes), a city to the whole country, the country to the towns. */
+  const closeBuilding = () => {
+    setFocused(null);
+    setArrived(null);
+    // Opened from a state's card: back to it, and back over its city.
+    if (backTo) {
+      setState(backTo);
+      setBackTo(null);
+      camera.current?.flyTo(backTo.capital.center, backTo.capital.radius);
+      replaceUrl(`uf=${backTo.uf}`);
+    } else replaceUrl("");
+  };
+  const goUp = () => {
+    if (focused) return closeBuilding();
+    if (state || place) {
+      toBrazil();
+      replaceUrl("");
+      return;
+    }
+    router.push("/towns");
+  };
   const drive = useMemo(
     () => ({
       viewerDevId: driveFrom,
@@ -274,11 +360,25 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     [world, viewerLogin],
   );
   const startDrive = () => {
+    const dev = driveStartDev();
+    const b = dev ? world.placed.get(dev.login.toLowerCase()) : undefined;
+    if (!dev || !b || launching) return;
     setState(null);
     setFocused(null);
     setBackTo(null);
     setPanel(null);
     setPicker(null);
+    setDriveDev(dev.id);
+    setLaunching(true);
+    // Down to the street first, so the car starts somewhere you just saw.
+    const go = () => {
+      setLaunching(false);
+      beginDrive();
+    };
+    if (camera.current) camera.current.flyToPoint(b.position[0], b.position[2], 420, go);
+    else go();
+  };
+  const beginDrive = () => {
     setDriveReady(false);
     setPaused(false);
     setTelemetry(createTelemetry());
@@ -352,24 +452,37 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         smash={smash}
         pulse={pulse}
         watching={watchedCars}
+        onCity={setViewKey}
+        cameraStart={cameraStart}
       />
 
-      {/* The top: one line of how the map is doing (with the way back on a phone), the search under it. */}
-      {!driving && (
-        <Link href="/towns" className="pointer-events-auto absolute left-4 top-4 bg-bg/85 px-3 py-2 text-[11px] text-muted hover:text-cream max-sm:hidden">
-          ← Towns
-        </Link>
-      )}
+      {/* The top: where you are on one line, ‹ one step up (a building, its city, the whole country, the towns), the search under it. */}
       {!driving && (
         <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-center sm:inset-x-auto sm:left-1/2 sm:top-4 sm:-translate-x-1/2">
           <div className="flex h-9 min-w-0 items-stretch bg-bg/90 text-[10px] tabular-nums sm:h-8 sm:text-[11px] max-sm:w-full">
-            <Link href="/towns" aria-label="Back to towns" className="pointer-events-auto flex w-9 shrink-0 items-center justify-center border-r border-border text-muted sm:hidden">
+            <button
+              type="button"
+              onClick={goUp}
+              aria-label={focused ? "Close the building" : place ? "Back to Brazil" : "Back to towns"}
+              className="pointer-events-auto flex w-9 shrink-0 items-center justify-center border-r border-border text-muted hover:text-cream sm:w-8"
+            >
               <ChevronLeft size={16} aria-hidden />
-            </Link>
+            </button>
             <p className="flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap px-3">
-              <span style={{ color: LIME }}>Brasil</span>
-              <span className="text-cream">{fmt(world.devs)} devs</span>
-              <span className="text-muted max-sm:hidden">{world.founders}/27 founded</span>
+              {place ? (
+                <>
+                  <span className="h-2 w-2 shrink-0 border border-border-light" style={{ background: place.uf ? swatchOf(place.uf) : LIME }} aria-hidden />
+                  <span className="truncate text-cream">{place.uf ? place.name : "Island"}</span>
+                  {place.uf && <span className="text-muted">{place.uf}</span>}
+                  <span className="text-muted">{fmt(place.devs.length)} devs</span>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: LIME }}>Brasil</span>
+                  <span className="text-cream">{fmt(world.devs)} devs</span>
+                  <span className="text-muted max-sm:hidden">{world.founders}/27 founded</span>
+                </>
+              )}
               <span className="flex items-center gap-1.5 text-cream">
                 <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
                 {fmt(here)} here{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
@@ -425,7 +538,11 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
 
       {!driving && <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />}
       {!driving && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} />}
-      {!driving && <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60 max-sm:bottom-[66px] max-sm:text-[8px]">Map data: IBGE · Natural Earth</span>}
+      {!driving && (
+        <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60 max-sm:bottom-[66px] max-sm:text-[8px]">
+          Map data: IBGE · Natural Earth
+        </span>
+      )}
 
       {/* The bar: a row of words on a desktop, a tab bar of icons on a phone. */}
       {!driving && (
@@ -448,7 +565,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             <MapIcon size={16} className="sm:hidden" aria-hidden />
             Brazil
           </button>
-          <button type="button" disabled={driveFrom === null} onClick={startDrive} className={`${bar} disabled:opacity-40`}>
+          <button type="button" disabled={launching || world.devs === 0} onClick={startDrive} className={`${bar} disabled:opacity-40`}>
             <Car size={16} className="sm:hidden" aria-hidden />
             Drive
           </button>
@@ -475,6 +592,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         </nav>
       )}
 
+      {driving && driveReady && <AreaTitle telemetry={telemetry} cities={world.allCities} />}
       {driving && (
         <DriveHud
           firstRun={false}
@@ -517,7 +635,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             setBackTo(state);
           }}
           onDriveHere={state.devs > 0 ? startDrive : undefined}
-          onClose={() => setState(null)}
+          onClose={() => {
+            setState(null);
+            replaceUrl("");
+          }}
         />
       )}
       {focused && !driving && (
@@ -538,19 +659,49 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             </>
           }
           onDriveTo={startDrive}
-          onClose={() => {
-            setFocused(null);
-            setArrived(null);
-            // Opened from a state's card: back to it, and back over its city.
-            if (backTo) {
-              setState(backTo);
-              setBackTo(null);
-              camera.current?.flyTo(backTo.capital.center, backTo.capital.radius);
-            }
-          }}
+          onClose={closeBuilding}
         />
       )}
     </main>
+  );
+}
+
+/**
+ * Driving: the city's name over the road as you come into it (and when the
+ * car starts), like a game naming the area you just entered. Out between
+ * cities nothing shows; coming back into the same city doesn't repeat it.
+ */
+function AreaTitle({ telemetry, cities }: { telemetry: { radar: { x: number; z: number } }; cities: CityLayout[] }) {
+  const [shown, setShown] = useState<{ city: CityLayout; at: number } | null>(null);
+  const last = useRef<string | null>(null);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const { x, z } = telemetry.radar;
+      if (!x && !z) return;
+      let here: CityLayout | null = null;
+      for (const c of cities) {
+        const [cx, cz] = lotToWorld(...c.center);
+        if (Math.hypot(cx - x, cz - z) < (c.radius + 2) * LOT) here = c;
+      }
+      const key = here ? cityKey(here) : null;
+      if (key && key !== last.current) setShown({ city: here!, at: Date.now() });
+      if (key) last.current = key;
+    }, 400);
+    return () => clearInterval(id);
+  }, [telemetry, cities]);
+  useEffect(() => {
+    if (!shown) return;
+    const t = setTimeout(() => setShown(null), 3200);
+    return () => clearTimeout(t);
+  }, [shown]);
+  if (!shown) return null;
+  const c = shown.city;
+  return (
+    <div key={shown.at} className="area-title pointer-events-none fixed inset-x-0 top-[22%] z-30 flex flex-col items-center gap-1.5 text-center font-pixel uppercase">
+      {c.uf && stateOf(c.uf).name !== c.name && <span className="text-[10px] tracking-[0.3em] text-muted">{stateOf(c.uf).name}</span>}
+      <span className="text-3xl text-cream [text-shadow:0_3px_0_rgba(0,0,0,0.6)] sm:text-5xl">{c.uf ? c.name : "The island"}</span>
+      <span className="text-[10px] text-lime">{fmt(c.devs.length)} devs live here</span>
+    </div>
   );
 }
 

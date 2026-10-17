@@ -358,7 +358,29 @@ type Near = (near: boolean) => void;
 export interface CameraApi {
   /** Fly to a lot, close enough to see its streets (or back to the whole map with null). */
   flyTo: (lot: [number, number] | null, radiusLots?: number) => void;
+  /** Fly down to a point (world units) from `distance` away; `done` once there. */
+  flyToPoint: (x: number, z: number, distance: number, done?: () => void) => void;
 }
+
+/** A city's key, the same everywhere: its state (or "island") and which of the state's cities. */
+export const cityKey = (c: CityLayout) => `${c.uf ?? "island"}-${c.second ? 2 : 1}`;
+
+/** Up close, the city the camera looks at (its center within reach of where the camera points). */
+function cityAt(cities: CityLayout[], x: number, z: number): CityLayout | null {
+  let best: CityLayout | null = null;
+  let bestD = Infinity;
+  for (const c of cities) {
+    const [cx, cz] = lotToWorld(...c.center);
+    const d = Math.hypot(cx - x, cz - z);
+    if (d < (c.radius + 6) * LOT && d < bestD) {
+      best = c;
+      bestD = d;
+    }
+  }
+  return best;
+}
+/** Closer than this, the camera is "in" a city. */
+const CITY_VIEW = 7000;
 
 
 const FOV = 45;
@@ -382,8 +404,26 @@ function overviewDistance(aspect: number) {
   return p.position.distanceTo(p.target);
 }
 
-function MapCamera({ apiRef, onNear, store }: { apiRef?: React.MutableRefObject<CameraApi | null>; onNear: Near; store?: MapCameraStore }) {
+function MapCamera({
+  apiRef,
+  onNear,
+  store,
+  cities,
+  onCity,
+  start,
+}: {
+  apiRef?: React.MutableRefObject<CameraApi | null>;
+  onNear: Near;
+  store?: MapCameraStore;
+  cities: CityLayout[];
+  onCity?: (key: string | null) => void;
+  /** Where to open instead of the whole country (back from the car: where it stopped). */
+  start?: { x: number; z: number } | null;
+}) {
   const near = useRef(false);
+  const lastCity = useRef<string | null | undefined>(undefined);
+  const lastCityCheck = useRef(0);
+  const flightDone = useRef<(() => void) | null>(null);
   const lastStore = useRef(0);
   const controls = useRef<MapControlsImpl>(null);
   const { size } = useThree();
@@ -406,7 +446,14 @@ function MapCamera({ apiRef, onNear, store }: { apiRef?: React.MutableRefObject<
               const p = overviewPose(size.width / size.height);
               return [p.position, p.target] as [THREE.Vector3, THREE.Vector3];
             })();
+        flightDone.current = null;
         flight.current = { from: [c.object.position.clone(), c.target.clone()], to, t: 0 };
+      },
+      flyToPoint: (x, z, d, done) => {
+        const c = controls.current;
+        if (!c) return void done?.();
+        flightDone.current = done ?? null;
+        flight.current = { from: [c.object.position.clone(), c.target.clone()], to: [new THREE.Vector3(x, MAP_H + d * 0.55, z + d * 0.8), new THREE.Vector3(x, MAP_H, z)], t: 0 };
       },
     };
     return () => {
@@ -443,9 +490,14 @@ function MapCamera({ apiRef, onNear, store }: { apiRef?: React.MutableRefObject<
     if (!c) return;
     if (!placed.current) {
       placed.current = true;
-      const p = overviewPose(size.width / size.height);
-      camera.position.copy(p.position);
-      c.target.copy(p.target);
+      if (start) {
+        camera.position.set(start.x, MAP_H + 900, start.z + 1100);
+        c.target.set(start.x, MAP_H, start.z);
+      } else {
+        const p = overviewPose(size.width / size.height);
+        camera.position.copy(p.position);
+        c.target.copy(p.target);
+      }
     }
     const f = flight.current;
     if (f) {
@@ -453,7 +505,22 @@ function MapCamera({ apiRef, onNear, store }: { apiRef?: React.MutableRefObject<
       const k = f.t < 0.5 ? 4 * f.t ** 3 : 1 - (-2 * f.t + 2) ** 3 / 2;
       camera.position.lerpVectors(f.from[0], f.to[0], k);
       c.target.lerpVectors(f.from[1], f.to[1], k);
-      if (f.t >= 1) flight.current = null;
+      if (f.t >= 1) {
+        flight.current = null;
+        const done = flightDone.current;
+        flightDone.current = null;
+        done?.();
+      }
+    }
+    // Which city is in view up close (none from high up), told when it changes.
+    if (onCity && performance.now() - lastCityCheck.current > 300) {
+      lastCityCheck.current = performance.now();
+      const city = camera.position.distanceTo(c.target) < CITY_VIEW ? cityAt(cities, c.target.x, c.target.z) : null;
+      const key = city ? cityKey(city) : null;
+      if (key !== lastCity.current) {
+        lastCity.current = key;
+        onCity(key);
+      }
     }
     if (store && performance.now() - lastStore.current > 120) {
       lastStore.current = performance.now();
@@ -504,6 +571,10 @@ export interface BrasilSceneProps {
   /** Drive mode: the car and its world (offline in the preview). */
   drive?: Omit<DriveWorldProps, "objects" | "buildings" | "h" | "smash">;
   smash?: SmashStore;
+  /** Up close, the city in view (its cityKey), or null from high up. */
+  onCity?: (key: string | null) => void;
+  /** Open the map camera here instead of the whole country. */
+  cameraStart?: { x: number; z: number } | null;
   /** Everyone out driving, drawn while you look at the map. */
   watching?: CarFeed[];
   /** A lot just taken: a lime ring spreads from it once (a new key plays it again). */
@@ -549,7 +620,8 @@ function Pulse({ x, z }: { x: number; z: number }) {
   );
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null }: BrasilSceneProps) {
+  const allCities = useMemo(() => [...cities, island], [cities, island]);
   const driving = !!drive;
   const [near, setNear] = useState(false);
   const decorations = useMemo(() => decorationsOf(objects), [objects]);
@@ -566,7 +638,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
     >
       <ThemeLights theme={NIGHT} themeIndex={NIGHT_KEY} />
       <ThemeSkyFX themeIndex={NIGHT_FX} theme={NIGHT} lowSky />
-      {!driving && <MapCamera apiRef={cameraApi} onNear={setNear} store={cameraStore} />}
+      {!driving && <MapCamera apiRef={cameraApi} onNear={setNear} store={cameraStore} cities={allCities} onCity={onCity} start={cameraStart} />}
       <Ground island={island} />
       <Paving cities={[...cities, island]} />
       <Squares cities={[...cities, island]} />
