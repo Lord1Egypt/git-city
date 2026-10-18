@@ -64,6 +64,10 @@ const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"),
 /** The drive's mute switch, shared with every town. */
 const MUTE_KEY = "gc:drive-muted";
 const LIME = "#c8e64a";
+// The HUD's surfaces: Git City's own (near-black, its borders, muted text).
+const HUD_BG = "bg-bg/90";
+const HUD_EDGE = "border-border";
+const HUD_SOFT = "text-muted";
 
 export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt, week: officeWeek }: BrasilTownProps) {
   const router = useRouter();
@@ -504,44 +508,38 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         cameraStart={cameraStart}
       />
 
-      {/* The top: where you are on one line, ‹ one step up (a building, its city, the whole country, the towns), the search under it. */}
+      {/* The top, one block as wide as the search: where you are (‹ one step up: a building, its city, the whole country, the towns) and who's online, the search under it. */}
       {!driving && (
-        <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-center sm:inset-x-auto sm:left-1/2 sm:top-4 sm:-translate-x-1/2">
-          <div className="flex h-9 min-w-0 items-stretch bg-bg/90 text-[10px] tabular-nums sm:h-8 sm:text-[11px] max-sm:w-full">
+        <div className="absolute inset-x-3 top-3 z-30 sm:inset-x-auto sm:left-1/2 sm:top-4 sm:w-[min(420px,calc(100vw-32px))] sm:-translate-x-1/2">
+          <div className={`flex h-9 items-stretch border-[3px] border-b-0 ${HUD_EDGE} ${HUD_BG} text-[10px] tabular-nums sm:text-[11px]`}>
             <button
               type="button"
               onClick={goUp}
               aria-label={focused ? "Close the building" : place ? "Back to Brazil" : "Back to towns"}
-              className="pointer-events-auto flex w-9 shrink-0 items-center justify-center border-r border-border text-muted hover:text-cream sm:w-8"
+              className={`flex w-9 shrink-0 items-center justify-center border-r-2 ${HUD_EDGE} ${HUD_SOFT} hover:text-cream`}
             >
               <ChevronLeft size={16} aria-hidden />
             </button>
-            <p className="flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap px-3">
+            <p className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap px-3">
               {place ? (
                 <>
                   <span className="h-2 w-2 shrink-0 border border-border-light" style={{ background: place.uf ? swatchOf(place.uf) : LIME }} aria-hidden />
                   <span className="truncate text-cream">{place.uf ? place.name : "Island"}</span>
-                  {place.uf && <span className="text-muted">{place.uf}</span>}
-                  <span className="text-muted">{fmt(place.devs.length)} devs</span>
+                  <span className={`shrink-0 ${HUD_SOFT}`}>· {fmt(place.devs.length)} devs</span>
                 </>
               ) : (
                 <>
                   <span style={{ color: LIME }}>Brasil</span>
-                  <span className="text-cream">{fmt(world.devs)} devs</span>
-                  <span className="text-muted max-sm:hidden">{world.founders}/27 founded</span>
+                  <span className="text-cream">· {fmt(world.devs)} devs</span>
+                  <span className={`truncate ${HUD_SOFT} max-sm:hidden`}>· {world.founders} of 27 states</span>
                 </>
               )}
-              <span className="flex items-center gap-1.5 text-cream">
-                <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
-                {fmt(here)} here{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
-              </span>
             </p>
+            <span className="flex shrink-0 items-center gap-1.5 pr-3 text-cream">
+              <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
+              {fmt(here)} online{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
+            </span>
           </div>
-        </div>
-      )}
-
-      {!driving && (
-        <div className="absolute inset-x-3 top-[52px] z-30 sm:inset-x-auto sm:left-1/2 sm:top-[48px] sm:-translate-x-1/2">
           <BrasilSearchBar
             cities={layout.cities}
             island={layout.island}
