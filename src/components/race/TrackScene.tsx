@@ -494,7 +494,8 @@ function EndCaps({ track }: { track: Track }) {
  * The track and what stands around it. A drift spot keeps the look and swaps
  * the surroundings: `grass` off when the spot lays its own ground, `stands`
  * off for the grandstands and pits, `trees` off for the scattered trees, and
- * its own scenery as children.
+ * its own scenery as children. `walls` off draws only the asphalt and the
+ * line, for a track seen from the town before you're on it.
  */
 export default function TrackScene({
   track,
@@ -503,6 +504,7 @@ export default function TrackScene({
   grass = true,
   stands = true,
   trees = true,
+  walls = true,
   children,
 }: {
   track: Track;
@@ -511,12 +513,13 @@ export default function TrackScene({
   grass?: boolean;
   stands?: boolean;
   trees?: boolean;
+  walls?: boolean;
   children?: React.ReactNode;
 }) {
   return (
     <group>
       <Surface track={track} grass={grass} />
-      <Walls track={track} />
+      {walls && <Walls track={track} />}
       <StartLine track={track} />
       <Gantry track={track} lit={lit} title={title} />
       {!track.closed && (
@@ -527,7 +530,7 @@ export default function TrackScene({
         </>
       )}
       {stands && <Stands track={track} />}
-      <Chevrons track={track} />
+      {walls && <Chevrons track={track} />}
       {trees && <Trees track={track} />}
       {children}
     </group>
