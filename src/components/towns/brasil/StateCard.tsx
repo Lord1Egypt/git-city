@@ -6,7 +6,8 @@ import type { CityBuilding } from "@/lib/github";
 import { Avatar, fmt } from "@/components/league/hud/shared";
 import { useSheet } from "@/components/league/hud/useSheet";
 import TrophyIcon from "@/components/towns/TrophyIcon";
-import { swatchOf, type StateStats, type WeekStanding } from "./stats";
+import { stateOf } from "@/lib/towns/brasil-map";
+import { type StateStats, type WeekStanding } from "./stats";
 
 // A state's card, opened from its tag or a search: its founder, how many
 // devs live there and its place among the 27, its top five devs (each one a
@@ -67,97 +68,78 @@ export default function StateCard({
           ESC
         </button>
 
-        <div className="flex items-center gap-3 px-4 pb-3 pt-4">
-          <span className="h-9 w-9 shrink-0 border-2 border-border-light" style={{ background: swatchOf(s.uf) }} aria-hidden />
-          <div className="min-w-0">
-            <p className="text-sm text-cream">{s.name}</p>
-            <p className="text-[9px] normal-case text-muted">
+        {/* Who the state is: its flag, name, capital, and its place among the 27. */}
+        <div className="flex items-center gap-3 px-4 pb-3 pt-4 pr-12">
+          <StateFlag uf={s.uf} className="h-8 w-11" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm text-cream">{s.name}</p>
+            <p className="truncate text-[9px] normal-case text-muted">
               {s.uf} · {s.capital.name}
-              {s.second ? ` and ${s.second.name}` : ""}
+              {s.second ? ` · ${s.second.name}` : ""}
             </p>
           </div>
+          {s.devs > 0 && <span className="shrink-0 border-2 border-lime px-1.5 py-0.5 text-xs text-lime">#{s.place}</span>}
         </div>
 
-        {week?.crown?.uf === s.uf && (
-          <div className="mx-4 mb-3 flex items-center gap-2.5 border-2 border-lime px-3 py-2">
-            <TrophyIcon size={14} className="text-lime" />
-            <div>
-              <p className="text-[10px] text-lime">State of the week</p>
-              <p className="text-[9px] normal-case text-muted">+{fmt(week.crown.gained)} devs last week, the most of any state</p>
-            </div>
+        {(week?.crown?.uf === s.uf || week?.leading?.uf === s.uf) && (
+          <div className="mx-4 mb-3 flex items-center gap-2 bg-lime/10 px-2.5 py-1.5 text-[9px]">
+            <TrophyIcon size={12} className="shrink-0 text-lime" />
+            {week?.crown?.uf === s.uf ? (
+              <span className="text-lime">
+                State of the week <span className="normal-case text-muted">· +{fmt(week.crown.gained)} devs last week</span>
+              </span>
+            ) : (
+              <span className="text-lime">
+                Leading the week <span className="normal-case text-muted">· +{fmt(week!.leading!.gained)} devs, the most so far</span>
+              </span>
+            )}
           </div>
         )}
-        {week?.leading?.uf === s.uf && week.crown?.uf !== s.uf && (
-          <p className="mx-4 mb-3 text-[9px] normal-case text-lime">Leading the week: +{fmt(week.leading.gained)} devs. The state that grows most wins the crown.</p>
-        )}
-        <div className="mx-4 mb-3 flex items-center gap-3 border-2 border-border px-3 py-2">
-          {s.founder ? (
-            <>
-              <Avatar src={founder?.avatar_url ?? null} size={28} />
-              <button type="button" onClick={() => onPickDev(s.founder!)} className="min-w-0 text-left">
-                <span className="block text-[8px] text-lime">Founder</span>
-                <span className="block truncate text-[10px] normal-case text-cream hover:text-lime">@{s.founder}</span>
-              </button>
-            </>
-          ) : (
-            <p className="text-[9px] normal-case text-muted">No founder yet. The first dev here founds {s.name}.</p>
-          )}
-        </div>
 
-        <div className="mx-4 mb-3 grid grid-cols-3 gap-px border border-border/50 bg-border/30">
+        <div className="mx-4 mb-4 grid grid-cols-3 gap-px border border-border/50 bg-border/30">
           {[
             { label: "Devs", value: fmt(s.devs) },
-            { label: "Place", value: s.devs > 0 ? `#${s.place}` : "–" },
             { label: "This week", value: `+${fmt(s.newThisWeek)}` },
+            { label: "Contribs", value: fmt(s.contributions) },
           ].map((x) => (
-            <div key={x.label} className="bg-bg-card p-2 text-center">
-              <div className="text-xs text-lime">{x.value}</div>
+            <div key={x.label} className="bg-bg-card px-1 py-2 text-center">
+              <div className="truncate text-xs text-lime">{x.value}</div>
               <div className="mt-0.5 text-[8px] text-muted">{x.label}</div>
             </div>
           ))}
         </div>
 
-        {cabinet && cabinet.senators.length > 0 && (
-          <div className="mx-4 mb-3">
-            <p className="mb-1.5 text-[8px] text-muted">{cabinet.provisional ? "Leading this week · offices change Monday" : "Elected last week · contributions"}</p>
-            <ul className="flex flex-col">
-              {[
-                ...(cabinet.governor ? [{ role: "Governor", login: cabinet.governor }] : []),
-                ...cabinet.senators.map((l) => ({ role: "Senator", login: l })),
-                ...(cabinet.mayor ? [{ role: `Mayor · ${cabinet.mayor.city}`, login: cabinet.mayor.login }] : []),
-              ].map((r) => (
-                <li key={`${r.role}-${r.login}`}>
-                  <button type="button" onClick={() => onPickDev(r.login)} className="flex w-full items-center gap-2.5 py-1 text-left hover:text-lime">
-                    <span className={`w-[78px] shrink-0 truncate text-[8px] ${r.role === "Governor" ? "text-lime" : "text-muted"}`}>{r.role}</span>
-                    <Avatar src={byLogin.get(r.login)?.avatar_url ?? null} size={18} />
-                    <span className="min-w-0 flex-1 truncate text-[10px] normal-case text-cream">@{r.login}</span>
-                    <span className="text-[9px] text-muted">{fmt(cabinet.totals[r.login] ?? 0)}</span>
-                  </button>
-                </li>
+        {/* Who runs it: the founder (forever) and this week's offices, one aligned list. */}
+        <Section title={`Who runs ${s.uf}`} note={cabinet ? (cabinet.provisional ? "election monday" : "elected last week") : undefined}>
+          <Row
+            role="Founder"
+            hot
+            login={s.founder}
+            avatar={founder?.avatar_url ?? null}
+            value={s.founder ? "forever" : undefined}
+            empty={`Nobody yet. The first dev founds ${s.name}.`}
+            onPick={onPickDev}
+          />
+          {cabinet && (
+            <>
+              <Row role="Governor" hot login={cabinet.governor} avatar={cabinet.governor ? (byLogin.get(cabinet.governor)?.avatar_url ?? null) : null} value={cabinet.governor ? fmt(cabinet.totals[cabinet.governor] ?? 0) : undefined} empty="Open: top committer this week takes it." onPick={onPickDev} />
+              {cabinet.senators.map((l) => (
+                <Row key={l} role="Senator" login={l} avatar={byLogin.get(l)?.avatar_url ?? null} value={fmt(cabinet.totals[l] ?? 0)} onPick={onPickDev} />
               ))}
-            </ul>
-          </div>
-        )}
+              {cabinet.mayor && (
+                <Row role={`Mayor`} sub={cabinet.mayor.city} login={cabinet.mayor.login} avatar={byLogin.get(cabinet.mayor.login)?.avatar_url ?? null} value={fmt(cabinet.totals[cabinet.mayor.login] ?? 0)} onPick={onPickDev} />
+              )}
+            </>
+          )}
+        </Section>
 
         {s.top.length > 0 && (
-          <div className="mx-4 mb-3">
-            <p className="mb-1.5 text-[8px] text-muted">Top devs · {fmt(s.contributions)} contributions</p>
-            <ol className="flex flex-col">
-              {s.top.map((login, i) => {
-                const b = byLogin.get(login.toLowerCase());
-                return (
-                  <li key={login}>
-                    <button type="button" onClick={() => onPickDev(login)} className="flex w-full items-center gap-2.5 py-1 text-left hover:text-lime">
-                      <span className="w-3 text-[9px] text-muted">{i + 1}</span>
-                      <Avatar src={b?.avatar_url ?? null} size={20} />
-                      <span className="min-w-0 flex-1 truncate text-[10px] normal-case text-cream">@{login}</span>
-                      <span className="text-[9px] text-muted">{fmt(b?.contributions ?? 0)}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
+          <Section title="Biggest buildings" note="all-time contributions">
+            {s.top.map((login, i) => {
+              const b = byLogin.get(login.toLowerCase());
+              return <Row key={login} role={`#${i + 1}`} login={login} avatar={b?.avatar_url ?? null} value={fmt(b?.contributions ?? 0)} onPick={onPickDev} />;
+            })}
+          </Section>
         )}
 
         <div className="mx-4 mb-4 flex flex-col gap-1.5">
@@ -172,5 +154,74 @@ export default function StateCard({
         </div>
       </div>
     </div>
+  );
+}
+
+/** A state's flag as stripes of its colors (a black-only swatch read as a hole). */
+export function StateFlag({ uf, className = "" }: { uf: StateStats["uf"]; className?: string }) {
+  const colors = stateOf(uf).colors;
+  return (
+    <span className={`flex shrink-0 flex-col border-2 border-border-light ${className}`} aria-hidden>
+      {colors.map((c, i) => (
+        <span key={i} className="flex-1" style={{ background: c }} />
+      ))}
+    </span>
+  );
+}
+
+function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <div className="mx-4 mb-4">
+      <p className="mb-1 flex items-baseline justify-between border-b border-border pb-1 text-[8px] text-muted">
+        <span className="text-cream-dark">{title}</span>
+        {note && <span>{note}</span>}
+      </p>
+      <ul className="flex flex-col">{children}</ul>
+    </div>
+  );
+}
+
+/** One aligned line: the role, the dev's face and @, a number on the right. */
+function Row({
+  role,
+  sub,
+  hot = false,
+  login,
+  avatar,
+  value,
+  empty,
+  onPick,
+}: {
+  role: string;
+  sub?: string;
+  hot?: boolean;
+  login: string | null;
+  avatar: string | null;
+  value?: string;
+  empty?: string;
+  onPick: (login: string) => void;
+}) {
+  const label = (
+    <span className={`w-[64px] shrink-0 truncate text-[8px] ${hot ? "text-lime" : "text-muted"}`}>
+      {role}
+      {sub && <span className="block truncate normal-case text-dim">{sub}</span>}
+    </span>
+  );
+  if (!login)
+    return (
+      <li className="flex items-center gap-2.5 py-1.5">
+        {label}
+        <span className="text-[9px] normal-case text-dim">{empty}</span>
+      </li>
+    );
+  return (
+    <li>
+      <button type="button" onClick={() => onPick(login)} className="flex w-full items-center gap-2.5 py-1 text-left hover:text-lime">
+        {label}
+        <Avatar src={avatar} size={20} />
+        <span className="min-w-0 flex-1 truncate text-[10px] normal-case text-cream">@{login}</span>
+        {value && <span className="shrink-0 text-[9px] text-muted">{value}</span>}
+      </button>
+    </li>
   );
 }
