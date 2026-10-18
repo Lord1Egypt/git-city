@@ -8,7 +8,7 @@ import { BrasilPlacer, STATES, layoutBrasil, type MapDev } from "./brasil-map";
 import { brasilWorld, plainBuilding } from "./brasil-world";
 import { pointAt } from "../league-city/race/track";
 import { DRIFT_EXIT, DRIFT_SIGN_LOT, DRIFT_SITE, clearOfStart, crossedStart, inDriftSite } from "./brasil-drift";
-import { coastDistance, onLand } from "./brasil-geo";
+import { RIVERS, coastDistance, onLand } from "./brasil-geo";
 
 const spot = getLiveSpot("brasil-harbor")!;
 const { track, clips } = courseOf(spot);
@@ -16,11 +16,24 @@ const { track, clips } = courseOf(spot);
 const lotOf = (x: number, z: number) => [Math.round((x * M_TO_UNIT) / LOT), Math.round((z * M_TO_UNIT) / LOT)] as const;
 
 describe("the Brasil drift site", () => {
-  it("is open land, clear of the coast", () => {
+  it("is open land, clear of the coast and of every river", () => {
     for (let x = DRIFT_SITE.x0; x <= DRIFT_SITE.x1; x++)
       for (let z = DRIFT_SITE.z0; z <= DRIFT_SITE.z1; z++) {
         expect(onLand(x * LOT, z * LOT)).toBe(true);
         expect(coastDistance(x * LOT, z * LOT)).toBeGreaterThan(LOT);
+      }
+    // No river runs under the site (its water would show through the track).
+    const pad = LOT;
+    for (const r of RIVERS)
+      for (let i = 1; i < r.points.length; i++) {
+        const [a, b] = [r.points[i - 1], r.points[i]];
+        const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 8);
+        for (let k = 0; k <= n; k++) {
+          const x = a[0] + ((b[0] - a[0]) * k) / n;
+          const z = a[1] + ((b[1] - a[1]) * k) / n;
+          const inside = x > (DRIFT_SITE.x0 - 0.5) * LOT - pad && x < (DRIFT_SITE.x1 + 0.5) * LOT + pad && z > (DRIFT_SITE.z0 - 0.5) * LOT - pad && z < (DRIFT_SITE.z1 + 0.5) * LOT + pad;
+          expect(inside, r.name).toBe(false);
+        }
       }
     for (const [x, z] of [DRIFT_SIGN_LOT, [DRIFT_EXIT.x, DRIFT_EXIT.z]]) {
       expect(onLand(x * LOT, z * LOT)).toBe(true);
@@ -28,11 +41,13 @@ describe("the Brasil drift site", () => {
     }
   });
 
-  it("puts the sign and the exit by the START gate", () => {
+  it("puts the sign and the exit by the START gate, the exit on the highway", () => {
+    const layout = layoutBrasil([]);
+    expect(layout.highways.some(([x, z]) => x === DRIFT_EXIT.x && z === DRIFT_EXIT.z)).toBe(true);
     const line = pointAt(track, 0);
     const [lx, lz] = lotOf(line.x, line.z);
     expect(Math.hypot(DRIFT_SIGN_LOT[0] - lx, DRIFT_SIGN_LOT[1] - lz)).toBeLessThan(5);
-    expect(Math.hypot(DRIFT_EXIT.x - lx, DRIFT_EXIT.z - lz)).toBeLessThan(5);
+    expect(Math.hypot(DRIFT_EXIT.x - lx, DRIFT_EXIT.z - lz)).toBeLessThan(7);
   });
 
   it("holds the whole track, its walls and its scenery", () => {

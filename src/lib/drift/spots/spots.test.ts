@@ -104,15 +104,16 @@ describe("the spot list", () => {
     for (const t of TOWN_SPOTS) expect(t.id).toMatch(/^[a-z0-9-]{1,32}$/);
   });
 
-  it("lays Harbor's loop on the Brasil map as is: the same length and shape, moved", () => {
+  it("lays Harbor's loop on the Brasil map as is: the same length and shape, turned round and moved", () => {
     const harbor = courseOf(getLiveSpot("harbor")!).track;
     const brasil = courseOf(getLiveSpot("brasil-harbor")!).track;
     expect(brasil.length).toBeCloseTo(harbor.length, 0);
-    const [dx, dz] = [brasil.samples[0].x - harbor.samples[0].x, brasil.samples[0].z - harbor.samples[0].z];
-    expect(Math.hypot(dx, dz)).toBeGreaterThan(1000);
+    // Turned half a circle: each point is Harbor's, mirrored through one fixed middle.
+    const [sx, sz] = [brasil.samples[0].x + harbor.samples[0].x, brasil.samples[0].z + harbor.samples[0].z];
+    expect(Math.hypot(sx, sz)).toBeGreaterThan(1000);
     for (let i = 0; i < harbor.samples.length; i += 25) {
-      expect(brasil.samples[i].x - harbor.samples[i].x).toBeCloseTo(dx, 0);
-      expect(brasil.samples[i].z - harbor.samples[i].z).toBeCloseTo(dz, 0);
+      expect(brasil.samples[i].x + harbor.samples[i].x).toBeCloseTo(sx, 0);
+      expect(brasil.samples[i].z + harbor.samples[i].z).toBeCloseTo(sz, 0);
     }
   });
 });
