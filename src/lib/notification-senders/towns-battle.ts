@@ -8,6 +8,7 @@ import { getPlayWeekRow } from "../towns/play-load";
 import { SIDES, battleWeekNumber, type Side } from "../towns/battle-rules";
 import { PRIZE_CREDITS, PRIZE_SPONSOR, PRIZE_WINNERS, RULES_PATH } from "../towns/play-rules";
 import { SPONSOR } from "../towns/sponsor";
+import { hitBackLink, hitBackUrl, smashLine, weekSmashes, type WeekSmashes } from "./week-smashes";
 
 // Claude vs Codex emails, both from the Monday close: "The battle is on" the
 // Monday the first battle week opens, then each Monday the week's result for
@@ -100,6 +101,8 @@ export interface BattleResultEmailData {
   /** The reader's play points in the week (caps and the 2x activity applied, no prize bonus). */
   mine: number;
   heroUrl: string;
+  /** Who knocked you down that week and how many you knocked down (null: neither). */
+  smash?: WeekSmashes | null;
 }
 
 function resultHeader(d: BattleResultEmailData) {
@@ -117,18 +120,36 @@ export function renderBattleResultEmail(d: BattleResultEmailData, links: EmailLi
   const { subject, preheader, line, cta } = resultHeader(d);
   const url = trackedUrl("/towns", "battle_result");
   const rulesUrl = trackedUrl(RULES_PATH, "battle_result");
+  const smash = d.smash ? smashLine(d.smash) : "";
+  const hitBack = d.smash ? hitBackUrl(d.smash, "battle_result") : null;
   const reason = `You're getting this because you're on ${nameOf(d.side)} in Claude vs Codex on Git City.`;
   const html = renderLayout({
     title: subject,
     preheader,
     hero: heroImage({ src: d.heroUrl, href: url, alt: `${subject}: Claude ${d.claude ?? "–"}, Codex ${d.codex ?? "–"} per player` }),
-    body: [paragraph(line), button(cta, url), textLink("How scoring and checks work", rulesUrl)].join("\n"),
+    body: [
+      paragraph(line),
+      smash ? paragraph(smash) : "",
+      button(cta, url),
+      d.smash ? hitBackLink(d.smash, "battle_result") : "",
+      textLink("How scoring and checks work", rulesUrl),
+    ].join("\n"),
     reason,
     links,
     sponsor: SPONSOR,
   });
   const text = renderText({
-    lines: [subject, "", line, "", `${cta}: ${url}`, "", `How scoring and checks work: ${rulesUrl}`],
+    lines: [
+      subject,
+      "",
+      line,
+      ...(smash ? ["", smash] : []),
+      "",
+      `${cta}: ${url}`,
+      ...(hitBack && d.smash?.hitBack ? ["", `Hit @${d.smash.hitBack.login} back: ${hitBack}`] : []),
+      "",
+      `How scoring and checks work: ${rulesUrl}`,
+    ],
     reason,
     links,
   });
@@ -149,6 +170,16 @@ export async function sendBattleResults(weekStart: string): Promise<number> {
     return 0;
   }
   const week = battleWeekNumber(weekStart);
+  const from = `${weekStart}T00:00:00Z`;
+  const to = new Date(Date.parse(from) + 7 * 86_400_000).toISOString();
+  const smashes = await weekSmashes(
+    row.standings.filter((s) => s.side).map((s) => s.developer_id),
+    from,
+    to,
+  ).catch((err) => {
+    console.error("[towns-battle] smash lines skipped", err);
+    return new Map<number, WeekSmashes>();
+  });
   const payloads: NotificationPayload[] = [];
   for (const me of row.standings) {
     if (!me.side) continue;
@@ -160,6 +191,7 @@ export async function sendBattleResults(weekStart: string): Promise<number> {
       side: me.side,
       mine: me.total,
       heroUrl: `${EMAIL_BASE_URL}/towns/battle-image?week=${weekStart}`,
+      smash: smashes.get(me.developer_id) ?? null,
     };
     const { subject, preheader } = resultHeader(data);
     payloads.push({

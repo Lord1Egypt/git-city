@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ getPlayWeekRow: vi.fn(), sendNotification: vi.fn() }));
+const m = vi.hoisted(() => ({ getPlayWeekRow: vi.fn(), sendNotification: vi.fn(), weekSmashes: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("../towns/play-load", () => ({ getPlayWeekRow: m.getPlayWeekRow }));
 vi.mock("../notifications", () => ({ sendNotification: m.sendNotification }));
+vi.mock("./week-smashes", async (orig) => ({ ...(await orig<typeof import("./week-smashes")>()), weekSmashes: m.weekSmashes }));
 
 import { renderBattleResultEmail, renderBattleStartEmail, sendBattleResults, type BattleResultEmailData } from "./towns-battle";
 import { PREVIEW_LINKS } from "../email/previews/types";
@@ -28,6 +29,21 @@ describe("battle email copy", () => {
 
   it("says you didn't score when you have 0", () => {
     expect(renderBattleResultEmail({ ...RESULT, mine: 0 }, PREVIEW_LINKS).preheader).toBe("You didn't score for Codex that week.");
+  });
+
+  it("says who knocked you down and how many you knocked down, with a link to hit back", () => {
+    const smash = { by: ["ana", "bo", "cy"], knocked: 1, hitBack: { login: "ana", slug: "codex" } };
+    const r = renderBattleResultEmail({ ...RESULT, smash }, PREVIEW_LINKS);
+    expect(r.text).toContain("@ana and 2 others knocked your building down last week. You knocked down 1 building.");
+    expect(r.html).toContain("Hit @ana back");
+    expect(r.html).toContain("/town/codex?drive=1&amp;at=ana");
+  });
+
+  it("leaves the smash line out when nothing fell", () => {
+    expect(renderBattleResultEmail({ ...RESULT, smash: null }, PREVIEW_LINKS).text).not.toMatch(/knocked/);
+    expect(renderBattleResultEmail({ ...RESULT, smash: { by: [], knocked: 2, hitBack: null } }, PREVIEW_LINKS).text).toContain(
+      "You knocked down 2 buildings last week.",
+    );
   });
 
   it("puts the score per player in the hero", () => {
@@ -78,6 +94,8 @@ describe("sendBattleResults", () => {
     m.getPlayWeekRow.mockReset();
     m.sendNotification.mockReset();
     m.sendNotification.mockResolvedValue([{ channel: "email", success: true }]);
+    m.weekSmashes.mockReset();
+    m.weekSmashes.mockResolvedValue(new Map());
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
