@@ -17,11 +17,16 @@ describe("weekStart", () => {
 describe("weekCrown", () => {
   it("crowns last full week's top gainer and names this week's leader", () => {
     const l = layout([dev("SP", "2026-10-20T12:00:00Z"), dev("BA", "2026-10-21T12:00:00Z"), dev("BA", "2026-10-22T12:00:00Z"), dev("MG", "2026-10-27T12:00:00Z")]);
-    const { crown, leading } = weekCrown(l, Date.parse("2026-10-28T12:00:00Z"));
+    const { crown, leading } = weekCrown(l, Date.parse("2026-10-28T12:00:00Z"), "2026-10-19");
     expect(crown).toEqual({ uf: "BA", gained: 2 });
     expect(leading).toEqual({ uf: "MG", gained: 1 });
   });
   it("has no crown before a full week", () => {
-    expect(weekCrown(layout([dev("SP", "2026-10-20T12:00:00Z")]), Date.parse("2026-10-21T12:00:00Z")).crown).toBeNull();
+    expect(weekCrown(layout([dev("SP", "2026-10-20T12:00:00Z")]), Date.parse("2026-10-21T12:00:00Z"), "2026-10-19").crown).toBeNull();
+  });
+  it("launching on a Sunday, the first crown waits for the first whole week", () => {
+    const l = layout([dev("SP", "2026-10-18T15:00:00Z"), dev("BA", "2026-10-20T15:00:00Z")]);
+    expect(weekCrown(l, Date.parse("2026-10-19T15:00:00Z"), "2026-10-18").crown).toBeNull();
+    expect(weekCrown(l, Date.parse("2026-10-26T15:00:00Z"), "2026-10-18").crown).toEqual({ uf: "BA", gained: 1 });
   });
 });

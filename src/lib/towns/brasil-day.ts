@@ -9,7 +9,7 @@
 import { STATES, type Resident, type UF } from "./brasil-map";
 
 /** Day 1 of the series. */
-export const BRASIL_LAUNCH = "2026-10-19";
+export const BRASIL_LAUNCH = "2026-10-18";
 const BRT_MS = 3 * 3_600_000;
 const DAY_MS = 86_400_000;
 

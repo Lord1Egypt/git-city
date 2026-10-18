@@ -4,6 +4,7 @@
 // contributions and who came this week.
 
 import type { CityBuilding } from "@/lib/github";
+import { BRASIL_LAUNCH } from "@/lib/towns/brasil-day";
 import { STATES, stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -93,7 +94,15 @@ function topGainer(layout: BrasilLayout, from: number, to: number): WeekStanding
   return best;
 }
 
-export function weekCrown(layout: BrasilLayout, now: number): { crown: WeekStanding | null; leading: WeekStanding | null } {
+/** The first full week after launch: a crown is only ever given for a whole week. */
+function firstFullWeek(launch: string): number {
+  const day = Date.parse(`${launch}T00:00:00Z`) + BRT_MS;
+  const monday = weekStart(day);
+  return monday === day ? monday : monday + 7 * DAY_MS;
+}
+
+export function weekCrown(layout: BrasilLayout, now: number, launch = BRASIL_LAUNCH): { crown: WeekStanding | null; leading: WeekStanding | null } {
   const start = weekStart(now);
-  return { crown: topGainer(layout, start - 7 * DAY_MS, start), leading: topGainer(layout, start, now + 1) };
+  const lastWeek = start - 7 * DAY_MS;
+  return { crown: lastWeek >= firstFullWeek(launch) ? topGainer(layout, lastWeek, start) : null, leading: topGainer(layout, start, now + 1) };
 }
