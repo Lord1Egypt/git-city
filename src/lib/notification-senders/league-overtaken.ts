@@ -1,9 +1,14 @@
+import { getSupabaseAdmin } from "../supabase";
 import { sendNotification } from "../notifications";
 import { EMAIL_BASE_URL, button, heading, paragraph, statTiles, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { DAILY_CONTRIBUTION_CAP, weekEnd, weekStart } from "../leagues/scoring";
 import { townDisplayName } from "../towns/names";
 import { contributions } from "./town-email";
+
+// At most one every 3 days per dev, across all towns: sent daily it filled the
+// shared weekly cap and pushed out the emails about your own building.
+const EVERY_MS = 3 * 86_400_000;
 
 export interface LeagueOvertakenEmailData {
   leagueSlug: string;
@@ -75,7 +80,7 @@ export function renderLeagueOvertakenEmail(d: LeagueOvertakenEmailData, links: E
   return { subject, preheader, html, text };
 }
 
-/** "@bruno passed you" email. Max one per dev per UTC day across all towns. */
+/** "@bruno passed you" email. Max one per dev every 3 days across all towns. */
 export async function sendLeagueOvertakenNotification(opts: {
   developerId: number;
   leagueSlug: string;
@@ -85,7 +90,16 @@ export async function sendLeagueOvertakenNotification(opts: {
   newRank: number;
 }) {
   const now = new Date();
-  const day = now.toISOString().slice(0, 10);
+  const { data: recent } = await getSupabaseAdmin()
+    .from("notification_log")
+    .select("id")
+    .eq("developer_id", opts.developerId)
+    .eq("notification_type", "league_overtaken")
+    .neq("status", "failed")
+    .gte("created_at", new Date(now.getTime() - EVERY_MS).toISOString())
+    .limit(1)
+    .maybeSingle();
+  if (recent) return [];
   const data: LeagueOvertakenEmailData = {
     leagueSlug: opts.leagueSlug,
     leagueName: opts.leagueName,
@@ -100,7 +114,7 @@ export async function sendLeagueOvertakenNotification(opts: {
     type: "league_overtaken",
     category: "leagues",
     developerId: opts.developerId,
-    dedupKey: `league_overtaken:${opts.developerId}:${day}`,
+    dedupKey: `league_overtaken:${opts.developerId}:${Math.floor(now.getTime() / EVERY_MS)}`,
     title: subject,
     body: preheader,
     render: (links) => renderLeagueOvertakenEmail(data, links),
