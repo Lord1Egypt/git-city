@@ -83,6 +83,8 @@ export interface DriftWorldProps {
   carOutRef?: React.MutableRefObject<CarApi | null>;
   /** The spot's own ground instead of the race track's grass; null for none (a town's track sits on the town's land). */
   ground?: ReactNode;
+  /** How much the scenery's colors are darkened (1: as modeled), for a scene lit hotter than the spots' afternoon. */
+  propTone?: number;
 }
 
 const U = M_TO_UNIT;
@@ -174,6 +176,7 @@ export default function DriftWorld({
   touch,
   carOutRef,
   ground,
+  propTone = 1,
   slot = 0,
 }: DriftWorldProps) {
   const track = course.track;
@@ -428,7 +431,7 @@ export default function DriftWorld({
       <TrackScene track={track} lit={lit} title={title} grass={ground === undefined && spot.id !== "harbor"} stands={false} trees={false}>
         {ground ?? (spot.id === "harbor" && <HarborGround track={track} />)}
         <Suspense fallback={null}>
-          <KenneyProps items={scenery} />
+          <KenneyProps items={scenery} tone={propTone} />
         </Suspense>
       </TrackScene>
       <Suspense fallback={null}>
