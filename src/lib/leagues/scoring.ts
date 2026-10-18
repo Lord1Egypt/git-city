@@ -150,6 +150,8 @@ export interface Overtake {
   overtakerLogin: string;
   gap: number;
   newRank: number;
+  /** How many more passed you in the same fetch (left out when none). */
+  others?: number;
 }
 
 /**
@@ -170,7 +172,13 @@ export function detectOvertakes<T extends Standing & { login: string }>(prev: T[
     });
     const closest = passers[passers.length - 1];
     if (!closest) continue;
-    out.push({ developerId: me.developer_id, overtakerLogin: closest.login, gap: closest.total - me.total, newRank: me.rank });
+    out.push({
+      developerId: me.developer_id,
+      overtakerLogin: closest.login,
+      gap: closest.total - me.total,
+      newRank: me.rank,
+      ...(passers.length > 1 ? { others: passers.length - 1 } : {}),
+    });
   }
   return out;
 }

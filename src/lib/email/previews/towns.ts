@@ -59,6 +59,8 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
   "town-joined-no-emblem": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: false }, PREVIEW_LINKS),
   "town-overtaken": () =>
     renderLeagueOvertakenEmail({ ...TOWN, overtakerLogin: "pyromains", gap: 12, newRank: 2, hoursLeft: 57 }, PREVIEW_LINKS),
+  "town-overtaken-several": () =>
+    renderLeagueOvertakenEmail({ ...TOWN, overtakerLogin: "pyromains", others: 2, gap: 12, newRank: 5, hoursLeft: 57 }, PREVIEW_LINKS),
   "town-overtaken-last-hours": () =>
     renderLeagueOvertakenEmail(
       { ...TOWN, overtakerLogin: "kristoferborges", gap: 1, newRank: 4, hoursLeft: 5 },

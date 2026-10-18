@@ -14,6 +14,8 @@ export interface LeagueOvertakenEmailData {
   leagueSlug: string;
   leagueName: string;
   overtakerLogin: string;
+  /** How many more passed you at the same time. */
+  others?: number;
   gap: number;
   newRank: number;
   /** Hours until the week closes (Monday 00:00 UTC). */
@@ -30,13 +32,14 @@ function leagueOvertakenHeader(d: LeagueOvertakenEmailData) {
   const town = townDisplayName(d.leagueName);
   return {
     town,
-    subject: `@${d.overtakerLogin} passed you in ${town}`,
+    who: `@${d.overtakerLogin}${d.others ? ` and ${d.others} other${d.others === 1 ? "" : "s"}` : ""}`,
+    subject: `@${d.overtakerLogin}${d.others ? ` and ${d.others} other${d.others === 1 ? "" : "s"}` : ""} passed you in ${town}`,
     preheader: `You're #${d.newRank} now, ${contributions(d.gap)} behind. The week closes Monday 00:00 UTC.`,
   };
 }
 
 export function renderLeagueOvertakenEmail(d: LeagueOvertakenEmailData, links: EmailLinks) {
-  const { town, subject, preheader } = leagueOvertakenHeader(d);
+  const { town, who, subject, preheader } = leagueOvertakenHeader(d);
   const townUrl = trackedUrl(`/town/${d.leagueSlug}`, "league_overtaken");
   const intro = `They moved ahead of you in this week's ${town} race.`;
   const howTo = `Every GitHub contribution counts, up to ${DAILY_CONTRIBUTION_CAP} a day.`;
@@ -51,7 +54,7 @@ export function renderLeagueOvertakenEmail(d: LeagueOvertakenEmailData, links: E
     title: subject,
     preheader,
     body: [
-      heading("", `@${d.overtakerLogin}`, " passed you"),
+      heading("", who, " passed you"),
       paragraph(intro),
       statTiles(tiles),
       paragraph(howTo),
@@ -63,7 +66,7 @@ export function renderLeagueOvertakenEmail(d: LeagueOvertakenEmailData, links: E
 
   const text = renderText({
     lines: [
-      `@${d.overtakerLogin} passed you in ${town}`,
+      subject,
       "",
       intro,
       "",
@@ -86,6 +89,7 @@ export async function sendLeagueOvertakenNotification(opts: {
   leagueSlug: string;
   leagueName: string;
   overtakerLogin: string;
+  others?: number;
   gap: number;
   newRank: number;
 }) {
@@ -104,6 +108,7 @@ export async function sendLeagueOvertakenNotification(opts: {
     leagueSlug: opts.leagueSlug,
     leagueName: opts.leagueName,
     overtakerLogin: opts.overtakerLogin,
+    others: opts.others,
     gap: opts.gap,
     newRank: opts.newRank,
     hoursLeft: (weekEnd(weekStart(now)).getTime() - now.getTime()) / 3_600_000,
