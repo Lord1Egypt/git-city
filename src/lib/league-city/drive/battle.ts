@@ -10,6 +10,7 @@
 // Attacks never destroy a car, they only get in the way. Each player's own
 // client decides whether their car was caught (like bumps).
 
+import { COORD_MAX } from "./net";
 import { LOT } from "../grid";
 import type { CityObject } from "../types";
 
@@ -23,6 +24,13 @@ export const ITEM_NAMES: Record<BattleItem, string> = {
 };
 
 export const BOX_COUNT = 12;
+/** The Brasil map is a country, not a town: boxes enough for every city (they appear on city streets only). */
+const BRASIL_BOX_COUNT = 120;
+
+/** How many box slots a drive room has. */
+export function boxCountFor(room: string): number {
+  return room === "brasil-town" ? BRASIL_BOX_COUNT : BOX_COUNT;
+}
 /** A taken box comes back this much later (ms). */
 export const BOX_RESPAWN_MS = 6000;
 /** Drive within this of a box (m) to take it. */
@@ -82,7 +90,7 @@ export function validUse(x: unknown, z: unknown, dx: unknown, dz: unknown): { x:
   const nums = [x, z, dx, dz];
   if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
   const [px, pz, vx, vz] = nums as number[];
-  if (Math.abs(px) > 1000 || Math.abs(pz) > 1000) return null;
+  if (Math.abs(px) > COORD_MAX || Math.abs(pz) > COORD_MAX) return null;
   const m = Math.hypot(vx, vz);
   if (m < 0.1) return null;
   return { x: px, z: pz, dx: vx / m, dz: vz / m };

@@ -13,9 +13,10 @@ import {
   validName,
   type ServerMsg,
   type BoxState,
+  COORD_MAX,
 } from "../src/lib/league-city/drive/net";
 import {
-  BOX_COUNT,
+  boxCountFor,
   BOX_RESPAWN_MS,
   TAKE_MIN_MS,
   USE_MIN_MS,
@@ -88,7 +89,8 @@ interface Box {
 
 export class DriveServer extends PartyRoom {
   private drivers = new Map<string, Driver>();
-  private boxes: Box[] = Array.from({ length: BOX_COUNT }, () => ({ gen: 0, availableAt: 0 }));
+  /** One per box slot; how many depends on the room (boxCountFor), set in the constructor. */
+  private boxes: Box[] = [];
   private fxSeq = 0;
   private crown = idleCrown();
   private crownTimer: ReturnType<typeof setInterval> | null = null;
@@ -168,6 +170,7 @@ export class DriveServer extends PartyRoom {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    this.boxes = Array.from({ length: boxCountFor(this.room.id) }, () => ({ gen: 0, availableAt: 0 }));
     this.smash = new SmashRoom(this.room, (id) => {
       const s = this.drivers.get(id)?.state;
       return s ? { x: s[0], z: s[2], speed: s[7], flags: s[10] } : null;
@@ -272,7 +275,7 @@ export class DriveServer extends PartyRoom {
       let changed = false;
       if (t === "crown_start") {
         if (typeof x !== "number" || typeof z !== "number" || !Number.isFinite(x) || !Number.isFinite(z)) return;
-        if (Math.abs(x) > 1000 || Math.abs(z) > 1000) return;
+        if (Math.abs(x) > COORD_MAX || Math.abs(z) > COORD_MAX) return;
         changed = startCrown(this.crown, [...this.drivers.keys()], now, x, z);
         if (changed) this.runCrownClock();
       } else if (t === "crown_grab") {
@@ -305,7 +308,7 @@ export class DriveServer extends PartyRoom {
       if (!d) return;
       const now = Date.now();
       if (t === "take") {
-        if (typeof box !== "number" || !Number.isInteger(box) || box < 0 || box >= BOX_COUNT) return;
+        if (typeof box !== "number" || !Number.isInteger(box) || box < 0 || box >= this.boxes.length) return;
         const b = this.boxes[box];
         if (gen !== b.gen || now < b.availableAt || now - d.lastTake < TAKE_MIN_MS || d.held) return;
         d.lastTake = now;

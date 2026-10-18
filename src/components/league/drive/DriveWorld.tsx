@@ -86,6 +86,8 @@ export interface DriveWorldProps {
   onFail: () => void;
   /** League slug: the drive room everyone in this city shares. */
   slug: string;
+  /** Where item boxes may appear, when not every road and plaza (the Brasil map: its cities' streets). */
+  boxSpots?: [number, number][];
   /** Your name in the room (GitHub login or guest-xxxx). */
   name: string;
   /** Who else is driving here, for the HUD. */
@@ -281,6 +283,7 @@ export default function DriveWorld({
   onReady,
   onFail,
   slug,
+  boxSpots,
   name,
   onDrivers,
   onHonk,
@@ -451,6 +454,8 @@ export default function DriveWorld({
           <LocalFx car={car} sources={fx} />
           <RemoteCars cars={cars} sources={fx} localCar={car} muted={muted || paused} botTargets={botTargets} />
           <Battle
+            room={slug}
+            spots={boxSpots}
             objects={objects}
             car={car}
             remotes={remotes}

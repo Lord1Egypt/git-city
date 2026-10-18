@@ -7,7 +7,7 @@ import * as THREE from "three";
 import type { CityObject } from "@/lib/league-city/types";
 import {
   BOMB,
-  BOX_COUNT,
+  boxCountFor,
   BOX_REACH,
   MISSILE,
   OWN_BOMB_GRACE,
@@ -108,6 +108,8 @@ export default function Battle({
   onKnocked,
   onBlast,
   muted,
+  room,
+  spots: spotsOverride,
 }: {
   objects: CityObject[];
   car: React.MutableRefObject<CarApi | null>;
@@ -124,9 +126,13 @@ export default function Battle({
   /** Every blast (meters, reach, strength in m/s), for the town's bots; `fx` says which attack and whether it's yours (rival buildings). */
   onBlast?: (x: number, z: number, reach: number, power: number, fx?: { id: number; mine: boolean }) => void;
   muted: boolean;
+  /** The drive room (its box count: boxCountFor). */
+  room: string;
+  /** Where boxes may appear, when not every road and plaza (the Brasil map: city streets only). */
+  spots?: [number, number][];
 }) {
-  const spots = useMemo(() => boxSpots(objects), [objects]);
-  const boxes = useRef(Array.from({ length: BOX_COUNT }, () => ({ gen: 0, at: 0 })));
+  const spots = useMemo(() => spotsOverride ?? boxSpots(objects), [objects, spotsOverride]);
+  const boxes = useRef(Array.from({ length: boxCountFor(room) }, () => ({ gen: 0, at: 0 })));
   const [shown, setShown] = useState<{ i: number; gen: number }[]>([]);
   const fxs = useRef(new Map<number, Fx>());
   const [fxList, setFxList] = useState<Fx[]>([]);
