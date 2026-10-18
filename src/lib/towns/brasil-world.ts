@@ -178,3 +178,19 @@ export function brasilWorld(layout: BrasilLayout, building: (dev: MapDev, founde
 
   return { objects, byDevId };
 }
+
+/** A plain building for a resident the city has no record of yet (the page and the smash room agree on it). */
+export function plainBuilding(login: string): CityBuilding {
+  return {
+    login,
+    loginLower: login.toLowerCase(),
+    position: [0, 0, 0],
+    width: 24,
+    depth: 24,
+    height: 20,
+    floors: 3,
+    windowsPerFloor: 4,
+    sideWindowsPerFloor: 4,
+    litPercentage: 0.4,
+  } as unknown as CityBuilding;
+}

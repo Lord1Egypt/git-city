@@ -8,6 +8,8 @@ import { getCityNorms, getLeagueCityDevs, getLeagueMembers } from "@/lib/leagues
 import { isoDay, weekContributions, weekStart } from "@/lib/leagues/scoring";
 import { leagueBuildings, scaleTownHeights } from "./buildings";
 import { getCachedCity } from "./service";
+import { getBrasilLayout } from "@/lib/towns/brasil-server";
+import { brasilWorld, plainBuilding } from "@/lib/towns/brasil-world";
 import { SMASH, toTarget, type DamageEntry, type SmashTarget } from "./smash";
 import { cleanFloors, dropOwnTown, isUuid, type FloorEntry } from "./smash-floors";
 
@@ -32,6 +34,16 @@ export function getSmashTown(leagueId: string): Promise<SmashTown> {
       const devs = cityDevs as unknown as DeveloperRecord[];
       const layout = generateCityLayout(devs, undefined, norms);
       const byLogin = new Map(layout.buildings.map((b) => [b.loginLower, b]));
+      // The Brasil map lays its buildings out in its states' cities, not on the town grid: the same
+      // layout the page draws (brasil-town.tsx), or every hit would land where no building stands.
+      const { data: lg } = await getSupabaseAdmin().from("leagues").select("map").eq("id", leagueId).maybeSingle<{ map: string | null }>();
+      if (lg?.map === "brasil") {
+        const { layout: map } = await getBrasilLayout(leagueId);
+        const { objects, byDevId } = brasilWorld(map, (dev) => byLogin.get(dev.login.toLowerCase()) ?? plainBuilding(dev.login), 1);
+        const devIds: Record<string, number> = {};
+        for (const c of [...map.cities, map.island]) for (const d of c.devs) devIds[d.dev.login.toLowerCase()] = d.dev.id;
+        return { targets: leagueBuildings(objects, scaleTownHeights(byDevId)).map(toTarget), devIds };
+      }
       const byDevId = new Map<number, CityBuilding>();
       const devIds: Record<string, number> = {};
       for (const d of devs) {

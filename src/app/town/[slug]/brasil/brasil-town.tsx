@@ -33,7 +33,7 @@ import { BrasilPicker, BrasilRanking, BrasilSearchBar } from "@/components/towns
 import StateCard from "@/components/towns/brasil/StateCard";
 import { stateStats, swatchOf, weekCrown, type StateStats } from "@/components/towns/brasil/stats";
 import { ptState, stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
-import { brasilWorld } from "@/lib/towns/brasil-world";
+import { brasilWorld, plainBuilding } from "@/lib/towns/brasil-world";
 import { brasilOffices, officeLabel, type Office } from "@/lib/towns/brasil-roles";
 import type { BrasilWeek } from "@/lib/towns/brasil-server";
 
@@ -124,7 +124,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const world = useMemo(() => {
     const records = generateCityLayout(cityDevs as unknown as DeveloperRecord[], undefined, cityNorms).buildings;
     const byLogin = new Map(records.map((b) => [b.loginLower, b]));
-    const { objects, byDevId } = brasilWorld(layout, (dev) => byLogin.get(dev.login.toLowerCase()) ?? fallback(dev.login), 1);
+    const { objects, byDevId } = brasilWorld(layout, (dev) => byLogin.get(dev.login.toLowerCase()) ?? plainBuilding(dev.login), 1);
     const buildings = leagueBuildings(objects, scaleTownHeights(byDevId));
     const placed = new Map(buildings.map((b) => [b.loginLower, b]));
     const states = stateStats(layout, placed, now);
@@ -936,18 +936,4 @@ function ResidentRow({
   );
 }
 
-/** A plain building for a resident the city has no record of yet. */
-function fallback(login: string): CityBuilding {
-  return {
-    login,
-    loginLower: login.toLowerCase(),
-    position: [0, 0, 0],
-    width: 24,
-    depth: 24,
-    height: 20,
-    floors: 3,
-    windowsPerFloor: 4,
-    sideWindowsPerFloor: 4,
-    litPercentage: 0.4,
-  } as unknown as CityBuilding;
-}
+
