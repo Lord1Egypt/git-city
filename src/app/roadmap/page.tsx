@@ -4,7 +4,7 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { CLAIMED_DEVELOPER_LIMIT, githubLoginFromIdentity, pickClaimedDeveloper } from "@/lib/auth-identity";
 import RoadmapClient from "./RoadmapClient";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Roadmap - Git City",
