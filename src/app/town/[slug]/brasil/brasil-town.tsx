@@ -92,8 +92,6 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [driveSpawn, setDriveSpawn] = useState<Spawn | null>(null);
   /** Dark between the town's car and the drift run, both ways, while the next world loads. */
   const [curtain, setCurtain] = useState<"drift" | "city" | null>(null);
-  /** Driving up to the drift gate: the prompt shows. */
-  const [nearGate, setNearGate] = useState(false);
   const [panel, setPanel] = useState<PanelId>(null);
   const [state, setState] = useState<StateStats | null>(null);
   const [focused, setFocused] = useState<CityBuilding | null>(null);
@@ -528,7 +526,6 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     setPaused(false);
     setDrivers([]);
     setCrownView(null);
-    setNearGate(false);
     emoteLog.clear();
     startDrift();
     setDrifting(true);
@@ -536,17 +533,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   useEffect(() => {
     if (!driving || !driveReady) return;
     const track = courseOf(BRASIL_DRIFT).track;
-    const line = pointAt(track, 0);
     let prev: { x: number; z: number } | null = null;
     // A car starting by the gate (back from a run) takes it again once it has driven off.
     let armed = false;
-    let near = false;
     const t = setInterval(() => {
       const r = telemetry.radar;
       if (!r || (!r.x && !r.z)) return;
       const now = { x: r.x, z: r.z };
-      const close = Math.hypot(now.x / M_TO_UNIT - line.x, now.z / M_TO_UNIT - line.z) < 160;
-      if (close !== near) setNearGate((near = close));
       if (!armed) armed = clearOfStart(track, now);
       else if (prev && crossedStart(track, prev, now)) {
         clearInterval(t);
@@ -555,10 +548,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       }
       prev = now;
     }, 50);
-    return () => {
-      clearInterval(t);
-      setNearGate(false);
-    };
+    return () => clearInterval(t);
   }, [driving, driveReady, telemetry, enterDrift]);
   /** The track's tag on the map: down onto the start straight, stopped short of the line and facing it, so you only have to go. */
   const driveToTrack = () => {
@@ -851,16 +841,6 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       )}
 
       {drift.overlay}
-      {driving && driveReady && nearGate && !paused && (
-        <div className="pointer-events-none fixed inset-x-0 top-[14%] z-30 flex justify-center font-pixel uppercase">
-          <span className="flex items-stretch text-[11px] shadow-[0_6px_0_rgba(0,0,0,0.35)] sm:text-sm">
-            <span className="bg-lime px-3 py-2 text-bg">Drift</span>
-            <span className="bg-bg/90 px-3 py-2 text-cream">
-              Cross the line
-            </span>
-          </span>
-        </div>
-      )}
       <div aria-hidden className={`pointer-events-none fixed inset-0 z-[60] bg-bg transition-opacity duration-300 ${curtain ? "opacity-100" : "opacity-0"}`} />
       {driving && driveReady && <AreaTitle telemetry={telemetry} cities={world.allCities} />}
       {driving && (

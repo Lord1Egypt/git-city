@@ -6,8 +6,7 @@ import posthog from "posthog-js";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
-import TrackScene from "@/components/race/TrackScene";
-import Toned from "@/components/drift/Toned";
+import TrackScene, { NIGHT_PALETTE } from "@/components/race/TrackScene";
 import { Billboard } from "@/components/league/identity/IdentityPieces";
 import { useFontReady } from "@/components/league/identity/IdentityLayer";
 import DriftHud, { fmt } from "@/components/drift/DriftHud";
@@ -44,8 +43,6 @@ const DriftWorld = dynamic(() => import("@/components/drift/DriftWorld"), { ssr:
 export const BRASIL_DRIFT = getLiveSpot("brasil") as LiveSpot;
 const COURSE = courseOf(BRASIL_DRIFT);
 const LIME = "#c8e64a";
-/** The track and its scenery under the town's night (lit ~6× over): squeezed down to sit with the buildings (Toned). */
-export const TONE = 0.08;
 const unlit = { current: 0 };
 /** Seen from farther than this (units), the site isn't drawn. */
 const SITE_VIEW = 9000;
@@ -121,9 +118,7 @@ export function DriftSite({ board }: { board: BoardRowLite[] }) {
   useEffect(() => () => tower.dispose(), [tower]);
   return (
     <group ref={group}>
-      <Toned tone={TONE}>
-        <TrackScene track={COURSE.track} lit={unlit} title="Drift" grass={false} stands={false} trees={false} walls={false} />
-      </Toned>
+      <TrackScene track={COURSE.track} lit={unlit} title="Drift" grass={false} stands={false} trees={false} walls={false} palette={NIGHT_PALETTE} />
       <Billboard position={[sx - 18, sz]} rot={0} map={sign} />
       <Billboard position={[sx + 18, sz]} rot={0} map={tower} />
     </group>
@@ -357,7 +352,7 @@ export function useBrasilDrift({
       onFail={onBack}
       touch={touch ?? undefined}
       ground={null}
-      tone={TONE}
+      night
     />
   ) : null;
 
