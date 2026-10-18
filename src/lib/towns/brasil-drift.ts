@@ -9,6 +9,7 @@
 
 import { LOT } from "../league-city/grid";
 import { M_TO_UNIT } from "../league-city/drive/tuning";
+import { pointAt, type Track } from "../league-city/race/track";
 
 /** The lots the track, its walls and its paddock take (inclusive). */
 export const DRIFT_SITE = { x0: 62, x1: 75, z0: -114, z1: -101 } as const;
@@ -28,3 +29,29 @@ export const DRIFT_SIGN_LOT: [number, number] = [67, DRIFT_SITE.z1 + 1];
 
 /** Where "back to the city" puts the car (lot, heading clockwise from north): by the sign, facing away from the gate. */
 export const DRIFT_EXIT = { x: 65, z: DRIFT_SITE.z1 + 1, rot: 180 } as const;
+
+/**
+ * Whether the car (units) just crossed the START line between two looks:
+ * across it, within the asphalt, close enough that it isn't a jump across
+ * the map (a respawn).
+ */
+export function crossedStart(track: Track, prev: { x: number; z: number }, now: { x: number; z: number }): boolean {
+  const p = pointAt(track, 0);
+  const local = (q: { x: number; z: number }) => {
+    const dx = q.x / M_TO_UNIT - p.x;
+    const dz = q.z / M_TO_UNIT - p.z;
+    return { along: dx * p.tx + dz * p.tz, lat: dx * p.tz - dz * p.tx };
+  };
+  const a = local(prev);
+  const b = local(now);
+  const half = track.spec.width / 2 + 1;
+  if (Math.abs(b.lat) > half || Math.abs(a.lat) > half + 4) return false;
+  if (Math.hypot(now.x - prev.x, now.z - prev.z) / M_TO_UNIT > 30) return false;
+  return Math.sign(a.along) !== Math.sign(b.along) || Math.abs(b.along) < 0.5;
+}
+
+/** Far enough from the line (m) for the gate to take the car again. */
+export function clearOfStart(track: Track, at: { x: number; z: number }): boolean {
+  const p = pointAt(track, 0);
+  return Math.hypot(at.x / M_TO_UNIT - p.x, at.z / M_TO_UNIT - p.z) > 25;
+}

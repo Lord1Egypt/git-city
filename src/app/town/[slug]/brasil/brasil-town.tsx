@@ -28,6 +28,10 @@ import BuildingCard from "@/components/league/hud/BuildingCard";
 import { fmt } from "@/components/league/hud/shared";
 import MapNavControls from "@/components/MapNavControls";
 import BrasilScene, { cityKey, type CameraApi } from "@/components/towns/brasil/BrasilScene";
+import { BRASIL_DRIFT, useBrasilDrift } from "@/components/towns/brasil/BrasilDrift";
+import { courseOf } from "@/lib/drift/spots";
+import { DRIFT_EXIT, clearOfStart, crossedStart } from "@/lib/towns/brasil-drift";
+import type { Spawn } from "@/lib/league-city/drive/spawn";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import BrasilMinimap from "@/components/towns/brasil/BrasilMinimap";
 import { BrasilPicker, BrasilRanking, BrasilSearchBar } from "@/components/towns/brasil/BrasilPanels";
@@ -43,7 +47,8 @@ import type { BrasilWeek } from "@/lib/towns/brasil-server";
 // Over it: the counter and the top states; a bar to search the map, rank the
 // states and pick your state; a state's card from its tag, a dev's from their
 // building; the compass, the zoom and a minimap. ?uf=SP opens a state,
-// ?at=login a building.
+// ?at=login a building. Driving across the drift track's START line (between
+// São Paulo and Rio) turns the drive into a drift run there (BrasilDrift).
 
 export interface BrasilTownProps {
   league: { slug: string; name: string };
@@ -77,6 +82,11 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [telemetry, setTelemetry] = useState(createTelemetry);
   const crownApi = useRef<CrownApi | null>(null);
   const [driving, setDriving] = useState(false);
+  /** On the drift track: the town's car is parked, a drift run is on. */
+  const [drifting, setDrifting] = useState(false);
+  const inCar = driving || drifting;
+  /** Where the next drive starts instead of a building (back from the drift track: its gate). */
+  const [driveSpawn, setDriveSpawn] = useState<Spawn | null>(null);
   const [panel, setPanel] = useState<PanelId>(null);
   const [state, setState] = useState<StateStats | null>(null);
   const [focused, setFocused] = useState<CityBuilding | null>(null);
@@ -215,7 +225,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [driving, paused, exitDrive]);
-  const watch = useDriveWatch(league.slug, !driving, (msg) => applyRoomDamage(smash, msg, Date.now()));
+  const watch = useDriveWatch(league.slug, !inCar, (msg) => applyRoomDamage(smash, msg, Date.now()));
   // Where each driver is now (units), from the room's latest state of their car.
   const driverAt = useCallback(
     (id: string) => {
@@ -227,7 +237,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   // The drivers and where they are, refreshed every second for the list and the minimap (the pins follow every frame).
   const [carSpots, setCarSpots] = useState<{ id: string; name: string; x: number; z: number }[]>([]);
   useEffect(() => {
-    if (driving) return;
+    if (inCar) return;
     const tick = () =>
       setCarSpots(
         watch.drivers.flatMap((d) => {
@@ -238,7 +248,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [driving, watch.drivers, driverAt]);
+  }, [inCar, watch.drivers, driverAt]);
   const [driversOpen, setDriversOpen] = useState(false);
   const watchedCars = useMemo(() => watch.drivers.flatMap((d) => watch.remotes.current.get(d.id) ?? []), [watch.drivers, watch.remotes]);
   // Who's here now (the drive room reports to the towns tally), plus the drivers the room just told us about.
@@ -404,6 +414,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       stallAt: null,
       onReady: () => setDriveReady(true),
       onFail: exitDrive,
+      spawnAt: driveSpawn,
       slug: league.slug,
       name: viewerLogin ?? guest,
       onDrivers: setDrivers,
@@ -411,7 +422,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       crownApi,
       onCrown: setCrownView,
     }),
-    [telemetry, noop, driveFrom, league.slug, viewerLogin, guest, driveCamera, toggleCamera, muted, volume, emoteLog, paused, exitDrive],
+    [telemetry, noop, driveFrom, driveSpawn, league.slug, viewerLogin, guest, driveCamera, toggleCamera, muted, volume, emoteLog, paused, exitDrive],
   );
   // The drive minimap: the map around the car, and your building.
   const driveMap = useMemo(
@@ -447,6 +458,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     setPanel(null);
     setPicker(null);
     setDriveDev(dev.id);
+    setDriveSpawn(null);
     setLaunching(true);
     posthog.capture("brasil_drive_started", { city: world.cityOfLogin.get(dev.login.toLowerCase())?.uf ?? "island", signed_in: !!viewerLogin });
     // Down to the street first, so the car starts somewhere you just saw.
@@ -470,6 +482,54 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     }
     setDriving(true);
   };
+
+  // The drift track's gate: across the START line, the drive becomes a drift run there.
+  const enterDrift = useCallback(() => {
+    if (driveSince.current) posthog.capture("brasil_drive_ended", { seconds: Math.round((performance.now() - driveSince.current) / 1000), to: "drift" });
+    driveSince.current = 0;
+    setDriving(false);
+    setPaused(false);
+    setDrivers([]);
+    setCrownView(null);
+    emoteLog.clear();
+    setDrifting(true);
+  }, [emoteLog]);
+  useEffect(() => {
+    if (!driving || !driveReady) return;
+    const track = courseOf(BRASIL_DRIFT).track;
+    let prev: { x: number; z: number } | null = null;
+    // Just back from the track, the car stands by the gate: it takes the car again once it has driven off.
+    let armed = !driveSpawn;
+    const t = setInterval(() => {
+      const r = telemetry.radar;
+      if (!r || (!r.x && !r.z)) return;
+      const now = { x: r.x, z: r.z };
+      if (!armed) armed = clearOfStart(track, now);
+      else if (prev && crossedStart(track, prev, now)) {
+        clearInterval(t);
+        enterDrift();
+      }
+      prev = now;
+    }, 50);
+    return () => clearInterval(t);
+  }, [driving, driveReady, driveSpawn, telemetry, enterDrift]);
+  const backToCity = () => {
+    const [x, z] = lotToWorld(DRIFT_EXIT.x, DRIFT_EXIT.z);
+    setDrifting(false);
+    setDriveSpawn({ x, z, rot: DRIFT_EXIT.rot });
+    beginDrive();
+  };
+  const drift = useBrasilDrift({
+    active: drifting,
+    viewerLogin,
+    townPath: `/town/${league.slug}`,
+    camera: driveCamera,
+    onCameraToggle: toggleCamera,
+    muted,
+    onToggleMute: toggleMute,
+    touch: touchUi ? touchRef : null,
+    onBack: backToCity,
+  });
 
   const pickState = async (uf: UF | null) => {
     setJoining({ pending: uf ?? "island", error: null });
@@ -535,10 +595,12 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         }}
         focused={focused?.loginLower ?? null}
         drive={driving && driveFrom !== null ? drive : undefined}
+        drift={drift.world}
+        driftBoard={drift.board}
         smash={smash}
         pulse={pulse}
         watching={watchedCars}
-        drivers={driving ? undefined : watch.drivers}
+        drivers={inCar ? undefined : watch.drivers}
         driverAt={driverAt}
         crowned={world.week.crown?.uf ?? null}
         fresh={world.fresh}
@@ -551,7 +613,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       />
 
       {/* The top, one block as wide as the search: where you are (‹ one step up: a building, its city, the whole country, the towns) and who's online, the search under it. */}
-      {!driving && (
+      {!inCar && (
         <div className="absolute inset-x-3 top-3 z-30 sm:inset-x-auto sm:left-1/2 sm:top-4 sm:w-[min(420px,calc(100vw-32px))] sm:-translate-x-1/2">
           <div className={`flex h-9 items-stretch border-[3px] border-b-0 ${HUD_EDGE} ${HUD_BG} text-[10px] tabular-nums sm:text-[11px]`}>
             <button
@@ -580,14 +642,14 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             <span className="flex shrink-0 items-center gap-1.5 pr-3 text-cream">
               <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
               {fmt(here)} online
-              {drivingNow > 0 && !driving && (
+              {drivingNow > 0 && !inCar && (
                 <button type="button" onClick={() => setDriversOpen((o) => !o)} className="underline decoration-lime/60 underline-offset-2 hover:text-lime">
                   · {fmt(drivingNow)} driving
                 </button>
               )}
             </span>
           </div>
-          {driversOpen && !driving && (
+          {driversOpen && !inCar && (
             <DriversList
               drivers={carSpots}
               cities={world.allCities}
@@ -638,7 +700,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         </div>
       )}
 
-      {top.length > 0 && !driving && !state && !focused && !panel && (
+      {top.length > 0 && !inCar && !state && !focused && !panel && (
         <div className="pointer-events-auto absolute right-4 top-4 flex flex-col gap-1 text-[11px] max-sm:hidden">
           {top.map((t, i) => (
             <button
@@ -657,19 +719,19 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       )}
 
       {/* The compass and zoom buttons: desktop only, a phone pinches and turns with its fingers. */}
-      {!driving && (
+      {!inCar && (
         <div className="max-sm:hidden">
           <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />
         </div>
       )}
-      {!driving && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} cars={carSpots} />}
-      {!driving && (
+      {!inCar && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} cars={carSpots} />}
+      {!inCar && (
         <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60 max-sm:bottom-[66px] max-sm:text-[8px]">
           Map data: IBGE · Natural Earth
         </span>
       )}
 
-      {!driving && !state && !focused && !panel && !picker && world.arrivals.length > 0 && (
+      {!inCar && !state && !focused && !panel && !picker && world.arrivals.length > 0 && (
         <Arrivals
           arrivals={world.arrivals}
           onPick={(login) => {
@@ -682,7 +744,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       )}
 
       {/* The bar: a row of words on a desktop, a tab bar of icons on a phone. */}
-      {!driving && (
+      {!inCar && (
         <nav className="pointer-events-auto absolute inset-x-0 bottom-0 grid grid-cols-4 gap-px border-t-2 border-border bg-border pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_0_rgba(0,0,0,0.25)] sm:inset-x-auto sm:bottom-5 sm:left-1/2 sm:flex sm:-translate-x-1/2 sm:border-t-0 sm:bg-transparent sm:pb-0 sm:shadow-[0_6px_0_rgba(0,0,0,0.35)]">
           <button type="button" onClick={() => openPanel("states")} className={bar}>
             <Trophy size={16} className="sm:hidden" aria-hidden />
@@ -729,6 +791,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         </nav>
       )}
 
+      {drift.overlay}
       {driving && driveReady && <AreaTitle telemetry={telemetry} cities={world.allCities} />}
       {driving && (
         <DriveHud
@@ -772,7 +835,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         />
       )}
 
-      {state && !driving && (
+      {state && !inCar && (
         <StateCard
           key={state.uf}
           state={state}
@@ -799,7 +862,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           }}
         />
       )}
-      {focused && !driving && (
+      {focused && !inCar && (
         <BuildingCard
           key={focused.loginLower}
           building={focused}

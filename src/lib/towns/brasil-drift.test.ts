@@ -7,7 +7,7 @@ import { sceneryFor } from "../drift/scenery";
 import { BrasilPlacer, STATES, layoutBrasil, type MapDev } from "./brasil-map";
 import { brasilWorld, plainBuilding } from "./brasil-world";
 import { pointAt } from "../league-city/race/track";
-import { DRIFT_EXIT, DRIFT_SIGN_LOT, DRIFT_SITE, inDriftSite } from "./brasil-drift";
+import { DRIFT_EXIT, DRIFT_SIGN_LOT, DRIFT_SITE, clearOfStart, crossedStart, inDriftSite } from "./brasil-drift";
 import { coastDistance, onLand } from "./brasil-geo";
 
 const spot = getLiveSpot("brasil-harbor")!;
@@ -59,5 +59,28 @@ describe("the Brasil drift site", () => {
     for (const o of objects) expect(inDriftSite(o.x, o.z)).toBe(false);
     // A placer started from those residents still never picks a lot there.
     expect(new BrasilPlacer().place({ id: -1, login: "x", uf: "SP" })).not.toBeNull();
+  });
+});
+
+describe("the START gate", () => {
+  const line = pointAt(track, 0);
+  /** A point `along` m down the track from the line and `lat` m to its left, in units. */
+  const at = (along: number, lat: number) => ({ x: (line.x + line.tx * along + line.tz * lat) * M_TO_UNIT, z: (line.z + line.tz * along - line.tx * lat) * M_TO_UNIT });
+
+  it("takes a car driving across the line, either way", () => {
+    expect(crossedStart(track, at(-2, 0), at(1.5, 0))).toBe(true);
+    expect(crossedStart(track, at(2, 3), at(-1, 3))).toBe(true);
+  });
+
+  it("lets a car by when it passes beside the asphalt, stays on one side, or jumps there", () => {
+    expect(crossedStart(track, at(-2, 12), at(2, 12))).toBe(false);
+    expect(crossedStart(track, at(-6, 0), at(-3, 0))).toBe(false);
+    expect(crossedStart(track, at(-80, 0), at(1, 0))).toBe(false);
+  });
+
+  it("takes the car again only once it has driven off the gate", () => {
+    const [x, z] = [DRIFT_EXIT.x * LOT, DRIFT_EXIT.z * LOT];
+    expect(clearOfStart(track, at(0, 0))).toBe(false);
+    expect(clearOfStart(track, { x, z })).toBe(true);
   });
 });
