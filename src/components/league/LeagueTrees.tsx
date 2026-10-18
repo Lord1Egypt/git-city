@@ -41,6 +41,34 @@ type TreeSpot = { wx: number; wz: number; rot: number };
 export interface TreeCull {
   /** Past this distance from the camera no tree is drawn (the whole country from above: none). */
   maxDistance: number;
+  /**
+   * Driving through trees: where the car is (world units), or null. A tree the
+   * car reaches falls away from it and stands back up after a while; with this
+   * set the trees are left out of the car's colliders (the caller's job).
+   */
+  knock?: () => { x: number; z: number } | null;
+}
+
+/** How close the car's middle gets to a trunk to knock it (units: half the car plus the trunk). */
+const KNOCK_REACH = 5.5;
+/** Falling, lying down, standing back up (seconds). */
+const FALL_S = 0.45;
+const DOWN_S = 20;
+const RISE_S = 1.2;
+const KNOCK_CELL = 64;
+const _qTilt = new THREE.Quaternion();
+const _axis = new THREE.Vector3();
+const _pos = new THREE.Vector3();
+const _rot = new THREE.Quaternion();
+const _scl = new THREE.Vector3();
+const _out = new THREE.Matrix4();
+
+/** How far over a knocked tree leans (0 standing, 1 flat), `t` seconds after the hit. */
+function lean(t: number): number {
+  if (t < FALL_S) return (t / FALL_S) ** 2;
+  if (t < FALL_S + DOWN_S) return 1;
+  const k = (t - FALL_S - DOWN_S) / RISE_S;
+  return k >= 1 ? 0 : 1 - k * k;
 }
 
 function matrixOf(l: TreeSpot, variant: Variant) {
@@ -68,9 +96,40 @@ function CulledTreeInstances({ variant, lots, cull }: { variant: Variant; lots: 
   useLayoutEffect(() => {
     state.current.dirty = true;
   }, [data]);
+  // Knocked trees: when each was hit and which way it falls; the trunks near the car found through a grid.
+  const knocked = useRef(new Map<number, { at: number; dx: number; dz: number }>());
+  const grid = useMemo(() => {
+    if (!cull.knock) return null;
+    const g = new Map<string, number[]>();
+    lots.forEach((l, i) => {
+      const k = `${Math.floor(l.wx / KNOCK_CELL)},${Math.floor(l.wz / KNOCK_CELL)}`;
+      (g.get(k) ?? g.set(k, []).get(k)!).push(i);
+    });
+    return g;
+  }, [lots, cull.knock]);
   useFrame(({ camera, scene, clock }) => {
     const meshes = refs.current.filter((m): m is THREE.InstancedMesh => !!m);
-    cullInstances(state.current, camera, scene, clock.elapsedTime, [{ ...data, meshes }], { maxDistance: cull.maxDistance });
+    const t = clock.elapsedTime;
+    const car = cull.knock?.();
+    if (car && grid) {
+      const cx = Math.floor(car.x / KNOCK_CELL);
+      const cz = Math.floor(car.z / KNOCK_CELL);
+      for (let gx = cx - 1; gx <= cx + 1; gx++)
+        for (let gz = cz - 1; gz <= cz + 1; gz++)
+          for (const i of grid.get(`${gx},${gz}`) ?? []) {
+            const dx = lots[i].wx - car.x;
+            const dz = lots[i].wz - car.z;
+            const d = Math.hypot(dx, dz);
+            if (d > KNOCK_REACH || knocked.current.has(i)) continue;
+            knocked.current.set(i, { at: t, dx: dx / (d || 1), dz: dz / (d || 1) });
+          }
+    }
+    // A tree on its way down or back up moves every frame: the meshes are repacked while any does.
+    const moving = [...knocked.current.values()].some((k) => t - k.at < FALL_S + 0.1 || t - k.at > FALL_S + DOWN_S - 0.1);
+    for (const [i, k] of knocked.current) if (t - k.at > FALL_S + DOWN_S + RISE_S) knocked.current.delete(i);
+    if (moving) state.current.dirty = true;
+    const src = knocked.current.size ? leaned(data.src, knocked.current, t) : data.src;
+    cullInstances(state.current, camera, scene, t, [{ src, pos: data.pos, meshes }], { maxDistance: cull.maxDistance });
   });
   return (
     <>
@@ -88,6 +147,21 @@ function CulledTreeInstances({ variant, lots, cull }: { variant: Variant; lots: 
       ))}
     </>
   );
+}
+
+/** The matrices with each knocked tree leaned over, falling away from the car (a copy: the source stays upright). */
+function leaned(src: Float32Array, knocked: Map<number, { at: number; dx: number; dz: number }>, t: number): Float32Array {
+  const out = src.slice();
+  for (const [i, k] of knocked) {
+    const a = lean(t - k.at) * (Math.PI / 2) * 0.95;
+    if (a <= 0) continue;
+    _out.fromArray(src, i * 16).decompose(_pos, _rot, _scl);
+    // Tip over round the horizontal axis square to the push, at the trunk's base.
+    _axis.set(k.dz, 0, -k.dx).normalize();
+    _qTilt.setFromAxisAngle(_axis, a);
+    _out.compose(_pos, _qTilt.multiply(_rot), _scl).toArray(out, i * 16);
+  }
+  return out;
 }
 
 function TreeInstances({ variant, lots }: { variant: Variant; lots: TreeSpot[] }) {
