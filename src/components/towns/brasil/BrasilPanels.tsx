@@ -139,9 +139,32 @@ export function BrasilSearchBar({
 }
 
 /** The 27 states by devs, your state picked out. */
-export function BrasilRanking({ states, yours, crowned = null, onPick, onClose }: { states: StateStats[]; yours: UF | null; crowned?: UF | null; onPick: (s: StateStats) => void; onClose: () => void }) {
+export function BrasilRanking({
+  states,
+  yours,
+  crowned = null,
+  president = null,
+  provisional = false,
+  onPick,
+  onClose,
+}: {
+  states: StateStats[];
+  yours: UF | null;
+  crowned?: UF | null;
+  /** This week's president (the top dev in Brazil by contributions). */
+  president?: string | null;
+  provisional?: boolean;
+  onPick: (s: StateStats) => void;
+  onClose: () => void;
+}) {
   return (
     <Panel title="States" onClose={onClose}>
+      {president && (
+        <p className="mb-2 border-2 border-lime px-2 py-1.5 text-[9px] text-muted">
+          <span className="text-lime">President</span> <span className="normal-case text-cream">@{president}</span>
+          {provisional ? " · leading this week" : " · elected last week"}
+        </p>
+      )}
       <ol className="flex min-h-0 flex-col overflow-y-auto">
         {states.map((s) => (
           <li key={s.uf}>

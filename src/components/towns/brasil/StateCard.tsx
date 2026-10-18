@@ -21,6 +21,7 @@ export default function StateCard({
   onDriveHere,
   onClose,
   week,
+  cabinet,
 }: {
   state: StateStats;
   byLogin: ReadonlyMap<string, CityBuilding>;
@@ -31,6 +32,8 @@ export default function StateCard({
   onClose: () => void;
   /** Last full week's crown and this week's leader, when either is this state. */
   week?: { crown: WeekStanding | null; leading: WeekStanding | null };
+  /** The state's offices this week (brasil-roles): governor, senators, its second city's mayor. */
+  cabinet?: { provisional: boolean; governor: string | null; senators: string[]; mayor: { city: string; login: string } | null; totals: Record<string, number> };
 }) {
   const sheet = useSheet(onClose);
   const { close } = sheet;
@@ -113,6 +116,28 @@ export default function StateCard({
             </div>
           ))}
         </div>
+
+        {cabinet && cabinet.senators.length > 0 && (
+          <div className="mx-4 mb-3">
+            <p className="mb-1.5 text-[8px] text-muted">{cabinet.provisional ? "Leading this week · offices change Monday" : "Elected last week · contributions"}</p>
+            <ul className="flex flex-col">
+              {[
+                ...(cabinet.governor ? [{ role: "Governor", login: cabinet.governor }] : []),
+                ...cabinet.senators.map((l) => ({ role: "Senator", login: l })),
+                ...(cabinet.mayor ? [{ role: `Mayor · ${cabinet.mayor.city}`, login: cabinet.mayor.login }] : []),
+              ].map((r) => (
+                <li key={`${r.role}-${r.login}`}>
+                  <button type="button" onClick={() => onPickDev(r.login)} className="flex w-full items-center gap-2.5 py-1 text-left hover:text-lime">
+                    <span className={`w-[78px] shrink-0 truncate text-[8px] ${r.role === "Governor" ? "text-lime" : "text-muted"}`}>{r.role}</span>
+                    <Avatar src={byLogin.get(r.login)?.avatar_url ?? null} size={18} />
+                    <span className="min-w-0 flex-1 truncate text-[10px] normal-case text-cream">@{r.login}</span>
+                    <span className="text-[9px] text-muted">{fmt(cabinet.totals[r.login] ?? 0)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {s.top.length > 0 && (
           <div className="mx-4 mb-3">

@@ -34,6 +34,8 @@ import StateCard from "@/components/towns/brasil/StateCard";
 import { stateStats, swatchOf, weekCrown, type StateStats } from "@/components/towns/brasil/stats";
 import { ptState, stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import { brasilWorld } from "@/lib/towns/brasil-world";
+import { brasilOffices, officeLabel, type Office } from "@/lib/towns/brasil-roles";
+import type { BrasilWeek } from "@/lib/towns/brasil-server";
 
 // The Brasil town's page: the map of Brazil with the town's residents, each
 // in their state's city, their buildings sized like everywhere in Git City.
@@ -53,6 +55,8 @@ export interface BrasilTownProps {
   home: UF | "island" | null;
   /** Open on a state or a building. */
   startAt: { uf: string } | { login: string } | null;
+  /** The week the offices come from: last closed week, or this week so far before the first one closes. */
+  week: BrasilWeek;
 }
 
 type PanelId = "states" | null;
@@ -61,7 +65,7 @@ const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"),
 const MUTE_KEY = "gc:drive-muted";
 const LIME = "#c8e64a";
 
-export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt }: BrasilTownProps) {
+export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt, week: officeWeek }: BrasilTownProps) {
   const router = useRouter();
   const camera = useRef<CameraApi | null>(null);
   const cameraStore = useMemo(() => createCameraStore(), []);
@@ -134,8 +138,12 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       .filter((a) => now - a.at < 86_400_000)
       .sort((a, b) => b.at - a.at);
     const fresh = new Set(arrivals.map((a) => a.login.toLowerCase()));
-    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week, arrivals, fresh };
-  }, [layout, cityDevs, cityNorms, now]);
+    const offices = brasilOffices(layout, new Map(Object.entries(officeWeek.totals)));
+    // Each holder's highest office, short, for the name plates.
+    const SHORT = { president: "Pres", governor: "Gov", senator: "Sen", mayor: "Mayor" } as const;
+    const plateOffice = new Map([...offices.byLogin].map(([l, os]) => [l, SHORT[os[0].kind]]));
+    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week, arrivals, fresh, offices, plateOffice };
+  }, [layout, cityDevs, cityNorms, now, officeWeek]);
 
   const smash = useMemo(() => smashStoreFor(world.buildings), [world.buildings]);
 
@@ -488,6 +496,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         watching={watchedCars}
         crowned={world.week.crown?.uf ?? null}
         fresh={world.fresh}
+        offices={world.plateOffice}
         onCity={(key, looking) => {
           setViewKey(key);
           setLookKey(looking);
@@ -688,6 +697,8 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           states={world.states}
           yours={yours}
           crowned={world.week.crown?.uf ?? null}
+          president={world.offices.president}
+          provisional={officeWeek.provisional}
           onPick={(s) => {
             posthog.capture("brasil_state_opened", { uf: s.uf, from: "ranking" });
             openState(s.uf);
@@ -710,6 +721,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           }}
           onDriveHere={state.devs > 0 ? startDrive : undefined}
           week={world.week}
+          cabinet={{
+            provisional: officeWeek.provisional,
+            governor: world.offices.governors.get(state.uf) ?? null,
+            senators: world.offices.senators.get(state.uf) ?? [],
+            mayor: state.second ? (world.offices.mayors.get(state.second.name) ? { city: state.second.name, login: world.offices.mayors.get(state.second.name)!.login } : null) : null,
+            totals: officeWeek.totals,
+          }}
           onClose={() => {
             setState(null);
             replaceUrl("");
@@ -727,6 +745,9 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
                 <Arrival login={arrived.login} uf={arrived.uf} states={world.states} founder={!!world.ufOf.get(focused.loginLower)?.founder} townPath={`/town/${league.slug}`} />
               )}
               <ResidentRow
+                offices={world.offices.byLogin.get(focused.loginLower) ?? []}
+                weekly={officeWeek.totals[focused.loginLower] ?? 0}
+                provisional={officeWeek.provisional}
                 login={focused.loginLower}
                 ufOf={world.ufOf}
                 states={world.states}
@@ -911,7 +932,14 @@ function ResidentRow({
   states,
   onState,
   onMove,
+  offices,
+  weekly,
+  provisional,
 }: {
+  /** What they hold this week, and the contributions that elected them. */
+  offices: Office[];
+  weekly: number;
+  provisional: boolean;
   login: string;
   ufOf: ReadonlyMap<string, { uf: UF | null; founder: boolean }>;
   states: StateStats[];
@@ -923,24 +951,40 @@ function ResidentRow({
   const s = r?.uf ? states.find((x) => x.uf === r.uf) : null;
   const inState = s ? s.top.findIndex((l) => l.toLowerCase() === login) : -1;
   return (
-    <div className="mx-4 mb-3 flex items-center justify-between gap-2 border-2 border-border px-3 py-2">
-      {s ? (
-        <button type="button" onClick={() => onState(s.uf)} className="flex items-center gap-2 text-[9px] text-cream hover:text-lime">
-          <span className="h-2.5 w-2.5" style={{ background: swatchOf(s.uf) }} aria-hidden />
-          {stateOf(s.uf).name}
-        </button>
-      ) : (
-        <span className="text-[9px] text-muted">The island · no state</span>
+    <>
+      {offices.length > 0 && (
+        <div className="mx-4 mb-2 flex flex-col gap-1 border-2 border-lime px-3 py-2">
+          <div className="flex flex-wrap gap-1">
+            {offices.map((o) => (
+              <span key={officeLabel(o)} className="bg-lime px-1.5 py-0.5 text-[9px] text-bg">
+                {officeLabel(o)}
+              </span>
+            ))}
+          </div>
+          <p className="text-[9px] normal-case text-muted">
+            {provisional ? `Leading this week with ${fmt(weekly)} contributions. Offices change on Monday.` : `Elected by ${fmt(weekly)} contributions last week. Holds it until Monday.`}
+          </p>
+        </div>
       )}
-      <span className="flex items-center gap-2 text-[9px] text-muted">
-        {r?.founder ? <span className="text-lime">Founder</span> : inState >= 0 ? `Top ${inState + 1} in ${s?.uf}` : ""}
-        {onMove && (
-          <button type="button" onClick={onMove} className="text-cream underline hover:text-lime">
-            Move
+      <div className="mx-4 mb-3 flex items-center justify-between gap-2 border-2 border-border px-3 py-2">
+        {s ? (
+          <button type="button" onClick={() => onState(s.uf)} className="flex items-center gap-2 text-[9px] text-cream hover:text-lime">
+            <span className="h-2.5 w-2.5" style={{ background: swatchOf(s.uf) }} aria-hidden />
+            {stateOf(s.uf).name}
           </button>
+        ) : (
+          <span className="text-[9px] text-muted">The island · no state</span>
         )}
-      </span>
-    </div>
+        <span className="flex items-center gap-2 text-[9px] text-muted">
+          {r?.founder ? <span className="text-lime">Founder</span> : inState >= 0 ? `Top ${inState + 1} in ${s?.uf}` : ""}
+          {onMove && (
+            <button type="button" onClick={onMove} className="text-cream underline hover:text-lime">
+              Move
+            </button>
+          )}
+        </span>
+      </div>
+    </>
   );
 }
 
