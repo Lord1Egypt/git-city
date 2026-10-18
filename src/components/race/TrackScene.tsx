@@ -37,14 +37,14 @@ export const DAY_PALETTE: TrackPalette = {
   chevron: ["#ffd21f", "#15171c"],
 };
 
-/** The same track for a town at night, as deep as its buildings (a face there is #12221a). */
+/** The same track for a town at night: mid tones that its hot light lifts to readable, accents kept saturated. */
 export const NIGHT_PALETTE: TrackPalette = {
-  asphalt: "#0e1114",
-  line: "#3a4640",
-  curb: ["#5c1418", "#2c3833"],
-  wall: ["#14306a", "#26332e"],
-  checker: ["#0a0c0f", "#3a4640"],
-  chevron: ["#6a5a10", "#0a0c0f"],
+  asphalt: "#1e242c",
+  line: "#9aa8a0",
+  curb: ["#a3262e", "#8a968f"],
+  wall: ["#2a58b8", "#8a968f"],
+  checker: ["#0a0c0f", "#9aa8a0"],
+  chevron: ["#c9a414", "#0a0c0f"],
 };
 
 const Palette = createContext<TrackPalette>(DAY_PALETTE);
