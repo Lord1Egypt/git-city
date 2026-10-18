@@ -15,6 +15,8 @@ import { createDeveloperFromGitHub } from "../create-developer";
 import { GitHubFetchError } from "../github-api";
 import { BrasilPlacer, STATES, layoutFromResidents, ptState, type BrasilLayout, type MapDev, type Resident, type UF } from "./brasil-map";
 import { parseComment } from "./brasil-comments";
+import { weekStart } from "../leagues/scoring";
+import { loadLeagueStandings } from "../leagues/standings";
 import { CAPITALS, ISLAND, SECOND_CITIES } from "./brasil-geo";
 import { sendBrasilMapNotification } from "../notification-senders/brasil-map";
 
@@ -235,4 +237,32 @@ async function emailOnMap(league: Pick<League, "id">, dev: { id: number; login: 
     city: uf ? city : null,
     founder,
   });
+}
+
+// ─── The week the offices come from ─────────────────────────
+
+export interface BrasilWeek {
+  /** The Monday (UTC) of the week the totals are for. */
+  weekStart: string;
+  /** No closed week yet: the totals are this week's so far. */
+  provisional: boolean;
+  /** Each resident's contributions that week (login lowercase; each day capped like the towns' race). */
+  totals: Record<string, number>;
+}
+
+/** Last closed week's frozen standings (the offices hold all of this week), else this week so far. */
+export async function getBrasilWeek(leagueId: string): Promise<BrasilWeek> {
+  const thisWeek = weekStart(new Date());
+  const last = new Date(thisWeek.getTime() - 7 * 86_400_000);
+  const lastIso = last.toISOString().slice(0, 10);
+  const { data } = await getSupabaseAdmin()
+    .from("league_weeks")
+    .select("standings")
+    .eq("league_id", leagueId)
+    .eq("week_start", lastIso)
+    .maybeSingle<{ standings: { standings?: { login: string; total: number }[] } | null }>();
+  const frozen = data?.standings?.standings;
+  if (frozen?.length) return { weekStart: lastIso, provisional: false, totals: Object.fromEntries(frozen.map((s) => [s.login.toLowerCase(), s.total])) };
+  const live = await loadLeagueStandings({ id: leagueId }, thisWeek);
+  return { weekStart: thisWeek.toISOString().slice(0, 10), provisional: true, totals: Object.fromEntries(live.standings.map((s) => [s.login.toLowerCase(), s.total])) };
 }
