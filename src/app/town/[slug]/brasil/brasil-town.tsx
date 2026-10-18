@@ -596,7 +596,12 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         </div>
       )}
 
-      {!driving && <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />}
+      {/* The compass and zoom buttons: desktop only, a phone pinches and turns with its fingers. */}
+      {!driving && (
+        <div className="max-sm:hidden">
+          <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />
+        </div>
+      )}
       {!driving && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} />}
       {!driving && (
         <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60 max-sm:bottom-[66px] max-sm:text-[8px]">
