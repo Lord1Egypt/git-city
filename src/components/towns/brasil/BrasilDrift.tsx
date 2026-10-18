@@ -45,7 +45,7 @@ export const BRASIL_DRIFT = getLiveSpot("brasil") as LiveSpot;
 const COURSE = courseOf(BRASIL_DRIFT);
 const LIME = "#c8e64a";
 /** The track and its scenery under the town's night (lit ~6× over): squeezed down to sit with the buildings (Toned). */
-export const TONE = 0.03;
+export const TONE = 0.08;
 const unlit = { current: 0 };
 /** Seen from farther than this (units), the site isn't drawn. */
 const SITE_VIEW = 9000;
