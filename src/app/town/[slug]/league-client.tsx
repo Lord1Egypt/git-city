@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import posthog from "posthog-js";
 import PixelSpinner from "@/components/leagues/PixelSpinner";
 import { useTownVisit } from "@/components/towns/useTownVisit";
 import { useActiveTime } from "@/components/towns/useActiveTime";
@@ -759,9 +760,12 @@ export default function LeagueClient({
       // Your turn: the car is already yours and rolling (a newcomer's stops on the arrival choice).
       setCinematic(false);
       setFirstDrive(true);
-      if (offerJoin) setArriving(true);
+      if (offerJoin) {
+        setArriving(true);
+        posthog.capture("arrival_choice_shown", { town: league.slug, signed_in: !!viewer });
+      }
     }
-  }, [intro, offerJoin]);
+  }, [intro, offerJoin, league.slug, viewer]);
   const skipIntro = useCallback(() => {
     if (intro?.drive) setIntro({ ...intro, skip: intro.skip + 1 });
     else endIntro();
@@ -1087,9 +1091,24 @@ export default function LeagueClient({
           held={arriving}
           join={
             offerJoin && !arriving
-              ? { label: joinLabel, short: "Join", onClick: joinFromCar }
+              ? {
+                  label: joinLabel,
+                  short: "Join",
+                  onClick: () => {
+                    posthog.capture("join_clicked", { where: "hud", town: league.slug, signed_in: !!viewer });
+                    joinFromCar();
+                  },
+                }
               : !viewer
-                ? { label: "Sign in", short: "Sign in", signIn: true, onClick: gateSignIn }
+                ? {
+                    label: "Sign in",
+                    short: "Sign in",
+                    signIn: true,
+                    onClick: () => {
+                      posthog.capture("signin_clicked", { where: "hud", town: league.slug });
+                      gateSignIn();
+                    },
+                  }
                 : undefined
           }
           drivers={drivers}
@@ -1113,8 +1132,14 @@ export default function LeagueClient({
             label={joinLabel}
             detail={joinDetail}
             driveDetail="Look around first. Add your building anytime from the top bar."
-            onJoin={joinFromCar}
-            onDrive={() => setArriving(false)}
+            onJoin={() => {
+              posthog.capture("arrival_choice_answered", { choice: "join", town: league.slug, signed_in: !!viewer });
+              joinFromCar();
+            }}
+            onDrive={() => {
+              posthog.capture("arrival_choice_answered", { choice: "drive", town: league.slug, signed_in: !!viewer });
+              setArriving(false);
+            }}
           />
         </div>
       )}

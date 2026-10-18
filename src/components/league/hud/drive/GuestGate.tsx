@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import posthog from "posthog-js";
 import ArrivalChoice from "./ArrivalChoice";
 import type { GateReason } from "@/lib/league-city/drive/guest-gate";
 
@@ -25,6 +27,9 @@ export default function GuestGate({
   onContinue: () => void;
 }) {
   const copy = COPY[reason];
+  useEffect(() => {
+    posthog.capture("guest_gate_shown", { reason, town });
+  }, [reason, town]);
   return (
     <div className="pointer-events-none fixed inset-0 z-40 font-pixel uppercase">
       <ArrivalChoice
@@ -34,9 +39,15 @@ export default function GuestGate({
         detail="Your name over your car, and every floor you smash counts for the weekly prize."
         busyLabel="Opening GitHub..."
         driveLabel={copy.driveLabel}
-        driveDetail="Nothing you smash or win counts."
-        onJoin={onSignIn}
-        onDrive={onContinue}
+        driveDetail="Buildings won't fall and wins won't count."
+        onJoin={() => {
+          posthog.capture("signin_clicked", { where: `gate_${reason}`, town });
+          onSignIn();
+        }}
+        onDrive={() => {
+          posthog.capture("guest_gate_dismissed", { reason, town });
+          onContinue();
+        }}
       />
     </div>
   );
