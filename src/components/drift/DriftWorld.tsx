@@ -11,12 +11,11 @@ import SkidMarks from "@/components/league/drive/SkidMarks";
 import { CameraKey, DriveAudio, LocalFx } from "@/components/league/drive/carFx";
 import type { FxSource } from "@/components/league/drive/fx";
 import { useDriveInput } from "@/components/league/drive/useDriveInput";
-import TrackScene from "@/components/race/TrackScene";
+import TrackScene, { DAY_PALETTE, NIGHT_PALETTE } from "@/components/race/TrackScene";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import DriftCamera from "./DriftCamera";
 import HarborGround from "./HarborGround";
 import KenneyProps from "./KenneyProps";
-import Toned from "./Toned";
 import { bounds, sceneryFor } from "@/lib/drift/scenery";
 import { Ghost } from "@/components/race/Ghost";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
@@ -84,8 +83,8 @@ export interface DriftWorldProps {
   carOutRef?: React.MutableRefObject<CarApi | null>;
   /** The spot's own ground instead of the race track's grass; null for none (a town's track sits on the town's land). */
   ground?: ReactNode;
-  /** How much the track's and the scenery's colors are darkened (1: as made), for a scene lit hotter than the spots' afternoon. */
-  tone?: number;
+  /** In a town at night: the track and its scenery in the dark set, as deep as the town's buildings. */
+  night?: boolean;
 }
 
 const U = M_TO_UNIT;
@@ -177,7 +176,7 @@ export default function DriftWorld({
   touch,
   carOutRef,
   ground,
-  tone = 1,
+  night = false,
   slot = 0,
 }: DriftWorldProps) {
   const track = course.track;
@@ -429,14 +428,12 @@ export default function DriftWorld({
 
   return (
     <Boundary onFail={onFail}>
-      <Toned tone={tone}>
-        <TrackScene track={track} lit={lit} title={title} grass={ground === undefined && spot.id !== "harbor"} stands={false} trees={false}>
-          {ground ?? (spot.id === "harbor" && <HarborGround track={track} />)}
-          <Suspense fallback={null}>
-            <KenneyProps items={scenery} />
-          </Suspense>
-        </TrackScene>
-      </Toned>
+      <TrackScene track={track} lit={lit} title={title} grass={ground === undefined && spot.id !== "harbor"} stands={false} trees={false} palette={night ? NIGHT_PALETTE : DAY_PALETTE}>
+        {ground ?? (spot.id === "harbor" && <HarborGround track={track} />)}
+        <Suspense fallback={null}>
+          <KenneyProps items={scenery} night={night} />
+        </Suspense>
+      </TrackScene>
       <Suspense fallback={null}>
         <Physics timeStep={1 / 60} interpolate paused={hidden || paused} gravity={[0, GRAVITY, 0]} updatePriority={-50}>
           <Walls track={track} />

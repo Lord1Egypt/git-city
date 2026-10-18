@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
@@ -11,7 +11,9 @@ import { MODELS, type PropItem, type PropKind } from "@/lib/drift/props";
 // rocks and logs, the City Kit Industrial's containers and tanks. Each model
 // is fitted to a size in meters (the kits use different scales), centered on
 // its footprint, and drawn as one instanced mesh per part, so a hundred trees
-// cost what one does. Positions are meters, like the track.
+// cost what one does. Positions are meters, like the track. `night` repaints
+// them by material for a town at night, whose light is made for near-black
+// buildings: the kits' whites and pastels would glare there.
 
 const U = M_TO_UNIT;
 const _m = new THREE.Matrix4();
@@ -19,6 +21,34 @@ const _q = new THREE.Quaternion();
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _y = new THREE.Vector3(0, 1, 0);
+
+/** The kits' materials at night, as deep as a town's buildings (a face there is #12221a); textured ones darken their texture. */
+const NIGHT: Record<string, string> = {
+  grey: "#1c2b24",
+  _defaultMat: "#1c2b24",
+  road: "#0e1114",
+  red: "#5c1418",
+  glass: "#16263a",
+  grass: "#123a2c",
+  leafsDark: "#0f2e2a",
+  leafsGreen: "#123a2c",
+  woodBark: "#3a2216",
+  woodBarkDark: "#2e1b12",
+  woodDark: "#2e1b12",
+  dirt: "#3a2216",
+  bark: "#3a2a18",
+  wood: "#3a2216",
+  woodInner: "#4a3a2a",
+  pylon: "#6a5010",
+  stone: "#2a3a3a",
+};
+const NIGHT_TEXTURED = "#5a5a5a";
+
+function nightCopy(m: THREE.Material): THREE.Material {
+  const c = m.clone() as THREE.MeshStandardMaterial;
+  if (c.color) c.color.set(NIGHT[m.name] ?? (c.map ? NIGHT_TEXTURED : "#1c2b24"));
+  return c;
+}
 
 interface Part {
   geometry: THREE.BufferGeometry;
@@ -28,10 +58,10 @@ interface Part {
 }
 
 /** A model's meshes, fitted to its size and set on its footprint's center. */
-function useParts(kind: PropKind): Part[] {
+function useParts(kind: PropKind, night: boolean): Part[] {
   const def = MODELS[kind];
   const gltf = useGLTF(def.url);
-  return useMemo(() => {
+  const parts = useMemo(() => {
     const root = gltf.scene;
     root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root);
@@ -44,10 +74,19 @@ function useParts(kind: PropKind): Part[] {
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
-      parts.push({ geometry: mesh.geometry, material: mesh.material, local: fit.clone().multiply(mesh.matrixWorld) });
+      const material = night ? (Array.isArray(mesh.material) ? mesh.material.map(nightCopy) : nightCopy(mesh.material)) : mesh.material;
+      parts.push({ geometry: mesh.geometry, material, local: fit.clone().multiply(mesh.matrixWorld) });
     });
     return parts;
-  }, [gltf, def]);
+  }, [gltf, def, night]);
+  // The night copies are this model's own; the kits' materials stay shared.
+  useEffect(
+    () => () => {
+      if (night) for (const p of parts) (Array.isArray(p.material) ? p.material : [p.material]).forEach((m) => m.dispose());
+    },
+    [parts, night],
+  );
+  return parts;
 }
 
 function PartMesh({ part, items }: { part: Part; items: PropItem[] }) {
@@ -69,8 +108,8 @@ function PartMesh({ part, items }: { part: Part; items: PropItem[] }) {
   return <instancedMesh key={items.length} ref={ref} args={[part.geometry, part.material, items.length]} castShadow={false} receiveShadow={false} />;
 }
 
-function Kind({ kind, items }: { kind: PropKind; items: PropItem[] }) {
-  const parts = useParts(kind);
+function Kind({ kind, items, night }: { kind: PropKind; items: PropItem[]; night: boolean }) {
+  const parts = useParts(kind, night);
   return (
     <>
       {parts.map((p, i) => (
@@ -80,7 +119,7 @@ function Kind({ kind, items }: { kind: PropKind; items: PropItem[] }) {
   );
 }
 
-export default function KenneyProps({ items }: { items: PropItem[] }) {
+export default function KenneyProps({ items, night = false }: { items: PropItem[]; night?: boolean }) {
   const byKind = useMemo(() => {
     const map = new Map<PropKind, PropItem[]>();
     for (const it of items) {
@@ -93,7 +132,7 @@ export default function KenneyProps({ items }: { items: PropItem[] }) {
   return (
     <>
       {byKind.map(([kind, list]) => (
-        <Kind key={kind} kind={kind} items={list} />
+        <Kind key={kind} kind={kind} items={list} night={night} />
       ))}
     </>
   );
