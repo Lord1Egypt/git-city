@@ -72,20 +72,28 @@ export default function CrownPanel({
       const base = crown.left[id] ?? CROWN.goal;
       return crown.holder === id ? base - Math.max(0, Math.min(serverNow, crown.endsAt) - crown.counted) : base;
     };
-    const ids = Object.keys(crown.left).sort((a, b) => left(a) - left(b));
+    // Only the race that matters: whoever has held it, the holder, and you.
+    // Untouched drivers all sit at the full time and say nothing, so a big
+    // lobby folds into a "+N" line instead of a tall list.
+    const ids = Object.keys(crown.left)
+      .filter((id) => id === crown.holder || id === you || left(id) < CROWN.goal)
+      .sort((a, b) => left(a) - left(b));
+    const shown = ids.slice(0, 3);
+    if (you && ids.includes(you) && !shown.includes(you)) shown[shown.length - 1] = you;
+    const rest = Object.keys(crown.left).length - shown.length;
     const mine = crown.holder === you;
     return (
       <>
         <div className={`${HUD_BOX} absolute left-1/2 top-4 max-sm:top-[4.25rem] flex -translate-x-1/2 flex-col gap-1.5 px-3 py-2 text-[9px]`}>
-          <p className="flex items-center justify-between gap-6 text-cream">
+          <p className="flex items-center justify-between gap-4 text-cream">
             <span className="flex items-center gap-1.5">
               <Crown className="h-2.5 w-[22px]" /> Crown rush
             </span>
             <span className="tabular-nums text-muted">{clock(crown.endsAt - serverNow)}</span>
           </p>
           <ul className="flex flex-col gap-1">
-            {ids.slice(0, 6).map((id) => (
-              <li key={id} className={`flex items-center justify-between gap-6 ${crown.holder === id ? "text-[#ffcf33]" : id === you ? "text-cream" : "text-muted"}`}>
+            {shown.map((id) => (
+              <li key={id} className={`flex items-center justify-between gap-4 ${crown.holder === id ? "text-[#ffcf33]" : id === you ? "text-cream" : "text-muted"}`}>
                 <span className="flex items-center gap-1.5">
                   {crown.holder === id ? <Crown className="h-2 w-[18px]" /> : <span className="w-[18px]" />}
                   {name(id)}
@@ -93,6 +101,7 @@ export default function CrownPanel({
                 <span className="tabular-nums">{secs(left(id))}s</span>
               </li>
             ))}
+            {rest > 0 && <li className="pl-[24px] text-dim">+{rest} racing</li>}
           </ul>
         </div>
         <p
