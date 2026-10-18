@@ -12,7 +12,8 @@ import { attackerTown, rubbleIn } from "../league-city/rubble";
 // loop: who did it, the picture (their flag on your rubble), and one way back:
 // the button drops you in the car next to their own building. When you had
 // knocked theirs down first, it's "@x hit you back". At most one every 3 days
-// per dev, however many times and in however many towns it falls.
+// per dev, however many times and in however many towns it falls. That cap is
+// its own: the shared weekly one (filled by race emails) never drops it.
 
 const EVERY_MS = 3 * 86_400_000;
 /** A knock counts as hitting back when you knocked theirs down this recently. */
@@ -131,6 +132,7 @@ export async function notifyDemolished(league: League, fall: RecordedFall): Prom
     render: (links) => renderTownDemolishedEmail(data, links),
     actionUrl: `${EMAIL_BASE_URL}/town/${data.hitBackSlug ?? league.slug}?drive=1`,
     priority: "high",
+    skipCap: true,
     channels: ["email"],
   });
 }
