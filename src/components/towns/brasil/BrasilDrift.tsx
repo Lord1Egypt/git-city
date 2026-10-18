@@ -9,11 +9,11 @@ import * as THREE from "three";
 import TrackScene from "@/components/race/TrackScene";
 import { Billboard } from "@/components/league/identity/IdentityPieces";
 import { useFontReady } from "@/components/league/identity/IdentityLayer";
-import DriftHud, { MEDAL_COLORS, fmt } from "@/components/drift/DriftHud";
-import DriftResults, { type PostResult, type PostState } from "@/components/drift/DriftResults";
+import DriftHud, { fmt } from "@/components/drift/DriftHud";
+import type { PostResult, PostState } from "@/components/drift/DriftResults";
 import type { DriftFinish } from "@/components/drift/DriftWorld";
-import DriftTitle, { type BoardRowLite } from "@/components/drift/DriftTitle";
-import { Band } from "@/components/drift/ui";
+import type { BoardRowLite } from "@/components/drift/DriftTitle";
+import { TrackCard, TrackResults } from "./DriftCards";
 import TouchControls from "@/components/league/hud/drive/TouchControls";
 import { lotToWorld } from "@/lib/league-city/grid";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
@@ -24,7 +24,7 @@ import { TRIAL, type TrialStage } from "@/lib/league-city/race/trial";
 import type { Frames } from "@/lib/drift/frames";
 import { loadRun, saveRun, type LocalRun } from "@/lib/drift/local";
 import { courseOf, getLiveSpot } from "@/lib/drift/spots";
-import { medalFor, medalScores, type LiveSpot } from "@/lib/drift/spots/types";
+import type { LiveSpot } from "@/lib/drift/spots/types";
 import { createDriftTelemetry } from "@/lib/drift/telemetry";
 import { DRIFT_SIGN_LOT } from "@/lib/towns/brasil-drift";
 
@@ -33,11 +33,10 @@ import { DRIFT_SIGN_LOT } from "@/lib/towns/brasil-drift";
 // ground: the asphalt and its line under the START gantry, no walls yet, and
 // a DRIFT sign by the gate with the track's top five. Driving across the line
 // is an event's marker in Forza Horizon: the screen goes dark, the track's
-// card comes up over the wide shot of the car on the grid (medals, the board,
-// your best), Enter drifts, Esc goes back. Then it's /drift: 3-2-1, the
-// scorer, the HUD, Enter for the last checkpoint, the finish, the results
-// with the track's medals and board beside them. Again, or back to the city
-// on the highway by the gate.
+// card (DriftCards) comes up under the wide shot of the car on the grid,
+// Enter drifts, Esc goes back. Then it's /drift: 3-2-1, the scorer, the HUD,
+// Enter for the last checkpoint, the finish, the same card with your score.
+// Again, or back to the city on the highway by the gate.
 
 const DriftWorld = dynamic(() => import("@/components/drift/DriftWorld"), { ssr: false, loading: () => null });
 
@@ -222,10 +221,6 @@ export function useBrasilDrift({
   const best = [serverBest, local?.score ?? null].reduce<number | null>((a, b) => (b === null ? a : a === null ? b : Math.max(a, b)), null);
   const pb = useMemo(() => (local ? toGhost(local.frames, local.splits) : null), [local]);
 
-  // The ghost to race: the driver just above you, from the results.
-  const [rival, setRival] = useState<{ login: string; run: GhostRun; color: string; score: number } | null>(null);
-  const raceGhost = useRef<(login: string) => void>(() => {});
-
   const [finish, setFinish] = useState<{ run: DriftFinish; before: number | null } | null>(null);
   const [post, setPost] = useState<PostState>({ status: "posting" });
 
@@ -300,19 +295,6 @@ export function useBrasilDrift({
     setRunKey((k) => k + 1);
     goStage("countdown", TRIAL.beatMs);
   }, [telemetry, goStage, setPaused]);
-  useEffect(() => {
-    raceGhost.current = (login: string) => {
-      fetch(`/api/drift/${spot.id}/ghost?login=${encodeURIComponent(login)}`)
-        .then((r) => (r.ok ? (r.json() as Promise<{ login: string; score: number; frames: Frames; splits: number[] }>) : null))
-        .then((g) => {
-          if (g) setRival({ login: g.login, run: toGhost(g.frames, g.splits), color: carColor(g.login), score: g.score });
-        })
-        .catch(() => {
-          // offline: your own ghost only
-        })
-        .finally(retry);
-    };
-  }, [spot.id, retry]);
 
   const back = useCallback(() => {
     posthog.capture("brasil_drift_exit", { stage: stageNow.current });
@@ -361,7 +343,7 @@ export function useBrasilDrift({
       beatMs={trial.beat}
       onStage={goStage}
       pb={pb}
-      rival={rival}
+      rival={null}
       showGhosts={showGhosts}
       onFinish={onFinish}
       onRestart={retry}
@@ -391,7 +373,7 @@ export function useBrasilDrift({
         showGhosts={showGhosts}
         best={best}
         boardScores={board.map((r) => r.score)}
-        rival={rival}
+        rival={null}
         onToggleGhosts={toggleGhosts}
         onToggleMute={onToggleMute}
         onToggleCamera={onCameraToggle}
@@ -401,67 +383,23 @@ export function useBrasilDrift({
         onExit={back}
         exitLabel="Back to the city"
       />
-      {ready && trial.stage === "menu" && <DriftTitle spot={spot} best={best} board={board} you={viewerLogin} rival={rival?.login ?? null} challenger={null} onStart={begin} onSpots={back} exitLabel="City" />}
+      {ready && trial.stage === "menu" && <TrackCard spot={spot} board={board} best={best} you={viewerLogin} onStart={begin} onBack={back} />}
       {trial.stage === "finish" && finish && (
-        <DriftResults
+        <TrackResults
           spot={spot}
           score={finish.run.score}
           before={finish.before}
-          stats={finish.run.stats}
           board={board}
           post={post}
           you={viewerLogin}
+          townPath={townPath}
           onRetry={retry}
           onRetryPost={() => void send(finish.run)}
-          onRaceGhost={(login) => raceGhost.current(login)}
-          onSpots={back}
-          town={{ again: "Drive again", exit: "City", path: townPath }}
-          aside={<TrackAside spot={spot} score={finish.run.score} board={board} you={viewerLogin} />}
+          onBack={back}
         />
       )}
     </>
   ) : null;
 
   return { world, overlay, board, ready, best, start };
-}
-
-/** Beside the results: the medals, the one this run took lit, and the track's top five. */
-function TrackAside({ spot, score, board, you }: { spot: LiveSpot; score: number; board: BoardRowLite[]; you: string | null }) {
-  const got = medalFor(spot, score);
-  const size = { fontSize: "clamp(10px, min(1.4vh, 2.6vw), 15px)" };
-  const body = { fontSize: "clamp(11px, min(1.8vh, 3.2vw), 19px)" };
-  return (
-    <>
-      <Band className="justify-between px-5 py-2.5 text-lime" style={size}>
-        <span>Medals</span>
-      </Band>
-      {medalScores(spot).map(([m, at], i) => (
-        <Band key={m} delay={60 + i * 60} tone={got === m ? "cream" : "dark"} tab={MEDAL_COLORS[m]} className="justify-between gap-4 px-5 py-2 tabular-nums" style={body}>
-          <span style={{ color: got === m ? undefined : MEDAL_COLORS[m] }}>{m}</span>
-          <span className={score >= at ? "" : "text-muted"}>{fmt(at)}</span>
-        </Band>
-      ))}
-      <Band delay={320} className="mt-5 justify-between px-5 py-2.5 text-lime" style={size}>
-        <span>{spot.name}</span>
-        <span className="text-muted">Top 5</span>
-      </Band>
-      {board.length === 0 && (
-        <Band delay={380} className="px-5 py-2.5 text-muted" style={body}>
-          Nobody yet
-        </Band>
-      )}
-      {board.slice(0, 5).map((r, i) => {
-        const me = !!you && r.login.toLowerCase() === you.toLowerCase();
-        return (
-          <Band key={r.login} delay={380 + i * 60} tone={me ? "lime" : "dark"} className="justify-between gap-4 px-5 py-2 tabular-nums" style={body}>
-            <span className="flex gap-4">
-              <span className={me ? "" : "text-muted"}>{r.rank}</span>
-              <span className="normal-case">@{r.login}</span>
-            </span>
-            <span>{fmt(r.score)}</span>
-          </Band>
-        );
-      })}
-    </>
-  );
 }

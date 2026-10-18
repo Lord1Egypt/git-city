@@ -57,7 +57,7 @@ const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
 const T = { hero: "clamp(40px, min(11vh, 14vw), 128px)", big: "clamp(16px, min(3vh, 4.4vw), 34px)", body: "clamp(11px, min(1.8vh, 3.2vw), 19px)", small: "clamp(10px, min(1.4vh, 2.6vw), 15px)" };
 
 /** Rows around a score that isn't on the board yet: two above, you, two below. */
-function projected(board: BoardRowLite[], score: number, you: string): BoardRowLite[] {
+export function projected(board: BoardRowLite[], score: number, you: string): BoardRowLite[] {
   const others = board.filter((r) => r.login.toLowerCase() !== you.toLowerCase());
   const at = others.filter((r) => r.score > score).length;
   const rows: BoardRowLite[] = others.slice(Math.max(0, at - 2), at).map((r, i, a) => ({ ...r, rank: at - a.length + i + 1 }));

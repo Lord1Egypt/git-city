@@ -853,7 +853,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           <span className="flex items-stretch text-[11px] shadow-[0_6px_0_rgba(0,0,0,0.35)] sm:text-sm">
             <span className="bg-lime px-3 py-2 text-bg">Drift</span>
             <span className="bg-bg/90 px-3 py-2 text-cream">
-              Cross the line to start{drift.board[0] ? <span className="text-muted"> · record {fmt(drift.board[0].score)}</span> : null}
+              Cross the line
             </span>
           </span>
         </div>
