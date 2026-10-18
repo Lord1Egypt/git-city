@@ -25,6 +25,7 @@ import { applyRoomDamage } from "@/lib/league-city/smash-net";
 import { inTown } from "@/lib/towns/live";
 import type { DriverInfo } from "@/lib/league-city/drive/net";
 import BuildingCard from "@/components/league/hud/BuildingCard";
+import GuestGate from "@/components/league/hud/drive/GuestGate";
 import { fmt } from "@/components/league/hud/shared";
 import MapNavControls from "@/components/MapNavControls";
 import BrasilScene, { cityKey, type CameraApi } from "@/components/towns/brasil/BrasilScene";
@@ -56,6 +57,8 @@ export interface BrasilTownProps {
   home: UF | "island" | null;
   /** Open on a state or a building. */
   startAt: { uf: string } | { login: string } | null;
+  /** ?pick=1, back from signing in after a guest's free building: open the state picker if you're not on the map. */
+  startPick?: boolean;
   /** The week the offices come from: last closed week, or this week so far before the first one closes. */
   week: BrasilWeek;
 }
@@ -70,7 +73,7 @@ const HUD_BG = "bg-bg/90";
 const HUD_EDGE = "border-border";
 const HUD_SOFT = "text-muted";
 
-export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt, week: officeWeek }: BrasilTownProps) {
+export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt, startPick = false, week: officeWeek }: BrasilTownProps) {
   const router = useRouter();
   const camera = useRef<CameraApi | null>(null);
   const cameraStore = useMemo(() => createCameraStore(), []);
@@ -159,6 +162,16 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [driveReady, setDriveReady] = useState(false);
   const [driveCamera, setDriveCamera] = useState<DriveCameraMode>("chase");
   const [paused, setPaused] = useState(false);
+  // A guest's free building just fell (on their screen only): the car stops on "plant your flag".
+  const [taste, setTaste] = useState<string | null>(null);
+  const tasteTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (tasteTimer.current) window.clearTimeout(tasteTimer.current);
+  }, []);
+  const onTaste = useCallback((login: string) => {
+    posthog.capture("guest_taste_down", { town: "brasil" });
+    tasteTimer.current = window.setTimeout(() => setTaste(login), 1200);
+  }, []);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [crownView, setCrownView] = useState<CrownView | null>(null);
@@ -207,14 +220,14 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   useEffect(() => {
     if (!driving) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.repeat) return;
+      if (e.key !== "Escape" || e.repeat || taste) return; // the free building's choice answers Esc itself
       e.preventDefault();
       if (paused) exitDrive();
       else setPaused(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [driving, paused, exitDrive]);
+  }, [driving, paused, exitDrive, taste]);
   const watch = useDriveWatch(league.slug, !driving, (msg) => applyRoomDamage(smash, msg, Date.now()));
   // Where each driver is now (units), from the room's latest state of their car.
   const driverAt = useCallback(
@@ -345,11 +358,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         }
       } else {
         const b = world.placed.get(startAt.login);
-        if (b) openBuilding(b);
+        // Back from signing in after the free building: on the map is joining, so pick your state.
+        if (startPick && viewerLogin && !home) openPicker(null);
+        else if (b) openBuilding(b);
       }
     }, 600);
     return () => clearTimeout(t);
-  }, [startAt, world, openState, openBuilding]);
+  }, [startAt, world, openState, openBuilding, startPick, viewerLogin, home]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Where you are: the building's city, the open state, or the city the camera is over.
   const place = (focused ? world.cityOfLogin.get(focused.loginLower) : undefined) ?? state?.capital ?? (viewKey ? world.cityByKey.get(viewKey) : undefined) ?? null;
@@ -400,7 +415,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       volume,
       emoteApi,
       onEmoteLog: emoteLog.push,
-      paused,
+      paused: paused || !!taste,
       stallAt: null,
       onReady: () => setDriveReady(true),
       onFail: exitDrive,
@@ -410,8 +425,9 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       onHonk: noop,
       crownApi,
       onCrown: setCrownView,
+      onTaste: viewerLogin ? undefined : onTaste,
     }),
-    [telemetry, noop, driveFrom, league.slug, viewerLogin, guest, driveCamera, toggleCamera, muted, volume, emoteLog, paused, exitDrive],
+    [telemetry, noop, driveFrom, league.slug, viewerLogin, guest, driveCamera, toggleCamera, muted, volume, emoteLog, paused, exitDrive, taste, onTaste],
   );
   // The drive minimap: the map around the car, and your building.
   const driveMap = useMemo(
@@ -505,6 +521,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     }, 0);
     return () => clearTimeout(t);
   }, [arriving, viewerLogin, world, openBuilding]);
+  const tasteSignIn = () => {
+    const next = `/town/${league.slug}?at=${encodeURIComponent(taste ?? "")}&pick=1`;
+    void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`);
+  };
   const signIn = () => {
     posthog.capture("brasil_signin_clicked", { for_login: picker?.forLogin ?? null });
     void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=/town/${league.slug}`);
@@ -730,6 +750,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       )}
 
       {driving && driveReady && <AreaTitle telemetry={telemetry} cities={world.allCities} />}
+      {driving && taste && <GuestGate reason="taste" town="Brasil" login={taste} onSignIn={tasteSignIn} onContinue={() => setTaste(null)} />}
       {driving && (
         <DriveHud
           firstRun={false}

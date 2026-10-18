@@ -21,7 +21,8 @@ import { Bursts, type VoxelBursts } from "./Voxels";
 // its `damage`); someone else's hits come back through `debris`. Signed out
 // you can't break anything: running into a building shows the sign-in hint,
 // and a shielded one (it fell less than 12h ago) says how long it has left.
-// Parked against your own broken building, the HUD counts it back up.
+// Parked against your own broken building, the HUD counts it back up. A
+// guest gets one free building that breaks only on their screen (`taste`).
 // Floors that score (the room says which) rise off the building as "+N".
 
 /** What the room said about you: signed in with a building (you smash), or not (yet). */
@@ -65,9 +66,19 @@ interface Props {
   /** Your login (lowercase), for your own building. */
   me: string;
   telemetryRef: React.MutableRefObject<DriveTelemetry>;
+  /**
+   * A guest's free building: the first one the car runs into breaks, here
+   * only (nothing goes to the room). `lock` names it, `down` says it fell;
+   * after that every building is solid again.
+   */
+  taste?: { login: string | null; used: boolean; lock: (login: string) => void; down: (login: string) => void } | null;
 }
 
-export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRef, muted, sideRef, send, me, telemetryRef }, ref) {
+export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRef, muted, sideRef, send, me, telemetryRef, taste = null }, ref) {
+  const tasteRef = useRef(taste);
+  useEffect(() => {
+    tasteRef.current = taste;
+  }, [taste]);
   const bursts = useRef<VoxelBursts | null>(null);
   const crash = useRef<Howl | null>(null);
   const silent = useRef(muted);
@@ -166,6 +177,27 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
     // Signed out the buildings are solid and running into one shows the hint;
     // signed in, a shielded one says how long it has left.
     const now = performance.now();
+    const free = sideRef.current === "none" ? tasteRef.current : null;
+    if (free && !free.used) {
+      if (speed < SMASH.minSpeed) return;
+      const epoch = Date.now();
+      let login = free.login;
+      if (!login) {
+        for (let i = 0; i < store.targets.length; i++) {
+          const t = store.targets[i];
+          if (t.login === me || store.isShielded(i, epoch) || store.standing(i) === 0 || toFootprint(store, i, x, z) > SMASH.carRadius) continue;
+          login = t.login;
+          free.lock(login);
+          break;
+        }
+        if (!login) return;
+      }
+      const hits = store.hitCircle(x, z, SMASH.carRadius, c.state.boosting ? SMASH.boostRows : SMASH.rows, epoch, SMASH.cooldownMs, undefined, me, login);
+      if (!hits.length) return;
+      show(hits, c.state.boosting ? 1 : 0);
+      if (hits.some((h) => h.down)) free.down(login);
+      return;
+    }
     if (speed > 2 && now - lastHint.current > HINT_EVERY_MS) {
       const epoch = Date.now();
       for (let i = 0; i < store.targets.length; i++) {

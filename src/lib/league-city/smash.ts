@@ -359,13 +359,14 @@ export class SmashStore {
    * Takes `n` floors from every standing column the circle touches. With a
    * cooldown, a column hit less than that long ago by the same source is
    * skipped (a car inside a column takes one floor per pass, not per frame).
-   * `spare` is a building left alone (yours).
+   * `spare` is a building left alone (yours); `only`, the one building that
+   * breaks (a guest's free one).
    */
-  hitCircle(cx: number, cz: number, r: number, n: number, now: number, cooldownMs = 0, by?: string, spare?: string): SmashHit[] {
+  hitCircle(cx: number, cz: number, r: number, n: number, now: number, cooldownMs = 0, by?: string, spare?: string, only?: string): SmashHit[] {
     const hits: SmashHit[] = [];
     for (let i = 0; i < this.targets.length; i++) {
       const t = this.targets[i];
-      if (t.login === spare) continue;
+      if (t.login === spare || (only !== undefined && t.login !== only)) continue;
       const bx0 = t.x - t.w / 2;
       const bz0 = t.z - t.d / 2;
       if (!touches(cx, cz, r, bx0, bx0 + t.w, bz0, bz0 + t.d) || this.isShielded(i, now)) continue;
