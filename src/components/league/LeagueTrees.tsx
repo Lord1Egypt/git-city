@@ -51,10 +51,15 @@ export interface TreeCull {
 
 /** How close the car's middle gets to a trunk to knock it (units: half the car plus the trunk). */
 const KNOCK_REACH = 5.5;
-/** Falling, lying down, standing back up (seconds). */
-const FALL_S = 0.45;
-const DOWN_S = 20;
-const RISE_S = 1.2;
+/** Falling (with a bounce), lying there, shrinking away, gone, growing back (seconds). */
+const FALL_S = 0.6;
+const DOWN_S = 5;
+const SHRINK_S = 0.5;
+const GONE_S = 1.5;
+const GROW_S = 0.7;
+const TOTAL_S = FALL_S + DOWN_S + SHRINK_S + GONE_S + GROW_S;
+/** How far a knocked tree slides along the hit, uprooted (units). */
+const SLIDE = 7;
 const KNOCK_CELL = 64;
 const _qTilt = new THREE.Quaternion();
 const _axis = new THREE.Vector3();
@@ -63,12 +68,24 @@ const _rot = new THREE.Quaternion();
 const _scl = new THREE.Vector3();
 const _out = new THREE.Matrix4();
 
-/** How far over a knocked tree leans (0 standing, 1 flat), `t` seconds after the hit. */
-function lean(t: number): number {
-  if (t < FALL_S) return (t / FALL_S) ** 2;
-  if (t < FALL_S + DOWN_S) return 1;
-  const k = (t - FALL_S - DOWN_S) / RISE_S;
-  return k >= 1 ? 0 : 1 - k * k;
+const easeOutBack = (k: number) => 1 + 2.4 * (k - 1) ** 3 + 1.4 * (k - 1) ** 2;
+
+/** A knocked tree `t` seconds after the hit: how far over it leans (0 up, 1 flat), how far it slid, how big it is. */
+function knockPose(t: number): { tilt: number; slide: number; scale: number } {
+  if (t < FALL_S) {
+    const k = t / FALL_S;
+    // Over it goes, a little past flat, and settles back: the bounce of a trunk hitting the ground.
+    return { tilt: Math.min(1.06, easeOutBack(k)), slide: Math.sin((k * Math.PI) / 2), scale: 1 };
+  }
+  t -= FALL_S;
+  if (t < DOWN_S) return { tilt: 1, slide: 1, scale: 1 };
+  t -= DOWN_S;
+  if (t < SHRINK_S) return { tilt: 1, slide: 1, scale: 1 - t / SHRINK_S };
+  t -= SHRINK_S;
+  if (t < GONE_S) return { tilt: 0, slide: 0, scale: 0 };
+  t -= GONE_S;
+  // Back where it stood, growing out of the ground with a little pop.
+  return { tilt: 0, slide: 0, scale: Math.max(0, easeOutBack(Math.min(1, t / GROW_S))) };
 }
 
 function matrixOf(l: TreeSpot, variant: Variant) {
@@ -124,9 +141,16 @@ function CulledTreeInstances({ variant, lots, cull }: { variant: Variant; lots: 
             knocked.current.set(i, { at: t, dx: dx / (d || 1), dz: dz / (d || 1) });
           }
     }
-    // A tree on its way down or back up moves every frame: the meshes are repacked while any does.
-    const moving = [...knocked.current.values()].some((k) => t - k.at < FALL_S + 0.1 || t - k.at > FALL_S + DOWN_S - 0.1);
-    for (const [i, k] of knocked.current) if (t - k.at > FALL_S + DOWN_S + RISE_S) knocked.current.delete(i);
+    // A tree that's moving (falling, shrinking, growing) is repacked every frame; lying still or gone, it isn't.
+    const moving = [...knocked.current.values()].some((k) => {
+      const e = t - k.at;
+      return e < FALL_S + 0.05 || (e > FALL_S + DOWN_S - 0.05 && e < FALL_S + DOWN_S + SHRINK_S + 0.05) || e > TOTAL_S - GROW_S - 0.05;
+    });
+    for (const [i, k] of knocked.current)
+      if (t - k.at > TOTAL_S) {
+        knocked.current.delete(i);
+        state.current.dirty = true;
+      }
     if (moving) state.current.dirty = true;
     const src = knocked.current.size ? leaned(data.src, knocked.current, t) : data.src;
     cullInstances(state.current, camera, scene, t, [{ src, pos: data.pos, meshes }], { maxDistance: cull.maxDistance });
@@ -153,12 +177,14 @@ function CulledTreeInstances({ variant, lots, cull }: { variant: Variant; lots: 
 function leaned(src: Float32Array, knocked: Map<number, { at: number; dx: number; dz: number }>, t: number): Float32Array {
   const out = src.slice();
   for (const [i, k] of knocked) {
-    const a = lean(t - k.at) * (Math.PI / 2) * 0.95;
-    if (a <= 0) continue;
+    const pose = knockPose(t - k.at);
     _out.fromArray(src, i * 16).decompose(_pos, _rot, _scl);
-    // Tip over round the horizontal axis square to the push, at the trunk's base.
+    // Tip over round the horizontal axis square to the push, at the trunk's base, sliding along the push.
     _axis.set(k.dz, 0, -k.dx).normalize();
-    _qTilt.setFromAxisAngle(_axis, a);
+    _qTilt.setFromAxisAngle(_axis, pose.tilt * (Math.PI / 2) * 0.92);
+    _pos.x += k.dx * SLIDE * pose.slide;
+    _pos.z += k.dz * SLIDE * pose.slide;
+    _scl.multiplyScalar(Math.max(0.0001, pose.scale));
     _out.compose(_pos, _qTilt.multiply(_rot), _scl).toArray(out, i * 16);
   }
   return out;
@@ -237,11 +263,7 @@ export default function LeagueTrees({ objects, cull }: { objects: CityObject[]; 
   return (
     <group>
       {variants.map((v, i) =>
-        lotsByType[i].length === 0 ? null : cull ? (
-          <CulledTreeInstances key={i} variant={v} lots={lotsByType[i]} cull={cull} />
-        ) : (
-          <TreeInstances key={i} variant={v} lots={lotsByType[i]} />
-        ),
+        lotsByType[i].length === 0 ? null : cull ? <CulledTreeInstances key={i} variant={v} lots={lotsByType[i]} cull={cull} /> : <TreeInstances key={i} variant={v} lots={lotsByType[i]} />,
       )}
     </group>
   );
