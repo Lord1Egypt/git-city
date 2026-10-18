@@ -299,7 +299,7 @@ function CitySign({ city }: { city: CityLayout }) {
 const SIGN_VIEW = 9000;
 
 /** Up close: the @login over the buildings nearest the middle of the view (the towns' name tags). */
-function NearPlates({ buildings }: { buildings: CityBuilding[] }) {
+function NearPlates({ buildings, fresh }: { buildings: CityBuilding[]; fresh?: ReadonlySet<string> }) {
   const [shown, setShown] = useState<CityBuilding[]>([]);
   const last = useRef(0);
   const key = useRef("");
@@ -327,7 +327,9 @@ function NearPlates({ buildings }: { buildings: CityBuilding[] }) {
     <>
       {shown.map((b) => (
         <Html key={b.login} position={[b.position[0], b.height + 10, b.position[2]]} center zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
-          <div className="whitespace-nowrap border-2 border-border bg-bg/80 px-1.5 py-0.5 font-pixel text-[9px] normal-case text-cream">@{b.login}</div>
+          <div className={`flex items-center gap-1 whitespace-nowrap border-2 bg-bg/80 px-1.5 py-0.5 font-pixel text-[9px] normal-case text-cream ${fresh?.has(b.loginLower) ? "border-lime" : "border-border"}`}>
+            {fresh?.has(b.loginLower) && <span className="bg-lime px-1 text-[8px] uppercase text-bg">new</span>}@{b.login}
+          </div>
         </Html>
       ))}
     </>
@@ -610,6 +612,8 @@ export interface BrasilSceneProps {
   onCity?: (key: string | null, looking: string | null) => void;
   /** Open the map camera here instead of the whole country. */
   cameraStart?: { x: number; z: number } | null;
+  /** Logins (lowercase) that arrived in the last day: their name plates say "new". */
+  fresh?: ReadonlySet<string>;
   /** The state of the week: its tag wears the crown. */
   crowned?: UF | null;
   /** Dev only: fps, draw calls and triangles in a corner (the preview's ?stats=1). */
@@ -685,7 +689,7 @@ function Pulse({ x, z }: { x: number; z: number }) {
   );
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null, fresh }: BrasilSceneProps) {
   const allCities = useMemo(() => [...cities, island], [cities, island]);
   // Phones and weak GPUs draw at a lower resolution, as in the main city (?perf=low|high overrides).
   const { mode: perf } = usePerfMode();
@@ -735,7 +739,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
         focusedBuilding={driving ? null : focused}
         onBuildingClick={driving ? undefined : onBuildingClick}
       />}
-      {!driving && <NearPlates buildings={buildings} />}
+      {!driving && <NearPlates buildings={buildings} fresh={fresh} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} crowned={!!crowned && c.uf === crowned && !c.second} onClick={() => onTag?.(c)} />)}
       {driving && drive && <DriveWorld objects={objects} buildings={buildings} h={MAP_H} smash={smash} {...drive} />}
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}

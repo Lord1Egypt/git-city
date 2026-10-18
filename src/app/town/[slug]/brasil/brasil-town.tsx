@@ -128,7 +128,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     const cityByKey = new Map(allCities.map((c) => [cityKey(c), c]));
     const cityOfLogin = new Map(allCities.flatMap((c) => c.devs.map((d) => [d.dev.login.toLowerCase(), c] as const)));
     const week = weekCrown(layout, now);
-    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week };
+    // Who arrived in the last day, newest first: the ticker over the bar and the "new" name plates.
+    const arrivals = allCities
+      .flatMap((c) => c.devs.map((d) => ({ login: d.dev.login, uf: d.dev.uf, at: d.at })))
+      .filter((a) => now - a.at < 86_400_000)
+      .sort((a, b) => b.at - a.at);
+    const fresh = new Set(arrivals.map((a) => a.login.toLowerCase()));
+    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week, arrivals, fresh };
   }, [layout, cityDevs, cityNorms, now]);
 
   const smash = useMemo(() => smashStoreFor(world.buildings), [world.buildings]);
@@ -481,6 +487,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         pulse={pulse}
         watching={watchedCars}
         crowned={world.week.crown?.uf ?? null}
+        fresh={world.fresh}
         onCity={(key, looking) => {
           setViewKey(key);
           setLookKey(looking);
@@ -586,6 +593,18 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60 max-sm:bottom-[66px] max-sm:text-[8px]">
           Map data: IBGE · Natural Earth
         </span>
+      )}
+
+      {!driving && !state && !focused && !panel && !picker && world.arrivals.length > 0 && (
+        <Arrivals
+          arrivals={world.arrivals}
+          onPick={(login) => {
+            const b = world.placed.get(login.toLowerCase());
+            if (!b) return;
+            posthog.capture("brasil_arrival_clicked");
+            openBuilding(b);
+          }}
+        />
       )}
 
       {/* The bar: a row of words on a desktop, a tab bar of icons on a phone. */}
@@ -704,7 +723,9 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           viewerLogin={viewerLogin}
           section={
             <>
-              {arrived?.login === focused.loginLower && <Arrival login={arrived.login} uf={arrived.uf} states={world.states} founder={!!world.ufOf.get(focused.loginLower)?.founder} townPath={`/town/${league.slug}`} />}
+              {arrived?.login === focused.loginLower && (
+                <Arrival login={arrived.login} uf={arrived.uf} states={world.states} founder={!!world.ufOf.get(focused.loginLower)?.founder} townPath={`/town/${league.slug}`} />
+              )}
               <ResidentRow
                 login={focused.loginLower}
                 ufOf={world.ufOf}
@@ -758,6 +779,45 @@ function AreaTitle({ telemetry, cities }: { telemetry: { radar: { x: number; z: 
       <span className="text-3xl text-cream [text-shadow:0_3px_0_rgba(0,0,0,0.6)] sm:text-5xl">{c.uf ? c.name : "The island"}</span>
       <span className="text-[10px] text-lime">{fmt(c.devs.length)} devs live here</span>
     </div>
+  );
+}
+
+/** "3m", "2h": how long ago, short. */
+function ago(at: number, now: number): string {
+  const m = Math.max(1, Math.round((now - at) / 60_000));
+  return m < 60 ? `${m}m` : `${Math.round(m / 60)}h`;
+}
+
+/**
+ * Who just arrived, one at a time over the bar: "@login just arrived · SP · 3m",
+ * a tap away from their building. Whoever commented on the reel opens the map
+ * and sees their name go by.
+ */
+function Arrivals({ arrivals, onPick }: { arrivals: { login: string; uf: UF | null; at: number }[]; onPick: (login: string) => void }) {
+  const [i, setI] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (arrivals.length < 2) return;
+    const t = setInterval(() => {
+      setI((n) => (n + 1) % Math.min(arrivals.length, 12));
+      setNow(Date.now());
+    }, 4000);
+    return () => clearInterval(t);
+  }, [arrivals.length]);
+  const a = arrivals[i % arrivals.length];
+  return (
+    <button
+      key={a.login}
+      type="button"
+      onClick={() => onPick(a.login)}
+      className="pointer-events-auto absolute bottom-[70px] left-1/2 z-20 flex max-w-[calc(100vw-24px)] -translate-x-1/2 animate-[fade-in_0.4s_ease-out] items-center gap-2 bg-bg/90 px-3 py-1.5 font-pixel text-[10px] uppercase text-muted hover:text-cream sm:bottom-[72px]"
+    >
+      <span className="blink-dot h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
+      <span className="truncate normal-case text-cream">@{a.login}</span>
+      <span className="shrink-0">just arrived</span>
+      <span className="shrink-0 text-lime">{a.uf ?? "island"}</span>
+      <span className="shrink-0">{ago(a.at, now)}</span>
+    </button>
   );
 }
 
