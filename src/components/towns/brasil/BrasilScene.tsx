@@ -26,6 +26,7 @@ import { InstancedDecorations } from "@/components/city/decorations";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import { TREE_TYPES, type CityObject, type TreeType } from "@/lib/league-city/types";
 import type { SmashStore } from "@/lib/league-city/smash";
+import RubbleFlags from "@/components/league/RubbleFlags";
 import { MAP_BOUNDS, MAP_H, OUTLINE, RIVERS, STATE_RINGS, type Ring } from "@/lib/towns/brasil-geo";
 import { mapNav, type MapCameraStore } from "@/lib/map-nav";
 import { usePerfMode } from "@/lib/perfMode";
@@ -830,6 +831,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
         focusedBuilding={driving ? null : focused}
         onBuildingClick={driving ? undefined : onBuildingClick}
       />}
+      {smash && !off("buildings") && <RubbleFlags store={smash} />}
       {!driving && <NearPlates buildings={buildings} fresh={fresh} offices={offices} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} crowned={!!crowned && c.uf === crowned && !c.second} onClick={() => onTag?.(c)} />)}
       {!drifting && <DriftSite board={driftBoard} />}

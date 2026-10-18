@@ -195,10 +195,6 @@ export async function importBrasilComment(
   if (!dev) {
     try {
       dev = await createDeveloperFromGitHub(login);
-      sb.rpc("recalculate_ranks").then(
-        () => {},
-        () => {},
-      );
     } catch (err) {
       if (err instanceof GitHubFetchError) return log("unknown_user");
       throw err;

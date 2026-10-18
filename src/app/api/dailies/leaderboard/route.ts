@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-export const revalidate = 300; // ISR: regenerate every 5 min
+// Rendered per request, cached 5 min at the CDN; prerendering at build tied deploys to db health.
+export const dynamic = "force-dynamic";
+const CACHE = { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" };
 
 export async function GET() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -23,8 +25,8 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
   }
 
-  return NextResponse.json({
-    leaderboard: data ?? [],
-    total: data?.length ?? 0,
-  });
+  return NextResponse.json(
+    { leaderboard: data ?? [], total: data?.length ?? 0 },
+    { headers: CACHE },
+  );
 }
