@@ -1,7 +1,7 @@
 "use client";
 
 import "@/lib/silenceThreeClockWarning";
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, MapControls } from "@react-three/drei";
@@ -736,8 +736,21 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
   const decorations = useMemo(() => decorationsOf(driving ? objects.filter((o) => !knockable.has(o.id)) : objects), [objects, driving, knockable]);
   // Item boxes on the cities' streets, never out on the highways between them.
   const cityStreets = useMemo(() => allCities.flatMap((c) => c.roads.map(([x, z]) => [x, z] as [number, number])).sort((a, b) => a[0] - b[0] || a[1] - b[1]), [allCities]);
-  const telemetry = drive?.telemetry;
-  const treeCull = useMemo(() => ({ ...TREE_CULL, knock: telemetry ? () => telemetry.radar : undefined }), [telemetry]);
+  // Trees: a physics bubble round the car (TreeBubble) knocks the nearest ones about; the instanced trees skip those.
+  const bubbleTrees = useMemo(
+    () =>
+      objects
+        .filter((o) => TREE_TYPES.includes(o.item_type as TreeType))
+        .map((o) => {
+          const [x, z] = o.px !== null && o.pz !== null ? [o.px, o.pz] : lotToWorld(o.x, o.z);
+          return { id: o.id, x, z, type: o.item_type as TreeType, rot: o.rot };
+        }),
+    [objects],
+  );
+  const [hiddenTrees, setHiddenTrees] = useState<{ ids: ReadonlySet<string>; version: number }>({ ids: new Set(), version: 0 });
+  const onHiddenTrees = useCallback((ids: ReadonlySet<string>) => setHiddenTrees((h) => ({ ids, version: h.version + 1 })), []);
+  const treeCull = useMemo(() => ({ ...TREE_CULL, hidden: hiddenTrees }), [hiddenTrees]);
+  const treeBubble = useMemo(() => ({ list: bubbleTrees, onHidden: onHiddenTrees }), [bubbleTrees, onHiddenTrees]);
   const identity = useMemo(() => ({ sky: 0, signSide: null, logoUrl: null, logoRemoved: false, identityVersion: 0 }), []);
   const cx = (MAP_BOUNDS.minX + MAP_BOUNDS.maxX) / 2;
   const cz = (MAP_BOUNDS.minZ + MAP_BOUNDS.maxZ) / 2;
@@ -781,7 +794,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       />}
       {!driving && <NearPlates buildings={buildings} fresh={fresh} offices={offices} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} crowned={!!crowned && c.uf === crowned && !c.second} onClick={() => onTag?.(c)} />)}
-      {driving && drive && <DriveWorld objects={driveObjects} buildings={buildings} h={MAP_H} smash={smash} boxSpots={cityStreets} {...drive} />}
+      {driving && drive && <DriveWorld objects={driveObjects} buildings={buildings} h={MAP_H} smash={smash} boxSpots={cityStreets} trees={treeBubble} {...drive} />}
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
       {stats && <Stats />}
       {!driving && watching && watching.length > 0 && <WatchedCars cars={watching} />}

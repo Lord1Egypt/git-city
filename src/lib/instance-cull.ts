@@ -15,6 +15,8 @@ export interface CullSet {
   pos: Float32Array;
   /** The meshes drawing this set (one per submesh), all fed the same instances. */
   meshes: THREE.InstancedMesh[];
+  /** Instances never drawn (1 = skip), e.g. trees the car's physics bubble draws itself. */
+  skip?: Uint8Array;
 }
 
 export interface CullState {
@@ -69,7 +71,7 @@ export function cullInstances(
   const halfDiag = Math.atan(Math.tan(halfV) * Math.hypot(1, cam.aspect ?? 1.8)) + 0.35;
   const minCos = Math.cos(Math.min(Math.PI, halfDiag));
 
-  for (const { src, pos, meshes } of sets) {
+  for (const { src, pos, meshes, skip } of sets) {
     if (meshes.length === 0) continue;
     const n = pos.length / 2;
     let k = 0;
@@ -78,7 +80,7 @@ export function cullInstances(
       const dy = groundY - cp.y;
       const dz = pos[i * 2 + 1] - cp.z;
       const d2 = dx * dx + dy * dy + dz * dz;
-      if (d2 > far2) continue;
+      if (d2 > far2 || skip?.[i]) continue;
       if (d2 > near2 && dx * _fwd.x + dy * _fwd.y + dz * _fwd.z < minCos * Math.sqrt(d2)) continue;
       for (const mesh of meshes) (mesh.instanceMatrix.array as Float32Array).set(src.subarray(i * 16, i * 16 + 16), k * 16);
       k++;

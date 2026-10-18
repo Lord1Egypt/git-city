@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
   CoefficientCombineRule,
@@ -41,6 +41,7 @@ import { useDriveInput } from "./useDriveInput";
 import EmoteBubbles, { type EmoteApi } from "./EmoteBubbles";
 import type { EmoteLogEntry } from "@/lib/league-city/drive/emote-log";
 import Smash, { type SmashApi, type SmashSide } from "./Smash";
+import TreeBubble, { type BubbleTree } from "./TreeBubble";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { applyRoomDamage } from "@/lib/league-city/smash-net";
@@ -88,6 +89,8 @@ export interface DriveWorldProps {
   slug: string;
   /** Where item boxes may appear, when not every road and plaza (the Brasil map: its cities' streets). */
   boxSpots?: [number, number][];
+  /** Trees as a physics bubble round the car (a map with thousands: TreeBubble), instead of fixed trunks. */
+  trees?: { list: BubbleTree[]; onHidden: (ids: ReadonlySet<string>) => void };
   /** Your name in the room (GitHub login or guest-xxxx). */
   name: string;
   /** Who else is driving here, for the HUD. */
@@ -284,6 +287,7 @@ export default function DriveWorld({
   onFail,
   slug,
   boxSpots,
+  trees,
   name,
   onDrivers,
   onHonk,
@@ -340,6 +344,8 @@ export default function DriveWorld({
   const emoteSink = useRef<(from: string, e: number) => void>(() => {});
   const ownEmoteApi = useRef<EmoteApi | null>(null);
   const telemetryRef = useRef(telemetry);
+  // The car for the tree bubble: where the minimap feed last put it (units).
+  const treeCar = useCallback(() => telemetryRef.current.radar, []);
   useEffect(() => {
     telemetryRef.current = telemetry;
   }, [telemetry]);
@@ -452,6 +458,7 @@ export default function DriveWorld({
             <Lights braking={() => !!car.current?.state.braking} />
           </Car>
           <LocalFx car={car} sources={fx} />
+          {trees && <TreeBubble trees={trees.list} car={treeCar} onHidden={trees.onHidden} />}
           <RemoteCars cars={cars} sources={fx} localCar={car} muted={muted || paused} botTargets={botTargets} />
           <Battle
             room={slug}

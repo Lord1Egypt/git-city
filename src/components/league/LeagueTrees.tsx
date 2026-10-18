@@ -33,66 +33,28 @@ const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 
-type Variant = { subs: { geo: THREE.BufferGeometry; mat: THREE.Material }[]; scale: number };
+export type TreeVariant = { subs: { geo: THREE.BufferGeometry; mat: THREE.Material }[]; scale: number };
+type Variant = TreeVariant;
 
-type TreeSpot = { wx: number; wz: number; rot: number };
+type TreeSpot = { id: string; wx: number; wz: number; rot: number };
 
 /** Where to cut trees off on a culled map. */
 export interface TreeCull {
   /** Past this distance from the camera no tree is drawn (the whole country from above: none). */
   maxDistance: number;
-  /**
-   * Driving through trees: where the car is (world units), or null. A tree the
-   * car reaches falls away from it and stands back up after a while; with this
-   * set the trees are left out of the car's colliders (the caller's job).
-   */
-  knock?: () => { x: number; z: number } | null;
+  /** Trees (object ids) drawn elsewhere for now, e.g. by the car's physics bubble; `version` changes with the set. */
+  hidden?: { ids: ReadonlySet<string>; version: number };
 }
 
-/** How close the car's middle gets to a trunk to knock it (units: half the car plus the trunk). */
-const KNOCK_REACH = 5.5;
-/** Falling (with a bounce), lying there, shrinking away, gone, growing back (seconds). */
-const FALL_S = 0.6;
-const DOWN_S = 5;
-const SHRINK_S = 0.5;
-const GONE_S = 1.5;
-const GROW_S = 0.7;
-const TOTAL_S = FALL_S + DOWN_S + SHRINK_S + GONE_S + GROW_S;
-/** How far a knocked tree slides along the hit, uprooted (units). */
-const SLIDE = 7;
-const KNOCK_CELL = 64;
-const _qTilt = new THREE.Quaternion();
-const _axis = new THREE.Vector3();
-const _pos = new THREE.Vector3();
-const _rot = new THREE.Quaternion();
-const _scl = new THREE.Vector3();
-const _out = new THREE.Matrix4();
-
-const easeOutBack = (k: number) => 1 + 2.4 * (k - 1) ** 3 + 1.4 * (k - 1) ** 2;
-
-/** A knocked tree `t` seconds after the hit: how far over it leans (0 up, 1 flat), how far it slid, how big it is. */
-function knockPose(t: number): { tilt: number; slide: number; scale: number } {
-  if (t < FALL_S) {
-    const k = t / FALL_S;
-    // Over it goes, a little past flat, and settles back: the bounce of a trunk hitting the ground.
-    return { tilt: Math.min(1.06, easeOutBack(k)), slide: Math.sin((k * Math.PI) / 2), scale: 1 };
-  }
-  t -= FALL_S;
-  if (t < DOWN_S) return { tilt: 1, slide: 1, scale: 1 };
-  t -= DOWN_S;
-  if (t < SHRINK_S) return { tilt: 1, slide: 1, scale: 1 - t / SHRINK_S };
-  t -= SHRINK_S;
-  if (t < GONE_S) return { tilt: 0, slide: 0, scale: 0 };
-  t -= GONE_S;
-  // Back where it stood, growing out of the ground with a little pop.
-  return { tilt: 0, slide: 0, scale: Math.max(0, easeOutBack(Math.min(1, t / GROW_S))) };
+/** A tree's size for its spot (a little variety, the same everywhere it's drawn). */
+export function treeScale(variant: TreeVariant, wx: number, wz: number): number {
+  return variant.scale * (0.85 + (Math.abs(Math.round(wx * 31 + wz * 17) % 7) / 7) * 0.3);
 }
 
-function matrixOf(l: TreeSpot, variant: Variant) {
-  const jitter = 0.85 + (Math.abs(Math.round(l.wx * 31 + l.wz * 17) % 7) / 7) * 0.3;
+function matrixOf(l: { wx: number; wz: number; rot: number }, variant: Variant) {
   _q.setFromAxisAngle(_up, rotToRadians(l.rot));
   _p.set(l.wx, 0, l.wz);
-  _s.setScalar(variant.scale * jitter);
+  _s.setScalar(treeScale(variant, l.wx, l.wz));
   return _m.compose(_p, _q, _s);
 }
 
@@ -110,50 +72,22 @@ function CulledTreeInstances({ variant, lots, cull }: { variant: Variant; lots: 
     });
     return { src, pos };
   }, [lots, variant]);
+  // The trees drawn elsewhere right now, by index; rebuilt only when that set changes.
+  const skip = useMemo(() => {
+    if (!cull.hidden?.ids.size) return undefined;
+    const out = new Uint8Array(lots.length);
+    lots.forEach((l, i) => {
+      if (cull.hidden!.ids.has(l.id)) out[i] = 1;
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lots, cull.hidden?.version]);
   useLayoutEffect(() => {
     state.current.dirty = true;
-  }, [data]);
-  // Knocked trees: when each was hit and which way it falls; the trunks near the car found through a grid.
-  const knocked = useRef(new Map<number, { at: number; dx: number; dz: number }>());
-  const grid = useMemo(() => {
-    if (!cull.knock) return null;
-    const g = new Map<string, number[]>();
-    lots.forEach((l, i) => {
-      const k = `${Math.floor(l.wx / KNOCK_CELL)},${Math.floor(l.wz / KNOCK_CELL)}`;
-      (g.get(k) ?? g.set(k, []).get(k)!).push(i);
-    });
-    return g;
-  }, [lots, cull.knock]);
+  }, [data, skip]);
   useFrame(({ camera, scene, clock }) => {
     const meshes = refs.current.filter((m): m is THREE.InstancedMesh => !!m);
-    const t = clock.elapsedTime;
-    const car = cull.knock?.();
-    if (car && grid) {
-      const cx = Math.floor(car.x / KNOCK_CELL);
-      const cz = Math.floor(car.z / KNOCK_CELL);
-      for (let gx = cx - 1; gx <= cx + 1; gx++)
-        for (let gz = cz - 1; gz <= cz + 1; gz++)
-          for (const i of grid.get(`${gx},${gz}`) ?? []) {
-            const dx = lots[i].wx - car.x;
-            const dz = lots[i].wz - car.z;
-            const d = Math.hypot(dx, dz);
-            if (d > KNOCK_REACH || knocked.current.has(i)) continue;
-            knocked.current.set(i, { at: t, dx: dx / (d || 1), dz: dz / (d || 1) });
-          }
-    }
-    // A tree that's moving (falling, shrinking, growing) is repacked every frame; lying still or gone, it isn't.
-    const moving = [...knocked.current.values()].some((k) => {
-      const e = t - k.at;
-      return e < FALL_S + 0.05 || (e > FALL_S + DOWN_S - 0.05 && e < FALL_S + DOWN_S + SHRINK_S + 0.05) || e > TOTAL_S - GROW_S - 0.05;
-    });
-    for (const [i, k] of knocked.current)
-      if (t - k.at > TOTAL_S) {
-        knocked.current.delete(i);
-        state.current.dirty = true;
-      }
-    if (moving) state.current.dirty = true;
-    const src = knocked.current.size ? leaned(data.src, knocked.current, t) : data.src;
-    cullInstances(state.current, camera, scene, t, [{ src, pos: data.pos, meshes }], { maxDistance: cull.maxDistance });
+    cullInstances(state.current, camera, scene, clock.elapsedTime, [{ ...data, meshes, skip }], { maxDistance: cull.maxDistance });
   });
   return (
     <>
@@ -171,23 +105,6 @@ function CulledTreeInstances({ variant, lots, cull }: { variant: Variant; lots: 
       ))}
     </>
   );
-}
-
-/** The matrices with each knocked tree leaned over, falling away from the car (a copy: the source stays upright). */
-function leaned(src: Float32Array, knocked: Map<number, { at: number; dx: number; dz: number }>, t: number): Float32Array {
-  const out = src.slice();
-  for (const [i, k] of knocked) {
-    const pose = knockPose(t - k.at);
-    _out.fromArray(src, i * 16).decompose(_pos, _rot, _scl);
-    // Tip over round the horizontal axis square to the push, at the trunk's base, sliding along the push.
-    _axis.set(k.dz, 0, -k.dx).normalize();
-    _qTilt.setFromAxisAngle(_axis, pose.tilt * (Math.PI / 2) * 0.92);
-    _pos.x += k.dx * SLIDE * pose.slide;
-    _pos.z += k.dz * SLIDE * pose.slide;
-    _scl.multiplyScalar(Math.max(0.0001, pose.scale));
-    _out.compose(_pos, _qTilt.multiply(_rot), _scl).toArray(out, i * 16);
-  }
-  return out;
 }
 
 function TreeInstances({ variant, lots }: { variant: Variant; lots: TreeSpot[] }) {
@@ -218,7 +135,8 @@ function TreeInstances({ variant, lots }: { variant: Variant; lots: TreeSpot[] }
   );
 }
 
-export default function LeagueTrees({ objects, cull }: { objects: CityObject[]; cull?: TreeCull }) {
+/** The 6 trees' geometry and materials, in TREE_TYPES order (anything drawing a tree shares them). */
+export function useTreeVariants(): TreeVariant[] {
   const gltfs = useGLTF(URLS) as unknown as { scene: THREE.Group }[];
   const variants = useMemo<Variant[]>(
     () =>
@@ -248,6 +166,11 @@ export default function LeagueTrees({ objects, cull }: { objects: CityObject[]; 
     [gltfs],
   );
   useLayoutEffect(() => () => variants.forEach((v) => v.subs.forEach((s) => s.geo.dispose())), [variants]);
+  return variants;
+}
+
+export default function LeagueTrees({ objects, cull }: { objects: CityObject[]; cull?: TreeCull }) {
+  const variants = useTreeVariants();
 
   const lotsByType = useMemo(() => {
     const out = TREE_TYPES.map(() => [] as TreeSpot[]);
@@ -255,7 +178,7 @@ export default function LeagueTrees({ objects, cull }: { objects: CityObject[]; 
       const i = TREE_TYPES.indexOf(o.item_type as TreeType);
       if (i < 0) continue;
       const [wx, wz] = o.px !== null && o.pz !== null ? [o.px, o.pz] : lotToWorld(o.x, o.z);
-      out[i].push({ wx, wz, rot: o.rot });
+      out[i].push({ id: o.id, wx, wz, rot: o.rot });
     }
     return out;
   }, [objects]);
@@ -263,7 +186,11 @@ export default function LeagueTrees({ objects, cull }: { objects: CityObject[]; 
   return (
     <group>
       {variants.map((v, i) =>
-        lotsByType[i].length === 0 ? null : cull ? <CulledTreeInstances key={i} variant={v} lots={lotsByType[i]} cull={cull} /> : <TreeInstances key={i} variant={v} lots={lotsByType[i]} />,
+        lotsByType[i].length === 0 ? null : cull ? (
+          <CulledTreeInstances key={i} variant={v} lots={lotsByType[i]} cull={cull} />
+        ) : (
+          <TreeInstances key={i} variant={v} lots={lotsByType[i]} />
+        ),
       )}
     </group>
   );
