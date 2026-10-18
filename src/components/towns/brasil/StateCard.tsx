@@ -88,7 +88,7 @@ export default function StateCard({
           </div>
         )}
         {week?.leading?.uf === s.uf && week.crown?.uf !== s.uf && (
-          <p className="mx-4 mb-3 text-[9px] normal-case text-lime">Leading this week: +{fmt(week.leading.gained)} devs. The crown goes out on Monday.</p>
+          <p className="mx-4 mb-3 text-[9px] normal-case text-lime">Leading the week: +{fmt(week.leading.gained)} devs. The state that grows most wins the crown.</p>
         )}
         <div className="mx-4 mb-3 flex items-center gap-3 border-2 border-border px-3 py-2">
           {s.founder ? (

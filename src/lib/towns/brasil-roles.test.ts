@@ -15,15 +15,16 @@ describe("brasilOffices", () => {
   const totals = new Map([["ana", 50], ["bia", 90], ["caio", 10], ["duda", 0], ["enzo", 70], ["fabi", 200], ["gus", 300]]);
   const o = brasilOffices(layout, totals);
   it("elects the top dev of Brazil president, the island included", () => expect(o.president).toBe("gus"));
-  it("each state's top dev governs and its top three sit in the Senate", () => {
+  it("one office each, from the top down: governor, then the next three to the Senate", () => {
     expect(o.governors.get("SP")).toBe("bia");
-    expect(o.senators.get("SP")).toEqual(["bia", "enzo", "ana"]);
+    expect(o.senators.get("SP")).toEqual(["enzo", "ana", "caio"]);
     expect(o.governors.get("BA")).toBe("fabi");
+    expect(o.senators.has("BA")).toBe(false);
   });
-  it("a second city has its own mayor; nobody who didn't code holds anything", () => {
-    expect(o.mayors.get("Campinas")).toEqual({ login: "enzo", uf: "SP" });
-    expect(o.mayors.get("São Paulo")?.login).toBe("bia");
+  it("a mayor is whoever is left; nobody who didn't code holds anything", () => {
+    expect(o.mayors.has("São Paulo")).toBe(false);
     expect(o.byLogin.has("duda")).toBe(false);
-    expect(o.byLogin.get("bia")?.map(officeLabel)).toEqual(["Governor of SP", "Senator for SP", "Mayor of São Paulo"]);
+    expect(o.byLogin.get("bia")?.map(officeLabel)).toEqual(["Governor of SP"]);
+    expect([...o.byLogin.values()].every((os) => os.length === 1)).toBe(true);
   });
 });
