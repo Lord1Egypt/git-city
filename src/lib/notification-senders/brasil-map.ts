@@ -10,6 +10,10 @@ import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 
 export interface BrasilMapEmailData {
   login: string;
+  /** The state as a sentence wants it: "o Acre", "no Acre", "do Acre" (null on the island). */
+  stateThe: string | null;
+  stateIn: string | null;
+  stateOf: string | null;
   /** Their state's name, or null on the island. */
   state: string | null;
   uf: string | null;
@@ -20,8 +24,8 @@ export interface BrasilMapEmailData {
 
 function header(d: BrasilMapEmailData) {
   if (d.founder && d.state)
-    return { subject: `Você fundou ${d.state} no mapa dos devs`, preheader: "Teu prédio é o primeiro do estado. Quem chegar depois mora na tua cidade." };
-  if (d.state) return { subject: `Você tá no mapa dos devs, em ${d.state}`, preheader: "Teu comentário virou um prédio. Ele cresce com as tuas contribuições no GitHub." };
+    return { subject: `Você fundou ${d.stateThe} no mapa dos devs`, preheader: "Teu prédio é o primeiro do estado. Quem chegar depois mora na tua cidade." };
+  if (d.state) return { subject: `Você tá no mapa dos devs, ${d.stateIn}`, preheader: "Teu comentário virou um prédio. Ele cresce com as tuas contribuições no GitHub." };
   return { subject: "Você tá no mapa dos devs", preheader: "Teu prédio tá na ilha por enquanto. Escolhe teu estado quando quiser." };
 }
 
@@ -30,7 +34,7 @@ export function renderBrasilMapEmail(d: BrasilMapEmailData, links: EmailLinks) {
   const url = trackedUrl(`/brasil?at=${encodeURIComponent(d.login)}`, "brasil_on_map");
   const where = d.city && d.uf ? `em ${d.city}, ${d.uf}` : "na ilha";
   const intro = d.founder
-    ? `Teu comentário no reel virou o primeiro prédio de ${d.state}, ${where}. Todo dev do estado que chegar depois vai morar na tua cidade.`
+    ? `Teu comentário no reel virou o primeiro prédio ${d.stateOf}, ${where}. Todo dev do estado que chegar depois vai morar na tua cidade.`
     : `Teu comentário no reel virou um prédio ${where}. Ele cresce com as tuas contribuições no GitHub.`;
   const reason = `Você recebeu porque o GitHub @${d.login} entrou no mapa dos devs do Brasil no Git City.`;
 
@@ -38,7 +42,7 @@ export function renderBrasilMapEmail(d: BrasilMapEmailData, links: EmailLinks) {
     title: subject,
     preheader,
     hero: heroImage({ src: `${EMAIL_BASE_URL}/town/brasil-town/brasil-og?at=${encodeURIComponent(d.login)}`, href: url, alt: `@${d.login} no mapa dos devs` }),
-    body: [d.founder && d.state ? heading("Você fundou", d.state, ".") : heading("Você tá no", "mapa", "."), paragraph(intro), button("Ver meu prédio", url)].join("\n"),
+    body: [d.founder && d.state ? heading("Você fundou", d.stateThe ?? d.state, ".") : heading("Você tá no", "mapa", "."), paragraph(intro), button("Ver meu prédio", url)].join("\n"),
     reason,
     links,
   });

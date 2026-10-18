@@ -70,3 +70,14 @@ describe("parseComment in a reply", () => {
     expect(replyFor("unknown_user", "slickinh0", null, "city", "slickinho")).toContain("É o slickinho?");
   });
 });
+
+describe("ptState", () => {
+  it("puts the article Portuguese wants", async () => {
+    const { ptState } = await import("./brasil-map");
+    expect(ptState("AC", "the")).toBe("o Acre");
+    expect(ptState("BA", "in")).toBe("na Bahia");
+    expect(ptState("SP", "in")).toBe("em São Paulo");
+    expect(ptState("RJ", "of")).toBe("do Rio de Janeiro");
+    expect(replyFor("added", "srizzon", "AC")).toContain("no Acre");
+  });
+});

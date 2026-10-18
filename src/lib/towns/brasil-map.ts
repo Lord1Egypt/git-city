@@ -25,8 +25,33 @@ import { LOT } from "../league-city/grid";
 import { CAPITALS, ISLAND, SECOND_CITIES, coastDistance, inState, onLand, project, stateMiddle } from "./brasil-geo";
 
 export type UF =
-  | "AC" | "AL" | "AP" | "AM" | "BA" | "CE" | "DF" | "ES" | "GO" | "MA" | "MT" | "MS" | "MG" | "PA"
-  | "PB" | "PR" | "PE" | "PI" | "RJ" | "RN" | "RS" | "RO" | "RR" | "SC" | "SP" | "SE" | "TO";
+  | "AC"
+  | "AL"
+  | "AP"
+  | "AM"
+  | "BA"
+  | "CE"
+  | "DF"
+  | "ES"
+  | "GO"
+  | "MA"
+  | "MT"
+  | "MS"
+  | "MG"
+  | "PA"
+  | "PB"
+  | "PR"
+  | "PE"
+  | "PI"
+  | "RJ"
+  | "RN"
+  | "RS"
+  | "RO"
+  | "RR"
+  | "SC"
+  | "SP"
+  | "SE"
+  | "TO";
 
 export interface BrState {
   uf: UF;
@@ -504,4 +529,44 @@ export function ranking(layout: BrasilLayout): { uf: UF; devs: number }[] {
   return STATES.filter((s) => n.has(s.uf))
     .map((s) => ({ uf: s.uf, devs: n.get(s.uf)! }))
     .sort((a, b) => b.devs - a.devs);
+}
+
+/** Portuguese takes an article with most states: "o Acre", "a Bahia", plain "São Paulo". */
+const ARTICLE: Record<UF, "o" | "a" | ""> = {
+  AC: "o",
+  AL: "",
+  AP: "o",
+  AM: "o",
+  BA: "a",
+  CE: "o",
+  DF: "o",
+  ES: "o",
+  GO: "",
+  MA: "o",
+  MT: "o",
+  MS: "o",
+  MG: "",
+  PA: "o",
+  PB: "a",
+  PR: "o",
+  PE: "",
+  PI: "o",
+  RJ: "o",
+  RN: "o",
+  RS: "o",
+  RO: "",
+  RR: "",
+  SC: "",
+  SP: "",
+  SE: "",
+  TO: "o",
+};
+
+/** The state in a Portuguese sentence: "o Acre" / "São Paulo" ("the"), "no Acre" / "em São Paulo" ("in"), "do Acre" / "de São Paulo" ("of"). */
+export function ptState(uf: UF, form: "the" | "in" | "of"): string {
+  const name = stateOf(uf).name;
+  const a = ARTICLE[uf];
+  if (form === "the") return a ? `${a} ${name}` : name;
+  const [masc, fem, none] = form === "in" ? ["no", "na", "em"] : ["do", "da", "de"];
+  return `${a === "o" ? masc : a === "a" ? fem : none} ${name}`;
 }

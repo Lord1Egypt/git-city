@@ -13,7 +13,7 @@ import { invalidateLeague } from "../leagues/cache";
 import type { League } from "../leagues/service";
 import { createDeveloperFromGitHub } from "../create-developer";
 import { GitHubFetchError } from "../github-api";
-import { BrasilPlacer, STATES, layoutFromResidents, type BrasilLayout, type MapDev, type Resident, type UF } from "./brasil-map";
+import { BrasilPlacer, STATES, layoutFromResidents, ptState, type BrasilLayout, type MapDev, type Resident, type UF } from "./brasil-map";
 import { parseComment } from "./brasil-comments";
 import { CAPITALS, ISLAND, SECOND_CITIES } from "./brasil-geo";
 import { sendBrasilMapNotification } from "../notification-senders/brasil-map";
@@ -224,5 +224,15 @@ async function emailOnMap(league: Pick<League, "id">, dev: { id: number; login: 
     founder = first?.developer_id === dev.id;
   }
   const city = !uf || hub === 9 ? ISLAND.name : hub === 1 ? (SECOND_CITIES[uf]?.city ?? CAPITALS[uf].city) : CAPITALS[uf].city;
-  sendBrasilMapNotification({ developerId: dev.id, login: dev.login, uf, state: uf ? (STATES.find((s) => s.uf === uf)?.name ?? null) : null, city: uf ? city : null, founder });
+  sendBrasilMapNotification({
+    developerId: dev.id,
+    login: dev.login,
+    uf,
+    state: uf ? (STATES.find((s) => s.uf === uf)?.name ?? null) : null,
+    stateThe: uf ? ptState(uf, "the") : null,
+    stateIn: uf ? ptState(uf, "in") : null,
+    stateOf: uf ? ptState(uf, "of") : null,
+    city: uf ? city : null,
+    founder,
+  });
 }

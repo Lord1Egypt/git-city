@@ -8,7 +8,7 @@
 // @handle may be an Instagram handle rather than a GitHub one; the importer
 // checks GitHub before placing anyone. Pure.
 
-import { STATES, parseUF, type UF } from "./brasil-map";
+import { STATES, parseUF, ptState, type UF } from "./brasil-map";
 
 export interface ParsedComment {
   login: string | null;
@@ -93,7 +93,7 @@ export function replyFor(outcome: string, login: string | null, uf: UF | null, k
   // FNV-1a over the login, so neighbouring logins land on different wordings.
   const hash = [...(login ?? "")].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
   const pick = (lines: string[]) => lines[hash % lines.length];
-  const where = uf ? `em ${STATES.find((s) => s.uf === uf)?.name ?? uf}` : "na ilha";
+  const where = uf ? ptState(uf, "in") : "na ilha";
   // "É o X?" is read back by confirmedLogin (comment-ai.ts) when they answer "sim": keep the wording.
   if (outcome === "unknown_user" && suggestion) return `Não achei o ${login} no GitHub 🤔 É o ${suggestion}? Responde "sim" que eu coloco`;
   if (outcome === "unknown_user") return pick([`Não achei o ${login} no GitHub 😕 Confere o user e comenta de novo`, `Hmm, ${login} não existe no GitHub. Confere aí e manda de novo!`, `Não encontrei ${login} no GitHub 🤔 Vê se o user tá certinho e comenta de novo`]);

@@ -32,7 +32,7 @@ import BrasilMinimap from "@/components/towns/brasil/BrasilMinimap";
 import { BrasilPicker, BrasilRanking, BrasilSearchBar } from "@/components/towns/brasil/BrasilPanels";
 import StateCard from "@/components/towns/brasil/StateCard";
 import { stateStats, swatchOf, weekCrown, type StateStats } from "@/components/towns/brasil/stats";
-import { stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
+import { ptState, stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import { brasilWorld } from "@/lib/towns/brasil-world";
 
 // The Brasil town's page: the map of Brazil with the town's residents, each
@@ -823,7 +823,7 @@ function Arrival({ login, uf, states, founder, townPath }: { login: string; uf: 
     // Your link: its share card says where you live.
     const url = `${window.location.origin}${townPath}?at=${login}`;
     // Shared on WhatsApp and stories, by and to Brazilians: Portuguese, one line, the link does the rest.
-    const text = founder && uf ? `Fundei ${stateOf(uf).name} no mapa dos devs 🇧🇷 ${url}` : `Tô no mapa dos devs do Brasil 🇧🇷 ${url}`;
+    const text = founder && uf ? `Fundei ${ptState(uf, "the")} no mapa dos devs 🇧🇷 ${url}` : `Tô no mapa dos devs do Brasil 🇧🇷 ${url}`;
     posthog.capture("brasil_invite_copied", { uf, from: "arrival" });
     navigator.clipboard?.writeText(text).then(
       () => setCopied(true),
