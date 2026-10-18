@@ -47,6 +47,7 @@ import { loadVolume, saveVolume } from "@/lib/league-city/drive/volume";
 import { gateDueMs, stallDone, type GateReason } from "@/lib/league-city/drive/guest-gate";
 import GuestGate from "@/components/league/hud/drive/GuestGate";
 import ArrivalChoice from "@/components/league/hud/drive/ArrivalChoice";
+import AwayCard from "@/components/towns/AwayCard";
 import { signInWithGitHub } from "@/lib/sign-in";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { createEditorStore } from "@/lib/league-city/editor/store";
@@ -459,6 +460,15 @@ export default function LeagueClient({
   // Phone controls (lib drive/touch): on screen on touch devices, read by the car.
   const touchRef = useRef<TouchDrive>(createTouch());
   const touchUi = useTouch();
+  // The "while you were away" box: in the corner column from sm up, under the phone header below (one of them).
+  const [desktopAway, setDesktopAway] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const on = () => setDesktopAway(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
   const enterDrive = useCallback((route: DriveRoute | null = null) => {
     setFocused(null);
     setPanel(null);
@@ -1200,6 +1210,7 @@ export default function LeagueClient({
           <div className="pointer-events-none fixed left-4 top-4 z-30 flex flex-col gap-3 max-sm:hidden" style={hudEnter ? { animation: "fade-in 0.45s ease-out both" } : undefined}>
             <LeagueTitle data={data} badges={badges} logoUrl={identity.logoUrl} place={place} pendingRequests={pendingRequests} />
             {questCard}
+            {desktopAway && <AwayCard signedIn={!!viewer} />}
           </div>
           {/* Phones: one compact header row. */}
           <div
@@ -1215,6 +1226,11 @@ export default function LeagueClient({
               onRace={() => setPanel("standings")}
             />
             {questCard && !panel && <div className="mt-2">{questCard}</div>}
+            {!desktopAway && !panel && (
+              <div className="pointer-events-auto mt-2">
+                <AwayCard signedIn={!!viewer} />
+              </div>
+            )}
           </div>
           {/* The lo-fi player's spot: above the bar on phones, bottom left on desktop. */}
           <div

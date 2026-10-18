@@ -26,6 +26,7 @@ import { inTown } from "@/lib/towns/live";
 import type { DriverInfo } from "@/lib/league-city/drive/net";
 import BuildingCard from "@/components/league/hud/BuildingCard";
 import GuestGate from "@/components/league/hud/drive/GuestGate";
+import AwayCard from "@/components/towns/AwayCard";
 import { fmt } from "@/components/league/hud/shared";
 import MapNavControls from "@/components/MapNavControls";
 import BrasilScene, { cityKey, type CameraApi } from "@/components/towns/brasil/BrasilScene";
@@ -673,6 +674,13 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
               <span>{fmt(t.devs)}</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* While you were away: the top left is free only on a wide screen (the top bar is centered). */}
+      {!driving && !state && !focused && !panel && !picker && (
+        <div className="pointer-events-auto absolute left-4 top-4 z-30 max-xl:hidden">
+          <AwayCard signedIn={!!viewerLogin} />
         </div>
       )}
 
