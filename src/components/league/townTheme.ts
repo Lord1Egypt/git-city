@@ -26,6 +26,37 @@ const TOWN_MIDNIGHT: CityTheme = {
 };
 // Keys the tuned Midnight's lights and sky (a value of its own, apart from the main city's).
 const TOWN_MIDNIGHT_KEY = 11;
+
+// The main city's Emerald, brightened the way Midnight is for towns: the same
+// light levels, in greens. The Brasil map's night (green country, lime windows).
+const EMERALD = THEMES[0];
+const TOWN_EMERALD: CityTheme = {
+  ...EMERALD,
+  fogColor: "#1a4260",
+  fogNear: 700,
+  fogFar: 5000,
+  ambientColor: "#7ac890",
+  ambientIntensity: 1.0,
+  sunColor: "#b8ecc6",
+  sunIntensity: 1.15,
+  fillColor: "#50a080",
+  fillIntensity: 0.55,
+  hemiSky: "#8ad0a0",
+  hemiGround: "#2f4a38",
+  hemiIntensity: 0.95,
+  groundColor: "#2a4334",
+  grid1: "#3c5c4a",
+  grid2: "#32503f",
+  roadMarkingColor: "#c8dcc8",
+  sidewalkColor: "#66786c",
+  building: { ...EMERALD.building, face: "#12221a", roof: "#2a5038" },
+};
+const TOWN_EMERALD_KEY = 12;
+
+/** The town-bright Emerald (the Brasil map). */
+export function townEmerald(): { theme: CityTheme; key: number; fx: 0 | 1 | 2 | 3 } {
+  return { theme: TOWN_EMERALD, key: TOWN_EMERALD_KEY, fx: 3 };
+}
 export const EXPOSURE = 1.65;
 const DEFAULT_SKY = 1; // Midnight
 

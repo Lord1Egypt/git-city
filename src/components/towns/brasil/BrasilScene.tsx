@@ -12,7 +12,7 @@ import MergedStatic from "@/components/MergedStatic";
 import TrophyIcon from "@/components/towns/TrophyIcon";
 import { ThemeLights } from "@/components/city/theme";
 import ThemeSkyFX from "@/components/ThemeSkyFX";
-import { EXPOSURE, townTheme } from "@/components/league/townTheme";
+import { EXPOSURE, townEmerald } from "@/components/league/townTheme";
 import IdentityLayer, { useFontReady } from "@/components/league/identity/IdentityLayer";
 import { makeWaterMaterial, tickWater } from "@/components/city/mapMaterials";
 import { Billboard } from "@/components/league/identity/IdentityPieces";
@@ -40,12 +40,12 @@ import { stateOf, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 
 const DriveWorld = dynamic(() => import("@/components/league/drive/DriveWorld"), { ssr: false, loading: () => null });
 
-// The towns' own night: their Midnight sky, lights and lit windows.
-const { theme: NIGHT, key: NIGHT_KEY, fx: NIGHT_FX } = townTheme(1);
+// Brazil's night: the towns' light levels in greens (townEmerald), lime windows.
+const { theme: NIGHT, key: NIGHT_KEY, fx: NIGHT_FX } = townEmerald();
 /** The open country: darker than a block's paving, so the cities read as towns. */
-const LAND = "#1d2634";
+const LAND = "#173a25";
 /** A strip of shore along the coast and round the island. */
-const COAST = "#3d4659";
+const COAST = "#1d4a2e";
 /** A block's paving: the towns' ground. */
 const PAVING = NIGHT.groundColor;
 const LIME = "#c8e64a";
@@ -94,7 +94,14 @@ function Ground({ island }: { island: CityLayout }) {
   const rivers = useMemo(() => RIVERS.map((r) => ribbon(r.points, r.width, false)), []);
   const banks = useMemo(() => RIVERS.map((r) => ribbon(r.points, r.width + 26, false)), []);
   // The sea is the main city's bay as it is; the rivers the same water, lighter.
-  const sea = useMemo(() => makeWaterMaterial(), []);
+  // Brighter than the bay's: an ocean blue that sets the green country off and keeps the map readable.
+  const sea = useMemo(() => {
+    const m = makeWaterMaterial();
+    (m.uniforms.uDeep.value as THREE.Color).set("#1b4d72");
+    (m.uniforms.uShallow.value as THREE.Color).set("#2b6e98");
+    (m.uniforms.uSky.value as THREE.Color).set("#1d4466");
+    return m;
+  }, []);
   const water = useMemo(() => {
     const m = makeWaterMaterial();
     m.side = THREE.DoubleSide;
@@ -171,7 +178,7 @@ function Ground({ island }: { island: CityLayout }) {
         </mesh>
       ))}
       <mesh geometry={land} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]}>
-        <meshStandardMaterial color={LAND} emissive={LAND} emissiveIntensity={0.15} roughness={0.95} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={LAND} emissive={LAND} emissiveIntensity={0.2} roughness={0.95} side={THREE.DoubleSide} />
       </mesh>
       {banks.map((g, i) => (
         <mesh key={`bank-${i}`} geometry={g} position={[0, -0.7, 0]}>
@@ -187,7 +194,7 @@ function Ground({ island }: { island: CityLayout }) {
           <meshStandardMaterial color={COAST} roughness={1} side={THREE.DoubleSide} />
         </mesh>
         <mesh geometry={isle} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]}>
-          <meshStandardMaterial color={LAND} emissive={LAND} emissiveIntensity={0.15} roughness={0.95} side={THREE.DoubleSide} />
+          <meshStandardMaterial color={LAND} emissive={LAND} emissiveIntensity={0.2} roughness={0.95} side={THREE.DoubleSide} />
         </mesh>
       </group>
     </group>
