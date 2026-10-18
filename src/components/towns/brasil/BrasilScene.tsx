@@ -295,7 +295,7 @@ function CitySign({ city }: { city: CityLayout }) {
   const group = useRef<THREE.Group>(null);
   useFrame(({ camera }) => {
     const g = group.current;
-    if (g) g.visible = Math.hypot(camera.position.x - x, camera.position.y - MAP_H, camera.position.z - z) < SIGN_VIEW;
+    if (g) g.visible = Math.hypot(camera.position.x - x, camera.position.y, camera.position.z - z) < SIGN_VIEW;
   });
   return (
     <group ref={group}>
@@ -495,7 +495,7 @@ function MapCamera({
         const c = controls.current;
         if (!c) return void done?.();
         flightDone.current = done ?? null;
-        flight.current = { from: [c.object.position.clone(), c.target.clone()], to: [new THREE.Vector3(x, MAP_H + d * 0.55, z + d * 0.8), new THREE.Vector3(x, MAP_H, z)], t: 0 };
+        flight.current = { from: [c.object.position.clone(), c.target.clone()], to: [new THREE.Vector3(x, d * 0.55, z + d * 0.8), new THREE.Vector3(x, 0, z)], t: 0 };
       },
     };
     return () => {
@@ -533,8 +533,8 @@ function MapCamera({
     if (!placed.current) {
       placed.current = true;
       if (start) {
-        camera.position.set(start.x, MAP_H + 900, start.z + 1100);
-        c.target.set(start.x, MAP_H, start.z);
+        camera.position.set(start.x, 900, start.z + 1100);
+        c.target.set(start.x, 0, start.z);
       } else {
         const p = overviewPose(size.width / size.height);
         camera.position.copy(p.position);
@@ -676,7 +676,8 @@ function DriverPin({ id, name, at }: { id: string; name: string; at: (id: string
     const g = group.current;
     if (!g) return;
     g.visible = !!p;
-    if (p) g.position.set(p.x, MAP_H + 40, p.z);
+    // Just over the car's roof (the ground is at 0).
+    if (p) g.position.set(p.x, 14, p.z);
   });
   return (
     <group ref={group} visible={false}>
@@ -718,7 +719,7 @@ function Pulse({ x, z }: { x: number; z: number }) {
     });
   });
   return (
-    <group ref={group} position={[x, MAP_H + 2, z]}>
+    <group ref={group} position={[x, 2, z]}>
       {mats.map((m, i) => (
         <mesh key={i} geometry={geo} material={m} renderOrder={10} />
       ))}
