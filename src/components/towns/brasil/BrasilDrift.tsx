@@ -40,9 +40,11 @@ import { DRIFT_SIGN_LOT } from "@/lib/towns/brasil-drift";
 
 const DriftWorld = dynamic(() => import("@/components/drift/DriftWorld"), { ssr: false, loading: () => null });
 
-export const BRASIL_DRIFT = getLiveSpot("brasil-harbor") as LiveSpot;
+export const BRASIL_DRIFT = getLiveSpot("brasil") as LiveSpot;
 const COURSE = courseOf(BRASIL_DRIFT);
 const LIME = "#c8e64a";
+/** The Kenney scenery under the town's night (exposure 1.65 against the spots' 1): darkened to sit with the buildings. */
+const PROP_TONE = 0.45;
 const unlit = { current: 0 };
 /** Seen from farther than this (units), the site isn't drawn. */
 const SITE_VIEW = 9000;
@@ -352,6 +354,7 @@ export function useBrasilDrift({
       onFail={onBack}
       touch={touch ?? undefined}
       ground={null}
+      propTone={PROP_TONE}
     />
   ) : null;
 

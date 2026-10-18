@@ -30,7 +30,7 @@ import MapNavControls from "@/components/MapNavControls";
 import BrasilScene, { cityKey, type CameraApi } from "@/components/towns/brasil/BrasilScene";
 import { BRASIL_DRIFT, useBrasilDrift } from "@/components/towns/brasil/BrasilDrift";
 import { courseOf } from "@/lib/drift/spots";
-import { DRIFT_APPROACH, DRIFT_EXIT, clearOfStart, crossedStart } from "@/lib/towns/brasil-drift";
+import { DRIFT_EXIT, DRIFT_SIGN_LOT, clearOfStart, crossedStart } from "@/lib/towns/brasil-drift";
 import { pointAt } from "@/lib/league-city/race/track";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
@@ -71,8 +71,8 @@ const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"),
 /** The drive's mute switch, shared with every town. */
 const MUTE_KEY = "gc:drive-muted";
 const LIME = "#c8e64a";
-/** The drift track on the minimap: its gate's lot, in world units. */
-const DRIFT_TAG = { x: lotToWorld(DRIFT_APPROACH.x, DRIFT_APPROACH.z)[0], z: lotToWorld(DRIFT_APPROACH.x, DRIFT_APPROACH.z)[1] };
+/** The drift track on the minimap: its sign by the gate, in world units. */
+const DRIFT_TAG = { x: lotToWorld(...DRIFT_SIGN_LOT)[0], z: lotToWorld(...DRIFT_SIGN_LOT)[1] };
 // The HUD's surfaces: Git City's own (near-black, its borders, muted text).
 const HUD_BG = "bg-bg/90";
 const HUD_EDGE = "border-border";
@@ -560,12 +560,15 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       setNearGate(false);
     };
   }, [driving, driveReady, telemetry, enterDrift]);
-  /** The track's tag on the map: down to the highway by the gate and drive from there. */
+  /** The track's tag on the map: down onto the start straight, stopped short of the line and facing it, so you only have to go. */
   const driveToTrack = () => {
     if (launching) return;
     const dev = driveStartDev();
     if (!dev) return;
-    const [x, z] = lotToWorld(DRIFT_APPROACH.x, DRIFT_APPROACH.z);
+    const p = pointAt(courseOf(BRASIL_DRIFT).track, -30);
+    const [x, z] = [p.x * M_TO_UNIT, p.z * M_TO_UNIT];
+    // Heading clockwise from north (-z), like every spawn.
+    const rot = (Math.atan2(p.tx, -p.tz) * 180) / Math.PI;
     setState(null);
     setFocused(null);
     setBackTo(null);
@@ -576,7 +579,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     posthog.capture("brasil_drift_tag_clicked", { signed_in: !!viewerLogin });
     const go = () => {
       setLaunching(false);
-      driveFromSpawn({ x, z, rot: DRIFT_APPROACH.rot });
+      driveFromSpawn({ x, z, rot });
     };
     if (camera.current) camera.current.flyToPoint(x, z, 420, go);
     else go();
