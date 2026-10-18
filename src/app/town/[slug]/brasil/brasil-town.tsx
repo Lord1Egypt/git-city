@@ -18,6 +18,7 @@ import { useTouch } from "@/components/towns/useDesktop";
 import { createEmoteLog } from "@/lib/league-city/drive/emote-log";
 import { createTouch, type TouchDrive } from "@/lib/league-city/drive/touch";
 import { loadVolume, saveVolume } from "@/lib/league-city/drive/volume";
+import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
 import { useDriveWatch } from "@/components/league/drive/useDriveWatch";
 import { useTownsLive } from "@/components/towns/live";
 import { applyRoomDamage } from "@/lib/league-city/smash-net";
@@ -215,6 +216,30 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     return () => window.removeEventListener("keydown", onKey);
   }, [driving, paused, exitDrive]);
   const watch = useDriveWatch(league.slug, !driving, (msg) => applyRoomDamage(smash, msg, Date.now()));
+  // Where each driver is now (units), from the room's latest state of their car.
+  const driverAt = useCallback(
+    (id: string) => {
+      const s = watch.remotes.current.get(id)?.buffer.latest;
+      return s ? { x: s.x * M_TO_UNIT, z: s.z * M_TO_UNIT } : null;
+    },
+    [watch.remotes],
+  );
+  // The drivers and where they are, refreshed every second for the list and the minimap (the pins follow every frame).
+  const [carSpots, setCarSpots] = useState<{ id: string; name: string; x: number; z: number }[]>([]);
+  useEffect(() => {
+    if (driving) return;
+    const tick = () =>
+      setCarSpots(
+        watch.drivers.flatMap((d) => {
+          const p = driverAt(d.id);
+          return p ? [{ id: d.id, name: d.name, ...p }] : [];
+        }),
+      );
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [driving, watch.drivers, driverAt]);
+  const [driversOpen, setDriversOpen] = useState(false);
   const watchedCars = useMemo(() => watch.drivers.flatMap((d) => watch.remotes.current.get(d.id) ?? []), [watch.drivers, watch.remotes]);
   // Who's here now (the drive room reports to the towns tally), plus the drivers the room just told us about.
   const live = useTownsLive()[league.slug];
@@ -397,8 +422,23 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     }),
     [world, viewerLogin],
   );
-  const startDrive = () => {
-    const dev = driveStartDev();
+  /** `near`: start at the building closest to this point (driving with someone). */
+  const startDrive = (near?: { x: number; z: number }) => {
+    let nearest: { id: number; login: string } | null = null;
+    if (near) {
+      let best = Infinity;
+      for (const c of world.allCities)
+        for (const d of c.devs) {
+          const b = world.placed.get(d.dev.login.toLowerCase());
+          if (!b) continue;
+          const dist = Math.hypot(b.position[0] - near.x, b.position[2] - near.z);
+          if (dist < best) {
+            best = dist;
+            nearest = { id: d.dev.id, login: d.dev.login };
+          }
+        }
+    }
+    const dev = nearest ?? driveStartDev();
     const b = dev ? world.placed.get(dev.login.toLowerCase()) : undefined;
     if (!dev || !b || launching) return;
     setState(null);
@@ -498,6 +538,8 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         smash={smash}
         pulse={pulse}
         watching={watchedCars}
+        drivers={driving ? undefined : watch.drivers}
+        driverAt={driverAt}
         crowned={world.week.crown?.uf ?? null}
         fresh={world.fresh}
         offices={world.plateOffice}
@@ -537,9 +579,30 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             </p>
             <span className="flex shrink-0 items-center gap-1.5 pr-3 text-cream">
               <span className="blink-dot inline-block h-1.5 w-1.5 shrink-0 bg-lime" aria-hidden />
-              {fmt(here)} online{drivingNow > 0 ? ` · ${fmt(drivingNow)} driving` : ""}
+              {fmt(here)} online
+              {drivingNow > 0 && !driving && (
+                <button type="button" onClick={() => setDriversOpen((o) => !o)} className="underline decoration-lime/60 underline-offset-2 hover:text-lime">
+                  · {fmt(drivingNow)} driving
+                </button>
+              )}
             </span>
           </div>
+          {driversOpen && !driving && (
+            <DriversList
+              drivers={carSpots}
+              cities={world.allCities}
+              onLook={(c) => {
+                setDriversOpen(false);
+                mapNav.send({ type: "flyTo", x: c.x, z: c.z, distance: 900 });
+              }}
+              onJoin={(c) => {
+                setDriversOpen(false);
+                posthog.capture("brasil_drive_join");
+                startDrive({ x: c.x, z: c.z });
+              }}
+              onClose={() => setDriversOpen(false)}
+            />
+          )}
           <BrasilSearchBar
             cities={layout.cities}
             island={layout.island}
@@ -599,7 +662,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />
         </div>
       )}
-      {!driving && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} />}
+      {!driving && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} cars={carSpots} />}
       {!driving && (
         <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60 max-sm:bottom-[66px] max-sm:text-[8px]">
           Map data: IBGE · Natural Earth
@@ -639,7 +702,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             <MapIcon size={16} className="sm:hidden" aria-hidden />
             Brazil
           </button>
-          <button type="button" disabled={launching || world.devs === 0} onClick={startDrive} className={`${bar} disabled:opacity-40`}>
+          <button type="button" disabled={launching || world.devs === 0} onClick={() => startDrive()} className={`${bar} disabled:opacity-40`}>
             <Car size={16} className="sm:hidden" aria-hidden />
             Drive
           </button>
@@ -721,7 +784,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             openBuilding(b);
             setBackTo(state);
           }}
-          onDriveHere={state.devs > 0 ? startDrive : undefined}
+          onDriveHere={state.devs > 0 ? () => startDrive() : undefined}
           week={world.week}
           cabinet={{
             provisional: officeWeek.provisional,
@@ -758,7 +821,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
               />
             </>
           }
-          onDriveTo={startDrive}
+          onDriveTo={() => startDrive()}
           onClose={closeBuilding}
         />
       )}
@@ -801,6 +864,67 @@ function AreaTitle({ telemetry, cities }: { telemetry: { radar: { x: number; z: 
       {c.uf && stateOf(c.uf).name !== c.name && <span className="text-[10px] tracking-[0.3em] text-muted">{stateOf(c.uf).name}</span>}
       <span className="text-3xl text-cream [text-shadow:0_3px_0_rgba(0,0,0,0.6)] sm:text-5xl">{c.uf ? c.name : "The island"}</span>
       <span className="text-[10px] text-lime">{fmt(c.devs.length)} devs live here</span>
+    </div>
+  );
+}
+
+/** Who's out driving and where: look at them from above, or start driving right where they are. */
+function DriversList({
+  drivers,
+  cities,
+  onLook,
+  onJoin,
+  onClose,
+}: {
+  drivers: { id: string; name: string; x: number; z: number }[];
+  cities: CityLayout[];
+  onLook: (c: { x: number; z: number }) => void;
+  onJoin: (c: { x: number; z: number }) => void;
+  onClose: () => void;
+}) {
+  const where = (x: number, z: number) => {
+    let best: CityLayout | null = null;
+    let bestD = Infinity;
+    for (const c of cities) {
+      const [cx, cz] = lotToWorld(...c.center);
+      const d = Math.hypot(cx - x, cz - z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    if (!best) return "";
+    const name = best.uf ? best.name : "the island";
+    return bestD < (best.radius + 12) * LOT ? name : `near ${name}`;
+  };
+  return (
+    <div className="pointer-events-auto border-[3px] border-b-0 border-border bg-bg/95 px-3 py-2 font-pixel uppercase text-cream backdrop-blur-sm">
+      <div className="mb-1.5 flex items-baseline justify-between text-[9px] text-muted">
+        <span>Driving now</span>
+        <button type="button" onClick={onClose} className="hover:text-cream">
+          ESC
+        </button>
+      </div>
+      {drivers.length === 0 ? (
+        <p className="py-1 text-[10px] normal-case text-muted">Finding them…</p>
+      ) : (
+        <ul className="flex flex-col">
+          {drivers.map((d) => (
+            <li key={d.id} className="flex items-center gap-2 py-1 text-[10px]">
+              <span aria-hidden>🚗</span>
+              <span className="min-w-0 flex-1 truncate normal-case">
+                @{d.name} <span className="text-muted">· {where(d.x, d.z)}</span>
+              </span>
+              <button type="button" onClick={() => onLook(d)} className="shrink-0 border border-border px-2 py-0.5 text-[9px] text-cream hover:border-lime hover:text-lime">
+                Look
+              </button>
+              <button type="button" onClick={() => onJoin(d)} className="shrink-0 bg-lime px-2 py-0.5 text-[9px] text-bg">
+                Drive here
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -935,5 +1059,3 @@ function ResidentRow({
     </>
   );
 }
-
-

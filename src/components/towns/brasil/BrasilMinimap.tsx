@@ -12,7 +12,7 @@ import { swatchOf } from "./stats";
 
 const W = 150;
 
-export default function BrasilMinimap({ cities, island, camera }: { cities: CityLayout[]; island: CityLayout; camera: MapCameraStore }) {
+export default function BrasilMinimap({ cities, island, camera, cars = [] }: { cities: CityLayout[]; island: CityLayout; camera: MapCameraStore; cars?: { x: number; z: number }[] }) {
   const cam = useSyncExternalStore(camera.subscribe, camera.get, camera.get);
   const pad = 600;
   const x0 = MAP_BOUNDS.minX - pad;
@@ -38,6 +38,9 @@ export default function BrasilMinimap({ cities, island, camera }: { cities: City
           const d = dot(c);
           return <circle key={`${c.uf ?? "isl"}-${c.second ? 2 : 1}`} cx={d.cx} cy={d.cy} r={d.r} fill={c.uf ? swatchOf(c.uf) : "#c8e64a"} stroke="#0b0d12" strokeWidth={0.8} opacity={c.devs.length ? 1 : 0.35} />;
         })}
+        {cars.map((c, i) => (
+          <rect key={i} x={(c.x - x0) * k - 2.5} y={(c.z - z0) * k - 2.5} width={5} height={5} fill="#e8dcc8" stroke="#0b0d12" strokeWidth={1} />
+        ))}
         <circle cx={(cam.tx - x0) * k} cy={(cam.tz - z0) * k} r={4} fill="none" stroke="#c8e64a" strokeWidth={1.5} />
       </svg>
     </div>

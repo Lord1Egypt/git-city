@@ -625,6 +625,9 @@ export interface BrasilSceneProps {
   offices?: ReadonlyMap<string, string>;
   /** Logins (lowercase) that arrived in the last day: their name plates say "new". */
   fresh?: ReadonlySet<string>;
+  /** Who's out driving, and where each one is now (units): a pin over every car, at any height. */
+  drivers?: { id: string; name: string }[];
+  driverAt?: (id: string) => { x: number; z: number } | null;
   /** The state of the week: its tag wears the crown. */
   crowned?: UF | null;
   /** Dev only: fps, draw calls and triangles in a corner (the preview's ?stats=1). */
@@ -665,6 +668,27 @@ const TREE_CULL = { maxDistance: 9000 };
 /** Lamps and fountains this close to where the car starts are props it can knock over. */
 const KNOCK_PROPS_RADIUS = 2600;
 
+/** A pin over someone's car, following it: who's driving where, readable from the whole country down. */
+function DriverPin({ id, name, at }: { id: string; name: string; at: (id: string) => { x: number; z: number } | null }) {
+  const group = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const p = at(id);
+    const g = group.current;
+    if (!g) return;
+    g.visible = !!p;
+    if (p) g.position.set(p.x, MAP_H + 40, p.z);
+  });
+  return (
+    <group ref={group} visible={false}>
+      <Html center zIndexRange={[25, 0]} style={{ pointerEvents: "none" }}>
+        <div className="flex items-center gap-1 whitespace-nowrap border-2 border-lime bg-bg/90 px-1.5 py-0.5 font-pixel text-[9px] normal-case text-cream">
+          <span aria-hidden>🚗</span>@{name}
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 const PULSE_S = 1.8;
 
 /** Three lime rings spreading from a lot and fading, once. */
@@ -702,7 +726,7 @@ function Pulse({ x, z }: { x: number; z: number }) {
   );
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null, fresh, offices }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null, fresh, offices, drivers, driverAt }: BrasilSceneProps) {
   const allCities = useMemo(() => [...cities, island], [cities, island]);
   // Phones and weak GPUs draw at a lower resolution, as in the main city (?perf=low|high overrides).
   const { mode: perf } = usePerfMode();
@@ -798,6 +822,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
       {stats && <Stats />}
       {!driving && watching && watching.length > 0 && <WatchedCars cars={watching} />}
+      {!driving && driverAt && drivers?.map((d) => <DriverPin key={d.id} id={d.id} name={d.name} at={driverAt} />)}
     </Canvas>
   );
 }
