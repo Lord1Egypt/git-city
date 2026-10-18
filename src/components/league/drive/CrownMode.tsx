@@ -8,6 +8,10 @@ import { boxPosition, boxSpots } from "@/lib/league-city/drive/battle";
 import { CROWN, type CrownState } from "@/lib/league-city/drive/crown";
 import { INTERP_MS, emptySnapshot, type ClientMsg } from "@/lib/league-city/drive/net";
 import { M_TO_UNIT, UNIT_TO_M } from "@/lib/league-city/drive/tuning";
+import { LOT } from "@/lib/league-city/grid";
+
+/** The crown appears on a street this close (m) to the car that starts the match. */
+const CROWN_NEAR_M = 250;
 import { spinOut } from "@/lib/league-city/drive/vehicle";
 import type { CarApi } from "./Car";
 import type { DriveTelemetry } from "@/lib/league-city/drive/telemetry";
@@ -128,10 +132,12 @@ export default function CrownMode({
     };
     apiRef.current = {
       start: () => {
-        const slot = Math.floor(Math.random() * 1000);
-        const pos = boxPosition(spots, slot, Date.now() & 0xffff, UNIT_TO_M);
+        // On a street near whoever starts it: a big map's random street can be a state away.
         const c = carRef.current?.body.translation();
-        const [x, z] = pos ?? (c ? [c.x + 20, c.z] : [0, 0]);
+        const near = c ? spots.filter(([lx, lz]) => Math.hypot(lx * LOT * UNIT_TO_M - c.x, lz * LOT * UNIT_TO_M - c.z) < CROWN_NEAR_M) : spots;
+        const slot = Math.floor(Math.random() * 1000);
+        const pos = boxPosition(near.length ? near : spots, slot, Date.now() & 0xffff, UNIT_TO_M);
+        const [x, z] = c && !near.length ? [c.x + 20, c.z] : (pos ?? (c ? [c.x + 20, c.z] : [0, 0]));
         send({ t: "crown_start", x, z });
       },
     };
