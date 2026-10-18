@@ -1,6 +1,7 @@
 import { renderGiftReceivedEmail } from "../../notification-senders/gift";
 import { renderLeagueInvitedEmail } from "../../notification-senders/league-invited";
 import { renderLeagueJoinedEmail } from "../../notification-senders/league-joined";
+import { renderBrasilMapEmail } from "../../notification-senders/brasil-map";
 import { renderLeagueOvertakenEmail } from "../../notification-senders/league-overtaken";
 import { renderTownDemolishedEmail } from "../../notification-senders/town-demolished";
 import { renderRaceChallengeEmail, renderRacePassedEmail } from "../../notification-senders/race";
@@ -50,6 +51,8 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
   // forceSend: the engine sends these without an unsubscribe link.
   "prize-winner": () => renderPrizeWinnerEmail({ week: 1, sponsor: "Firecrawl", delivery: "code", code: "GCTOWNS-SAMPLE" }, TRANSACTIONAL_PREVIEW_LINKS),
   "prize-winner-glory": () => renderPrizeWinnerEmail({ week: 1, sponsor: null, delivery: "reply" }, TRANSACTIONAL_PREVIEW_LINKS),
+  "brasil-on-map": () => renderBrasilMapEmail({ login: "torvalds", state: "São Paulo", uf: "SP", city: "São Paulo", founder: false }, PREVIEW_LINKS),
+  "brasil-founder": () => renderBrasilMapEmail({ login: "smashcodex", state: "Acre", uf: "AC", city: "Rio Branco", founder: true }, PREVIEW_LINKS),
   "town-joined": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: true }, PREVIEW_LINKS),
   "town-joined-no-emblem": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: false }, PREVIEW_LINKS),
   "town-overtaken": () =>

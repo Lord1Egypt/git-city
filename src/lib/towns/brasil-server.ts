@@ -13,8 +13,10 @@ import { invalidateLeague } from "../leagues/cache";
 import type { League } from "../leagues/service";
 import { createDeveloperFromGitHub } from "../create-developer";
 import { GitHubFetchError } from "../github-api";
-import { BrasilPlacer, layoutFromResidents, type BrasilLayout, type MapDev, type Resident, type UF } from "./brasil-map";
+import { BrasilPlacer, STATES, layoutFromResidents, type BrasilLayout, type MapDev, type Resident, type UF } from "./brasil-map";
 import { parseComment } from "./brasil-comments";
+import { CAPITALS, ISLAND, SECOND_CITIES } from "./brasil-geo";
+import { sendBrasilMapNotification } from "../notification-senders/brasil-map";
 
 export const BRASIL_SLUG = "brasil-town";
 
@@ -203,5 +205,24 @@ export async function importBrasilComment(
   }
 
   const placed = await placeBrasilResident(league, { id: dev.id, login: dev.github_login }, uf, "instagram");
+  if (placed.status === "added") await emailOnMap(league, { id: dev.id, login: dev.github_login }, uf, placed.hub);
   return log(placed.status === "already" ? "already" : "added", dev.id);
+}
+
+/** "Você tá no mapa": the email to a dev a comment just placed (only those with an account get it). */
+async function emailOnMap(league: Pick<League, "id">, dev: { id: number; login: string }, uf: UF | null, hub: number) {
+  let founder = false;
+  if (uf) {
+    const { data: first } = await getSupabaseAdmin()
+      .from("brasil_residents")
+      .select("developer_id")
+      .eq("league_id", league.id)
+      .eq("uf", uf)
+      .order("placed_at", { ascending: true })
+      .limit(1)
+      .maybeSingle<{ developer_id: number }>();
+    founder = first?.developer_id === dev.id;
+  }
+  const city = !uf || hub === 9 ? ISLAND.name : hub === 1 ? (SECOND_CITIES[uf]?.city ?? CAPITALS[uf].city) : CAPITALS[uf].city;
+  sendBrasilMapNotification({ developerId: dev.id, login: dev.login, uf, state: uf ? (STATES.find((s) => s.uf === uf)?.name ?? null) : null, city: uf ? city : null, founder });
 }
