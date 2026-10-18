@@ -4,7 +4,7 @@
 
 import { buildTrack, type Track } from "../../league-city/race/track";
 import type { Course } from "../score";
-import { BRASIL_HARBOR } from "./brasil";
+import { BRASIL_DRIFT } from "./brasil";
 import { HARBOR } from "./harbor";
 import { TOUGE } from "./touge";
 import type { LiveSpot, Spot, SpotId } from "./types";
@@ -18,7 +18,7 @@ export const SPOTS: Spot[] = [
   { id: "spiral", status: "soon", name: "Spiral", tagline: "A neon parking garage. One way, all the way up." },
 ];
 
-export const TOWN_SPOTS: LiveSpot[] = [BRASIL_HARBOR];
+export const TOWN_SPOTS: LiveSpot[] = [BRASIL_DRIFT];
 
 /** A spot on the /drift list. */
 export function getSpot(id: string): Spot | null {

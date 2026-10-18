@@ -99,21 +99,15 @@ describe("the spot list", () => {
   });
 
   it("keeps a town's track off the list but live for runs and boards", () => {
-    expect(getSpot("brasil-harbor")).toBeNull();
-    expect(getLiveSpot("brasil-harbor")?.id).toBe("brasil-harbor");
+    expect(getSpot("brasil")).toBeNull();
+    expect(getLiveSpot("brasil")?.id).toBe("brasil");
     for (const t of TOWN_SPOTS) expect(t.id).toMatch(/^[a-z0-9-]{1,32}$/);
   });
 
-  it("lays Harbor's loop on the Brasil map as is: the same length and shape, turned round and moved", () => {
+  it("gives the Brasil town a track of its own, not Harbor's laid again", () => {
     const harbor = courseOf(getLiveSpot("harbor")!).track;
-    const brasil = courseOf(getLiveSpot("brasil-harbor")!).track;
-    expect(brasil.length).toBeCloseTo(harbor.length, 0);
-    // Turned half a circle: each point is Harbor's, mirrored through one fixed middle.
-    const [sx, sz] = [brasil.samples[0].x + harbor.samples[0].x, brasil.samples[0].z + harbor.samples[0].z];
-    expect(Math.hypot(sx, sz)).toBeGreaterThan(1000);
-    for (let i = 0; i < harbor.samples.length; i += 25) {
-      expect(brasil.samples[i].x + harbor.samples[i].x).toBeCloseTo(sx, 0);
-      expect(brasil.samples[i].z + harbor.samples[i].z).toBeCloseTo(sz, 0);
-    }
+    const brasil = courseOf(getLiveSpot("brasil")!).track;
+    expect(Math.abs(brasil.length - harbor.length)).toBeGreaterThan(20);
+    expect(brasil.checkpoints.length).not.toBe(harbor.checkpoints.length);
   });
 });

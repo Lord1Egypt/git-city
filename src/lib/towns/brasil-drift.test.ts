@@ -10,7 +10,7 @@ import { pointAt } from "../league-city/race/track";
 import { DRIFT_EXIT, DRIFT_SIGN_LOT, DRIFT_SITE, clearOfStart, crossedStart, inDriftSite } from "./brasil-drift";
 import { RIVERS, coastDistance, onLand } from "./brasil-geo";
 
-const spot = getLiveSpot("brasil-harbor")!;
+const spot = getLiveSpot("brasil")!;
 const { track, clips } = courseOf(spot);
 /** Meters to the lot under them. */
 const lotOf = (x: number, z: number) => [Math.round((x * M_TO_UNIT) / LOT), Math.round((z * M_TO_UNIT) / LOT)] as const;

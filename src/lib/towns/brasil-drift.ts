@@ -1,7 +1,7 @@
 // ─── Brasil town: the drift track ───────────────────────────
 // A drift course out on open land between São Paulo and Mato Grosso do Sul,
-// Harbor's loop laid down there turned to face west (lib/drift/spots/
-// brasil.ts), clear of the Rio Grande. Its lots stay clear: no city grows a
+// its own track laid there facing west (lib/drift/spots/brasil.ts), clear
+// of the Rio Grande. Its lots stay clear: no city grows a
 // block into them, no highway, avenue or tree crosses them. The START gate
 // is the track's own line, on the site's north side, a lot off the MS–GO
 // highway; the DRIFT sign stands between the two.
@@ -33,9 +33,6 @@ export const DRIFT_HIGHWAY_Z = -118;
 
 /** Where the DRIFT sign stands (lot): between the highway and the START gate, outside the site. */
 export const DRIFT_SIGN_LOT: [number, number] = [30, DRIFT_SITE.z0 - 1];
-
-/** Where "drive to the track" (its tag on the map) puts the car: on the highway by the sign, facing the gate. */
-export const DRIFT_APPROACH = { x: 30, z: DRIFT_HIGHWAY_Z, rot: 180 } as const;
 
 /** Where "back to the city" puts the car (lot, heading clockwise from north): on the highway by the sign, headed east for São Paulo. */
 export const DRIFT_EXIT = { x: 33, z: DRIFT_HIGHWAY_Z, rot: 90 } as const;

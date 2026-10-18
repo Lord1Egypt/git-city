@@ -5,30 +5,34 @@
 // sideways, hard to hold there.
 
 import { SPRINT } from "../../league-city/race/track";
-import { left, path, right, straight, type Leg } from "./path";
+import { left, path, right, straight } from "./path";
 import type { LiveSpot } from "./types";
 
 // Curves all the way: a short run from the grid through a chicane into the sweeper,
 // the S, the crane hairpin, the wall. Straights stay under 25 m (no boost here).
-export const HARBOR_LEGS: Leg[] = [
-  straight(4.481, "quay"),
-  right(25, 50),
-  left(50, 40),
-  right(25, 50),
-  left(120, 48, "sweeper"),
-  straight(12),
-  left(60, 30),
-  right(90, 24, "s"),
-  straight(19.072),
-  left(180, 19, "crane"),
-  straight(12),
-  right(90, 24),
-  left(70, 28),
-  right(40, 36),
-  left(150, 36, "wall"),
-  straight(20, "grid"),
-];
-const P = path(HARBOR_LEGS, [0, 0], [1, 0], true);
+const P = path(
+  [
+    straight(4.481, "quay"),
+    right(25, 50),
+    left(50, 40),
+    right(25, 50),
+    left(120, 48, "sweeper"),
+    straight(12),
+    left(60, 30),
+    right(90, 24, "s"),
+    straight(19.072),
+    left(180, 19, "crane"),
+    straight(12),
+    right(90, 24),
+    left(70, 28),
+    right(40, 36),
+    left(150, 36, "wall"),
+    straight(20, "grid"),
+  ],
+  [0, 0],
+  [1, 0],
+  true,
+);
 
 const mid = (name: string) => (P.marks[name][0] + P.marks[name][1]) / 2;
 
