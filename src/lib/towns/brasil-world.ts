@@ -9,6 +9,7 @@
 
 import type { CityBuilding } from "../github";
 import { LOT } from "../league-city/grid";
+import { RAMP } from "../league-city/ramp";
 import { faceRoad, lotKey } from "../league-city/placement";
 import type { CityObject, TreeType } from "../league-city/types";
 import { STATE_RINGS, inState, onLand } from "./brasil-geo";
@@ -136,5 +137,44 @@ export function brasilWorld(layout: BrasilLayout, building: (dev: MapDev, founde
     const [x, z] = lead.center;
     item("blimp-lead", "blimp", x, z, { px: x * LOT, pz: z * LOT, props: { text: `${top.uf} LEADS · ${top.devs} DEVS`, color: "#c8e64a", bg: "#0b0f19", alt: 220 } });
   }
+  // Drive toys, for fun on the way: boost pads along the highways and a hill (two ramps back to back, so it
+  // jumps both ways on a two-way road) every so often; in every city a hill and a pad on its straight streets.
+  const highwaySet = new Set(layout.highways.map(([x, z]) => lotKey(x, z)));
+  /** A straight stretch of road through (x, z): along x (90) or along z (0), else null (a corner or a crossing). */
+  const straight = (set: Set<string>, x: number, z: number): 0 | 90 | null => {
+    const ew = set.has(lotKey(x - 1, z)) && set.has(lotKey(x + 1, z));
+    const ns = set.has(lotKey(x, z - 1)) && set.has(lotKey(x, z + 1));
+    return ew && !ns ? 90 : ns && !ew ? 0 : null;
+  };
+  const hill = (id: string, x: number, z: number, axis: 0 | 90) => {
+    const [cx, cz] = [x * LOT, z * LOT];
+    const half = RAMP.length / 2;
+    // rot 0 rises north (-z), rot 90 east (+x): the two meet at their high edges in the lot's middle.
+    if (axis === 0) {
+      item(`${id}-a`, "ramp", x, z, { px: cx, pz: cz + half, rot: 0 });
+      item(`${id}-b`, "ramp", x, z, { px: cx, pz: cz - half, rot: 180 });
+    } else {
+      item(`${id}-a`, "ramp", x, z, { px: cx - half, pz: cz, rot: 90 });
+      item(`${id}-b`, "ramp", x, z, { px: cx + half, pz: cz, rot: 270 });
+    }
+  };
+  const pad = (id: string, x: number, z: number, axis: 0 | 90, flip: boolean) => item(id, "boost_pad", x, z, { px: x * LOT, pz: z * LOT, rot: axis + (flip ? 180 : 0) });
+  layout.highways.forEach(([x, z], i) => {
+    const axis = straight(highwaySet, x, z);
+    if (axis === null) return;
+    if (i % 14 === 0) pad(`bp-h${i}`, x, z, axis, i % 28 === 0);
+    else if (i % 61 === 30) hill(`hill-h${i}`, x, z, axis);
+  });
+  for (const city of all) {
+    const set = new Set(city.roads.map(([x, z]) => lotKey(x, z)));
+    const runs = city.roads.filter(([x, z]) => straight(set, x, z) !== null && !highwaySet.has(lotKey(x, z)));
+    if (runs.length < 4) continue;
+    const tag = city.uf ? `${city.uf}${city.second ? 2 : 1}` : "isl";
+    const [hx, hz] = runs[Math.floor(runs.length / 3)];
+    hill(`hill-${tag}`, hx, hz, straight(set, hx, hz)!);
+    const [px, pz] = runs[Math.floor((runs.length * 2) / 3)];
+    pad(`bp-${tag}`, px, pz, straight(set, px, pz)!, false);
+  }
+
   return { objects, byDevId };
 }

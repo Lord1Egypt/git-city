@@ -17,13 +17,14 @@ import IdentityLayer, { useFontReady } from "@/components/league/identity/Identi
 import { makeWaterMaterial, tickWater } from "@/components/city/mapMaterials";
 import { Billboard } from "@/components/league/identity/IdentityPieces";
 import LeagueRoads from "@/components/league/LeagueRoads";
+import LeagueToys from "@/components/league/LeagueToys";
 import LeagueTrees from "@/components/league/LeagueTrees";
 import type { DriveWorldProps } from "@/components/league/drive/DriveWorld";
 import type { CarFeed } from "@/components/league/drive/useDrivePresence";
 import type { CityBuilding, CityDecoration } from "@/lib/github";
 import { InstancedDecorations } from "@/components/city/decorations";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
-import type { CityObject } from "@/lib/league-city/types";
+import { TREE_TYPES, type CityObject, type TreeType } from "@/lib/league-city/types";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { MAP_BOUNDS, MAP_H, OUTLINE, RIVERS, STATE_RINGS, type Ring } from "@/lib/towns/brasil-geo";
 import { mapNav, type MapCameraStore } from "@/lib/map-nav";
@@ -661,6 +662,8 @@ function Stats() {
 
 /** Trees past this far from the camera aren't drawn: a street's worth up close, none from the whole country. */
 const TREE_CULL = { maxDistance: 9000 };
+/** Lamps and fountains this close to where the car starts are props it can knock over. */
+const KNOCK_PROPS_RADIUS = 2600;
 
 const PULSE_S = 1.8;
 
@@ -708,7 +711,33 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
   const off = (layer: string) => hidden.has(layer);
   const driving = !!drive;
   const [near, setNear] = useState(false);
-  const decorations = useMemo(() => decorationsOf(objects), [objects]);
+  // Driving: the trees fall instead of stopping the car (LeagueTrees' knock, so they're out of the colliders),
+  // and the lamps and fountains round where the car starts are physics props you can knock over (thousands
+  // of them across the country would be too many bodies); their standing copies hide while you drive.
+  const spawnAt = useMemo(() => {
+    if (!drive) return null;
+    const o = objects.find((x) => x.kind === "building" && x.developer_id === drive.viewerDevId);
+    return o ? lotToWorld(o.x, o.z) : null;
+  }, [objects, drive]);
+  const knockable = useMemo(() => {
+    const out = new Set<string>();
+    if (!spawnAt) return out;
+    for (const o of objects) {
+      if (o.item_type !== "lamp" && o.item_type !== "fountain") continue;
+      const [x, z] = o.px !== null && o.pz !== null ? [o.px, o.pz] : lotToWorld(o.x, o.z);
+      if (Math.hypot(x - spawnAt[0], z - spawnAt[1]) < KNOCK_PROPS_RADIUS) out.add(o.id);
+    }
+    return out;
+  }, [objects, spawnAt]);
+  const driveObjects = useMemo(
+    () => objects.filter((o) => !TREE_TYPES.includes(o.item_type as TreeType) && ((o.item_type !== "lamp" && o.item_type !== "fountain") || knockable.has(o.id))),
+    [objects, knockable],
+  );
+  const decorations = useMemo(() => decorationsOf(driving ? objects.filter((o) => !knockable.has(o.id)) : objects), [objects, driving, knockable]);
+  // Item boxes on the cities' streets, never out on the highways between them.
+  const cityStreets = useMemo(() => allCities.flatMap((c) => c.roads.map(([x, z]) => [x, z] as [number, number])).sort((a, b) => a[0] - b[0] || a[1] - b[1]), [allCities]);
+  const telemetry = drive?.telemetry;
+  const treeCull = useMemo(() => ({ ...TREE_CULL, knock: telemetry ? () => telemetry.radar : undefined }), [telemetry]);
   const identity = useMemo(() => ({ sky: 0, signSide: null, logoUrl: null, logoRemoved: false, identityVersion: 0 }), []);
   const cx = (MAP_BOUNDS.minX + MAP_BOUNDS.maxX) / 2;
   const cz = (MAP_BOUNDS.minZ + MAP_BOUNDS.maxZ) / 2;
@@ -737,8 +766,9 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
         ))}
       {!off("decor") && <InstancedDecorations items={decorations} roadMarkingColor={NIGHT.roadMarkingColor} sidewalkColor={NIGHT.sidewalkColor} />}
       {!off("roads") && <LeagueRoads objects={objects} markingColor={NIGHT.roadMarkingColor} />}
+      <LeagueToys objects={objects} driving={driving} />
       <Suspense fallback={null}>
-        <LeagueTrees objects={objects} cull={TREE_CULL} />
+        <LeagueTrees objects={objects} cull={treeCull} />
       </Suspense>
       {!off("identity") && <IdentityLayer objects={objects} identity={identity} name="Brasil" h={MAP_H} hillColor={LAND} />}
       {!off("buildings") && <CityScene
@@ -751,7 +781,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       />}
       {!driving && <NearPlates buildings={buildings} fresh={fresh} offices={offices} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} crowned={!!crowned && c.uf === crowned && !c.second} onClick={() => onTag?.(c)} />)}
-      {driving && drive && <DriveWorld objects={objects} buildings={buildings} h={MAP_H} smash={smash} {...drive} />}
+      {driving && drive && <DriveWorld objects={driveObjects} buildings={buildings} h={MAP_H} smash={smash} boxSpots={cityStreets} {...drive} />}
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
       {stats && <Stats />}
       {!driving && watching && watching.length > 0 && <WatchedCars cars={watching} />}
