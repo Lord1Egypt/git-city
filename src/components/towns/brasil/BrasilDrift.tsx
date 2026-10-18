@@ -4,16 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import posthog from "posthog-js";
 import { useFrame } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import TrackScene from "@/components/race/TrackScene";
 import { Billboard } from "@/components/league/identity/IdentityPieces";
 import { useFontReady } from "@/components/league/identity/IdentityLayer";
-import DriftHud, { fmt } from "@/components/drift/DriftHud";
+import DriftHud, { MEDAL_COLORS, fmt } from "@/components/drift/DriftHud";
 import DriftResults, { type PostResult, type PostState } from "@/components/drift/DriftResults";
 import type { DriftFinish } from "@/components/drift/DriftWorld";
-import type { BoardRowLite } from "@/components/drift/DriftTitle";
+import DriftTitle, { type BoardRowLite } from "@/components/drift/DriftTitle";
+import { Band } from "@/components/drift/ui";
 import TouchControls from "@/components/league/hud/drive/TouchControls";
-import { LOT, lotToWorld } from "@/lib/league-city/grid";
+import { lotToWorld } from "@/lib/league-city/grid";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import type { TouchDrive } from "@/lib/league-city/drive/touch";
 import { carColor } from "@/lib/league-city/drive/net";
@@ -22,42 +24,29 @@ import { TRIAL, type TrialStage } from "@/lib/league-city/race/trial";
 import type { Frames } from "@/lib/drift/frames";
 import { loadRun, saveRun, type LocalRun } from "@/lib/drift/local";
 import { courseOf, getLiveSpot } from "@/lib/drift/spots";
-import type { LiveSpot } from "@/lib/drift/spots/types";
+import { medalFor, medalScores, type LiveSpot } from "@/lib/drift/spots/types";
 import { createDriftTelemetry } from "@/lib/drift/telemetry";
-import { DRIFT_SIGN_LOT, DRIFT_SITE } from "@/lib/towns/brasil-drift";
+import { DRIFT_SIGN_LOT } from "@/lib/towns/brasil-drift";
 
-// The Brasil town's drift track (Pista Brasil), out on the land between São
-// Paulo and Rio. From the town it's a circuit painted on the ground: the
-// asphalt and its line under the START gantry, no walls yet, and a DRIFT
-// sign by the gate with the track's top five. Driving across the line swaps
-// the town's car for a drift run right there, as on /drift: 3-2-1, the
-// scorer, the HUD, Enter for the last checkpoint, the finish and the board.
-// Then again, or back to the city at the gate.
+// The Brasil town's drift track (Brasil Drift), out on the land between São
+// Paulo and Mato Grosso do Sul. From the town it's a circuit painted on the
+// ground: the asphalt and its line under the START gantry, no walls yet, and
+// a DRIFT sign by the gate with the track's top five. Driving across the line
+// is an event's marker in Forza Horizon: the screen goes dark, the track's
+// card comes up over the wide shot of the car on the grid (medals, the board,
+// your best), Enter drifts, Esc goes back. Then it's /drift: 3-2-1, the
+// scorer, the HUD, Enter for the last checkpoint, the finish, the results
+// with the track's medals and board beside them. Again, or back to the city
+// on the highway by the gate.
 
 const DriftWorld = dynamic(() => import("@/components/drift/DriftWorld"), { ssr: false, loading: () => null });
 
 export const BRASIL_DRIFT = getLiveSpot("brasil-harbor") as LiveSpot;
 const COURSE = courseOf(BRASIL_DRIFT);
-/** The site's ground: the shore's green, a shade off the open country, so the track reads as a place. */
-const SITE_GREEN = "#1d4a2e";
 const LIME = "#c8e64a";
 const unlit = { current: 0 };
 /** Seen from farther than this (units), the site isn't drawn. */
 const SITE_VIEW = 9000;
-
-/** A patch of ground under the whole site (lots). */
-export function SiteGround() {
-  const x0 = (DRIFT_SITE.x0 - 0.5) * LOT;
-  const x1 = (DRIFT_SITE.x1 + 0.5) * LOT;
-  const z0 = (DRIFT_SITE.z0 - 0.5) * LOT;
-  const z1 = (DRIFT_SITE.z1 + 0.5) * LOT;
-  return (
-    <mesh position={[(x0 + x1) / 2, -0.5, (z0 + z1) / 2]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[x1 - x0, z1 - z0]} />
-      <meshStandardMaterial color={SITE_GREEN} emissive={SITE_GREEN} emissiveIntensity={0.2} roughness={1} />
-    </mesh>
-  );
-}
 
 /** A billboard face: lime on the night panel, like the cities' signs. */
 function signTexture(draw: (ctx: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
@@ -83,7 +72,7 @@ function drawSign(ctx: CanvasRenderingContext2D) {
   ctx.fillText("DRIFT", 128, 52);
   ctx.font = "16px Silkscreen, monospace";
   ctx.fillStyle = "#8a93a6";
-  ctx.fillText("CRUZE O START", 128, 100);
+  ctx.fillText("CROSS THE LINE", 128, 100);
 }
 
 function drawTop(ctx: CanvasRenderingContext2D, board: BoardRowLite[]) {
@@ -91,10 +80,10 @@ function drawTop(ctx: CanvasRenderingContext2D, board: BoardRowLite[]) {
   ctx.textBaseline = "middle";
   ctx.font = "14px Silkscreen, monospace";
   ctx.fillStyle = LIME;
-  ctx.fillText("TOP 5 · PISTA BRASIL", 12, 16);
+  ctx.fillText("TOP 5 · BRASIL DRIFT", 12, 16);
   if (top.length === 0) {
     ctx.fillStyle = "#8a93a6";
-    ctx.fillText("NINGUÉM AINDA", 12, 60);
+    ctx.fillText("NOBODY YET", 12, 60);
   }
   top.forEach((r, i) => {
     const y = 38 + i * 20;
@@ -108,7 +97,7 @@ function drawTop(ctx: CanvasRenderingContext2D, board: BoardRowLite[]) {
   });
 }
 
-/** The track as the town sees it: ground, asphalt and the START gantry, the DRIFT sign and the top five. */
+/** The track as the town sees it, on the map's own land: asphalt and the START gantry, the DRIFT sign and the top five. */
 export function DriftSite({ board }: { board: BoardRowLite[] }) {
   const group = useRef<THREE.Group>(null);
   const [sx, sz] = lotToWorld(...DRIFT_SIGN_LOT);
@@ -130,7 +119,6 @@ export function DriftSite({ board }: { board: BoardRowLite[] }) {
   useEffect(() => () => tower.dispose(), [tower]);
   return (
     <group ref={group}>
-      <SiteGround />
       <TrackScene track={COURSE.track} lit={unlit} title="Drift" grass={false} stands={false} trees={false} walls={false} />
       <Billboard position={[sx - 18, sz]} rot={0} map={sign} />
       <Billboard position={[sx + 18, sz]} rot={0} map={tower} />
@@ -138,12 +126,26 @@ export function DriftSite({ board }: { board: BoardRowLite[] }) {
   );
 }
 
+/** The track's tag on the map, like a city's: a click drives you to its gate. */
+export function DriftTag({ record, onClick }: { record: BoardRowLite | null; onClick: () => void }) {
+  const [x, z] = lotToWorld(DRIFT_SIGN_LOT[0], DRIFT_SIGN_LOT[1] + 6);
+  return (
+    <Html position={[x, 60, z]} center zIndexRange={[20, 0]} style={{ pointerEvents: "auto" }}>
+      <button type="button" onClick={onClick} className="flex cursor-pointer items-center gap-1 whitespace-nowrap border-2 border-lime bg-bg/85 px-1 py-px font-pixel text-[9px] uppercase text-cream hover:bg-lime hover:text-bg sm:gap-1.5 sm:px-1.5 sm:py-0.5 sm:text-[11px]">
+        <span aria-hidden>🏁</span>Drift
+        {record && <span className="normal-case text-muted">{fmt(record.score)}</span>}
+      </button>
+    </Html>
+  );
+}
+
 const toGhost = (frames: Frames, splits: number[]): GhostRun => ({ ms: frames[frames.length - 4] ?? 0, splits, frames });
 
 /**
  * A drift run on the town's track: the world for the Canvas and the HUD over
- * it. `active` mounts both; `onBack` is "back to the city" (or a load that
- * failed). Runs post to the track's board when you're signed in.
+ * it. `start()` sets a run up, `active` mounts both; `onBack` is "back to the
+ * city" (or a load that failed). Runs post to the track's board when you're
+ * signed in.
  */
 export function useBrasilDrift({
   active,
@@ -155,6 +157,7 @@ export function useBrasilDrift({
   onToggleMute,
   touch,
   onBack,
+  onReady: onWorldReady,
 }: {
   active: boolean;
   viewerLogin: string | null;
@@ -165,6 +168,8 @@ export function useBrasilDrift({
   onToggleMute: () => void;
   touch: React.MutableRefObject<TouchDrive> | null;
   onBack: () => void;
+  /** The world is in (the page lifts its dark). */
+  onReady?: () => void;
 }) {
   const spot = BRASIL_DRIFT;
   const [telemetry] = useState(createDriftTelemetry);
@@ -224,29 +229,26 @@ export function useBrasilDrift({
   const [finish, setFinish] = useState<{ run: DriftFinish; before: number | null } | null>(null);
   const [post, setPost] = useState<PostState>({ status: "posting" });
 
-  // Starting: a fresh world on the grid, 3-2-1 as soon as it's in.
-  const wasActive = useRef(false);
+  /** Starting (the gate was crossed): a fresh world on the grid, the track's card once it's in. */
+  const start = useCallback(() => {
+    Object.assign(telemetry, { drift: null, feed: [], split: null, countdown: null, carScreen: null });
+    setReady(false);
+    setPausedRaw(false);
+    setFinish(null);
+    setRunKey((k) => k + 1);
+    setTrial({ stage: "menu", at: performance.now(), beat: TRIAL.beatMs });
+    posthog.capture("brasil_drift_started", { signed_in: !!viewerLogin });
+  }, [telemetry, viewerLogin]);
+  // The track's card: Enter or Space drifts.
+  const begin = useCallback(() => goStage("countdown", TRIAL.beatMs), [goStage]);
   useEffect(() => {
-    if (active && !wasActive.current) {
-      Object.assign(telemetry, { drift: null, feed: [], split: null, countdown: null, carScreen: null });
-      const t = setTimeout(() => {
-        setReady(false);
-        setPausedRaw(false);
-        setFinish(null);
-        setRunKey((k) => k + 1);
-        setTrial({ stage: "menu", at: performance.now(), beat: TRIAL.beatMs });
-      }, 0);
-      posthog.capture("brasil_drift_started", { signed_in: !!viewerLogin });
-      wasActive.current = active;
-      return () => clearTimeout(t);
-    }
-    wasActive.current = active;
-  }, [active, telemetry, viewerLogin]);
-  useEffect(() => {
-    if (!active || !ready || trial.stage !== "menu") return;
-    const t = setTimeout(() => goStage("countdown", TRIAL.beatMs), 400);
-    return () => clearTimeout(t);
-  }, [active, ready, trial.stage, goStage]);
+    if (!active || !ready || paused || trial.stage !== "menu") return;
+    const go = (e: KeyboardEvent) => {
+      if ((e.code === "Enter" || e.code === "Space") && !e.repeat) begin();
+    };
+    window.addEventListener("keydown", go);
+    return () => window.removeEventListener("keydown", go);
+  }, [active, ready, paused, trial.stage, begin]);
 
   const send = useCallback(
     async (run: { frames: Frames; score: number }) => {
@@ -319,21 +321,28 @@ export function useBrasilDrift({
     onBack();
   }, [onBack, setPaused]);
 
-  // Esc pauses and resumes (the results take Esc themselves: back to the city).
+  // Esc: on the card, back to the city; driving, pause and resume (the results take Esc themselves).
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || stageNow.current === "finish") return;
+      if (e.key !== "Escape" || e.repeat || stageNow.current === "finish") return;
       e.preventDefault();
-      setPaused((v) => !v);
+      if (stageNow.current === "menu") back();
+      else setPaused((v) => !v);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, setPaused]);
+  }, [active, setPaused, back]);
 
-  const onReady = useCallback(() => setReady(true), []);
+  const readyCb = useRef(onWorldReady);
+  useEffect(() => {
+    readyCb.current = onWorldReady;
+  });
+  const onReady = useCallback(() => {
+    setReady(true);
+    readyCb.current?.();
+  }, []);
   const toggleGhosts = useCallback(() => setShowGhosts((g) => !g), []);
-  const ground = useMemo(() => <SiteGround />, []);
 
   const world = active ? (
     <DriftWorld
@@ -360,7 +369,7 @@ export function useBrasilDrift({
       onReady={onReady}
       onFail={onBack}
       touch={touch ?? undefined}
-      ground={ground}
+      ground={null}
     />
   ) : null;
 
@@ -390,8 +399,9 @@ export function useBrasilDrift({
         onRestart={retry}
         onRespawn={() => respawnRef.current?.()}
         onExit={back}
-        exitLabel="Voltar à cidade"
+        exitLabel="Back to the city"
       />
+      {ready && trial.stage === "menu" && <DriftTitle spot={spot} best={best} board={board} you={viewerLogin} rival={rival?.login ?? null} challenger={null} onStart={begin} onSpots={back} exitLabel="City" />}
       {trial.stage === "finish" && finish && (
         <DriftResults
           spot={spot}
@@ -405,11 +415,53 @@ export function useBrasilDrift({
           onRetryPost={() => void send(finish.run)}
           onRaceGhost={(login) => raceGhost.current(login)}
           onSpots={back}
-          town={{ again: "Dirigir de novo", exit: "Voltar à cidade", path: townPath }}
+          town={{ again: "Drive again", exit: "City", path: townPath }}
+          aside={<TrackAside spot={spot} score={finish.run.score} board={board} you={viewerLogin} />}
         />
       )}
     </>
   ) : null;
 
-  return { world, overlay, board };
+  return { world, overlay, board, ready, best, start };
+}
+
+/** Beside the results: the medals, the one this run took lit, and the track's top five. */
+function TrackAside({ spot, score, board, you }: { spot: LiveSpot; score: number; board: BoardRowLite[]; you: string | null }) {
+  const got = medalFor(spot, score);
+  const size = { fontSize: "clamp(10px, min(1.4vh, 2.6vw), 15px)" };
+  const body = { fontSize: "clamp(11px, min(1.8vh, 3.2vw), 19px)" };
+  return (
+    <>
+      <Band className="justify-between px-5 py-2.5 text-lime" style={size}>
+        <span>Medals</span>
+      </Band>
+      {medalScores(spot).map(([m, at], i) => (
+        <Band key={m} delay={60 + i * 60} tone={got === m ? "cream" : "dark"} tab={MEDAL_COLORS[m]} className="justify-between gap-4 px-5 py-2 tabular-nums" style={body}>
+          <span style={{ color: got === m ? undefined : MEDAL_COLORS[m] }}>{m}</span>
+          <span className={score >= at ? "" : "text-muted"}>{fmt(at)}</span>
+        </Band>
+      ))}
+      <Band delay={320} className="mt-5 justify-between px-5 py-2.5 text-lime" style={size}>
+        <span>{spot.name}</span>
+        <span className="text-muted">Top 5</span>
+      </Band>
+      {board.length === 0 && (
+        <Band delay={380} className="px-5 py-2.5 text-muted" style={body}>
+          Nobody yet
+        </Band>
+      )}
+      {board.slice(0, 5).map((r, i) => {
+        const me = !!you && r.login.toLowerCase() === you.toLowerCase();
+        return (
+          <Band key={r.login} delay={380 + i * 60} tone={me ? "lime" : "dark"} className="justify-between gap-4 px-5 py-2 tabular-nums" style={body}>
+            <span className="flex gap-4">
+              <span className={me ? "" : "text-muted"}>{r.rank}</span>
+              <span className="normal-case">@{r.login}</span>
+            </span>
+            <span>{fmt(r.score)}</span>
+          </Band>
+        );
+      })}
+    </>
+  );
 }

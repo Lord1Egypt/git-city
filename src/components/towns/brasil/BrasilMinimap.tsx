@@ -7,12 +7,25 @@ import { MAP_BOUNDS, OUTLINE } from "@/lib/towns/brasil-geo";
 import type { CityLayout } from "@/lib/towns/brasil-map";
 import { swatchOf } from "./stats";
 
-// Brazil in a corner: the coast, a dot per city sized by its devs, where
-// the camera is looking. A click flies there.
+// Brazil in a corner: the coast, a dot per city sized by its devs, the drift
+// track's flag, where the camera is looking. A click flies there.
 
 const W = 150;
 
-export default function BrasilMinimap({ cities, island, camera, cars = [] }: { cities: CityLayout[]; island: CityLayout; camera: MapCameraStore; cars?: { x: number; z: number }[] }) {
+export default function BrasilMinimap({
+  cities,
+  island,
+  camera,
+  cars = [],
+  track,
+}: {
+  cities: CityLayout[];
+  island: CityLayout;
+  camera: MapCameraStore;
+  cars?: { x: number; z: number }[];
+  /** The drift track's gate (world units): a checkered flag. */
+  track?: { x: number; z: number };
+}) {
   const cam = useSyncExternalStore(camera.subscribe, camera.get, camera.get);
   const pad = 600;
   const x0 = MAP_BOUNDS.minX - pad;
@@ -41,6 +54,13 @@ export default function BrasilMinimap({ cities, island, camera, cars = [] }: { c
         {cars.map((c, i) => (
           <rect key={i} x={(c.x - x0) * k - 2.5} y={(c.z - z0) * k - 2.5} width={5} height={5} fill="#e8dcc8" stroke="#0b0d12" strokeWidth={1} />
         ))}
+        {track && (
+          <g transform={`translate(${((track.x - x0) * k).toFixed(1)} ${((track.z - z0) * k).toFixed(1)})`}>
+            <rect x={-3} y={-3} width={6} height={6} fill="#0b0d12" stroke="#c8e64a" strokeWidth={1} />
+            <rect x={-3} y={-3} width={3} height={3} fill="#e8dcc8" />
+            <rect x={0} y={0} width={3} height={3} fill="#e8dcc8" />
+          </g>
+        )}
         <circle cx={(cam.tx - x0) * k} cy={(cam.tz - z0) * k} r={4} fill="none" stroke="#c8e64a" strokeWidth={1.5} />
       </svg>
     </div>

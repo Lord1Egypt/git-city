@@ -34,6 +34,9 @@ export const DRIFT_HIGHWAY_Z = -118;
 /** Where the DRIFT sign stands (lot): between the highway and the START gate, outside the site. */
 export const DRIFT_SIGN_LOT: [number, number] = [30, DRIFT_SITE.z0 - 1];
 
+/** Where "drive to the track" (its tag on the map) puts the car: on the highway by the sign, facing the gate. */
+export const DRIFT_APPROACH = { x: 30, z: DRIFT_HIGHWAY_Z, rot: 180 } as const;
+
 /** Where "back to the city" puts the car (lot, heading clockwise from north): on the highway by the sign, headed east for São Paulo. */
 export const DRIFT_EXIT = { x: 33, z: DRIFT_HIGHWAY_Z, rot: 90 } as const;
 

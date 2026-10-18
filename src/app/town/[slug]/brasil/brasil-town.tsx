@@ -30,7 +30,8 @@ import MapNavControls from "@/components/MapNavControls";
 import BrasilScene, { cityKey, type CameraApi } from "@/components/towns/brasil/BrasilScene";
 import { BRASIL_DRIFT, useBrasilDrift } from "@/components/towns/brasil/BrasilDrift";
 import { courseOf } from "@/lib/drift/spots";
-import { DRIFT_EXIT, clearOfStart, crossedStart } from "@/lib/towns/brasil-drift";
+import { DRIFT_APPROACH, DRIFT_EXIT, clearOfStart, crossedStart } from "@/lib/towns/brasil-drift";
+import { pointAt } from "@/lib/league-city/race/track";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import BrasilMinimap from "@/components/towns/brasil/BrasilMinimap";
@@ -70,6 +71,8 @@ const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"),
 /** The drive's mute switch, shared with every town. */
 const MUTE_KEY = "gc:drive-muted";
 const LIME = "#c8e64a";
+/** The drift track on the minimap: its gate's lot, in world units. */
+const DRIFT_TAG = { x: lotToWorld(DRIFT_APPROACH.x, DRIFT_APPROACH.z)[0], z: lotToWorld(DRIFT_APPROACH.x, DRIFT_APPROACH.z)[1] };
 // The HUD's surfaces: Git City's own (near-black, its borders, muted text).
 const HUD_BG = "bg-bg/90";
 const HUD_EDGE = "border-border";
@@ -85,8 +88,12 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   /** On the drift track: the town's car is parked, a drift run is on. */
   const [drifting, setDrifting] = useState(false);
   const inCar = driving || drifting;
-  /** Where the next drive starts instead of a building (back from the drift track: its gate). */
+  /** Where the next drive starts instead of a building (to or back from the drift track: the highway by its gate). */
   const [driveSpawn, setDriveSpawn] = useState<Spawn | null>(null);
+  /** Dark between the town's car and the drift run, both ways, while the next world loads. */
+  const [curtain, setCurtain] = useState<"drift" | "city" | null>(null);
+  /** Driving up to the drift gate: the prompt shows. */
+  const [nearGate, setNearGate] = useState(false);
   const [panel, setPanel] = useState<PanelId>(null);
   const [state, setState] = useState<StateStats | null>(null);
   const [focused, setFocused] = useState<CityBuilding | null>(null);
@@ -412,7 +419,10 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       onEmoteLog: emoteLog.push,
       paused,
       stallAt: null,
-      onReady: () => setDriveReady(true),
+      onReady: () => {
+        setDriveReady(true);
+        setCurtain((c) => (c === "city" ? null : c));
+      },
       onFail: exitDrive,
       spawnAt: driveSpawn,
       slug: league.slug,
@@ -483,41 +493,17 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     setDriving(true);
   };
 
-  // The drift track's gate: across the START line, the drive becomes a drift run there.
-  const enterDrift = useCallback(() => {
-    if (driveSince.current) posthog.capture("brasil_drive_ended", { seconds: Math.round((performance.now() - driveSince.current) / 1000), to: "drift" });
-    driveSince.current = 0;
-    setDriving(false);
-    setPaused(false);
-    setDrivers([]);
-    setCrownView(null);
-    emoteLog.clear();
-    setDrifting(true);
-  }, [emoteLog]);
-  useEffect(() => {
-    if (!driving || !driveReady) return;
-    const track = courseOf(BRASIL_DRIFT).track;
-    let prev: { x: number; z: number } | null = null;
-    // Just back from the track, the car stands by the gate: it takes the car again once it has driven off.
-    let armed = !driveSpawn;
-    const t = setInterval(() => {
-      const r = telemetry.radar;
-      if (!r || (!r.x && !r.z)) return;
-      const now = { x: r.x, z: r.z };
-      if (!armed) armed = clearOfStart(track, now);
-      else if (prev && crossedStart(track, prev, now)) {
-        clearInterval(t);
-        enterDrift();
-      }
-      prev = now;
-    }, 50);
-    return () => clearInterval(t);
-  }, [driving, driveReady, driveSpawn, telemetry, enterDrift]);
-  const backToCity = () => {
-    const [x, z] = lotToWorld(DRIFT_EXIT.x, DRIFT_EXIT.z);
-    setDrifting(false);
-    setDriveSpawn({ x, z, rot: DRIFT_EXIT.rot });
+  const driveFromSpawn = (spawn: Spawn) => {
+    setDriveSpawn(spawn);
     beginDrive();
+  };
+  const backToCity = () => {
+    setCurtain("city");
+    setTimeout(() => {
+      const [x, z] = lotToWorld(DRIFT_EXIT.x, DRIFT_EXIT.z);
+      setDrifting(false);
+      driveFromSpawn({ x, z, rot: DRIFT_EXIT.rot });
+    }, 280);
   };
   const drift = useBrasilDrift({
     active: drifting,
@@ -529,8 +515,77 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     onToggleMute: toggleMute,
     touch: touchUi ? touchRef : null,
     onBack: backToCity,
+    onReady: () => setCurtain((c) => (c === "drift" ? null : c)),
   });
 
+  // The drift track's gate. Across the START line the screen goes dark, the town's car is
+  // parked and the drift run sets up under the dark; it lifts on the track's card.
+  const startDrift = drift.start;
+  const enterDrift = useCallback(() => {
+    if (driveSince.current) posthog.capture("brasil_drive_ended", { seconds: Math.round((performance.now() - driveSince.current) / 1000), to: "drift" });
+    driveSince.current = 0;
+    setDriving(false);
+    setPaused(false);
+    setDrivers([]);
+    setCrownView(null);
+    setNearGate(false);
+    emoteLog.clear();
+    startDrift();
+    setDrifting(true);
+  }, [emoteLog, startDrift]);
+  useEffect(() => {
+    if (!driving || !driveReady) return;
+    const track = courseOf(BRASIL_DRIFT).track;
+    const line = pointAt(track, 0);
+    let prev: { x: number; z: number } | null = null;
+    // A car starting by the gate (back from a run) takes it again once it has driven off.
+    let armed = false;
+    let near = false;
+    const t = setInterval(() => {
+      const r = telemetry.radar;
+      if (!r || (!r.x && !r.z)) return;
+      const now = { x: r.x, z: r.z };
+      const close = Math.hypot(now.x / M_TO_UNIT - line.x, now.z / M_TO_UNIT - line.z) < 160;
+      if (close !== near) setNearGate((near = close));
+      if (!armed) armed = clearOfStart(track, now);
+      else if (prev && crossedStart(track, prev, now)) {
+        clearInterval(t);
+        setCurtain("drift");
+        setTimeout(enterDrift, 280);
+      }
+      prev = now;
+    }, 50);
+    return () => {
+      clearInterval(t);
+      setNearGate(false);
+    };
+  }, [driving, driveReady, telemetry, enterDrift]);
+  /** The track's tag on the map: down to the highway by the gate and drive from there. */
+  const driveToTrack = () => {
+    if (launching) return;
+    const dev = driveStartDev();
+    if (!dev) return;
+    const [x, z] = lotToWorld(DRIFT_APPROACH.x, DRIFT_APPROACH.z);
+    setState(null);
+    setFocused(null);
+    setBackTo(null);
+    setPanel(null);
+    setPicker(null);
+    setDriveDev(dev.id);
+    setLaunching(true);
+    posthog.capture("brasil_drift_tag_clicked", { signed_in: !!viewerLogin });
+    const go = () => {
+      setLaunching(false);
+      driveFromSpawn({ x, z, rot: DRIFT_APPROACH.rot });
+    };
+    if (camera.current) camera.current.flyToPoint(x, z, 420, go);
+    else go();
+  };
+  useEffect(() => {
+    if (!curtain) return;
+    const t = setTimeout(() => setCurtain(null), 5000);
+    return () => clearTimeout(t);
+  }, [curtain]);
   const pickState = async (uf: UF | null) => {
     setJoining({ pending: uf ?? "island", error: null });
     try {
@@ -597,6 +652,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         drive={driving && driveFrom !== null ? drive : undefined}
         drift={drift.world}
         driftBoard={drift.board}
+        onDriftTag={driveToTrack}
         smash={smash}
         pulse={pulse}
         watching={watchedCars}
@@ -724,7 +780,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           <MapNavControls camera={cameraStore} accent={LIME} showPlaces={false} />
         </div>
       )}
-      {!inCar && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} cars={carSpots} />}
+      {!inCar && <BrasilMinimap cities={layout.cities} island={layout.island} camera={cameraStore} cars={carSpots} track={DRIFT_TAG} />}
       {!inCar && (
         <span className="pointer-events-none fixed bottom-1 left-1.5 z-20 text-[9px] normal-case leading-none text-muted/60 max-sm:bottom-[66px] max-sm:text-[8px]">
           Map data: IBGE · Natural Earth
@@ -792,6 +848,17 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       )}
 
       {drift.overlay}
+      {driving && driveReady && nearGate && !paused && (
+        <div className="pointer-events-none fixed inset-x-0 top-[14%] z-30 flex justify-center font-pixel uppercase">
+          <span className="flex items-stretch text-[11px] shadow-[0_6px_0_rgba(0,0,0,0.35)] sm:text-sm">
+            <span className="bg-lime px-3 py-2 text-bg">Drift</span>
+            <span className="bg-bg/90 px-3 py-2 text-cream">
+              Cross the line to start{drift.board[0] ? <span className="text-muted"> · record {fmt(drift.board[0].score)}</span> : null}
+            </span>
+          </span>
+        </div>
+      )}
+      <div aria-hidden className={`pointer-events-none fixed inset-0 z-[60] bg-bg transition-opacity duration-300 ${curtain ? "opacity-100" : "opacity-0"}`} />
       {driving && driveReady && <AreaTitle telemetry={telemetry} cities={world.allCities} />}
       {driving && (
         <DriveHud

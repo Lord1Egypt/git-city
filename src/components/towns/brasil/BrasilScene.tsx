@@ -31,7 +31,7 @@ import { mapNav, type MapCameraStore } from "@/lib/map-nav";
 import { usePerfMode } from "@/lib/perfMode";
 import { stateOf, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import type { BoardRowLite } from "@/components/drift/DriftTitle";
-import { DriftSite } from "./BrasilDrift";
+import { DriftSite, DriftTag } from "./BrasilDrift";
 
 // The Brasil town: the country on its real outline under the towns' night
 // sky, a pale coast, the states' borders dashed in lime, a city in every
@@ -644,6 +644,8 @@ export interface BrasilSceneProps {
   drift?: ReactNode;
   /** The track's top five, for the sign by its gate. */
   driftBoard?: BoardRowLite[];
+  /** The track's tag on the map: drive there. */
+  onDriftTag?: () => void;
 }
 
 const WatchedCars = dynamic(() => import("@/components/league/drive/WatchedCars"), { ssr: false, loading: () => null });
@@ -736,7 +738,7 @@ function Pulse({ x, z }: { x: number; z: number }) {
   );
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null, fresh, offices, drivers, driverAt, drift, driftBoard = NO_BOARD }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null, fresh, offices, drivers, driverAt, drift, driftBoard = NO_BOARD, onDriftTag }: BrasilSceneProps) {
   const allCities = useMemo(() => [...cities, island], [cities, island]);
   // Phones and weak GPUs draw at a lower resolution, as in the main city (?perf=low|high overrides).
   const { mode: perf } = usePerfMode();
@@ -831,6 +833,7 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       {!driving && <NearPlates buildings={buildings} fresh={fresh} offices={offices} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} crowned={!!crowned && c.uf === crowned && !c.second} onClick={() => onTag?.(c)} />)}
       {!drifting && <DriftSite board={driftBoard} />}
+      {!driving && onDriftTag && <DriftTag record={driftBoard[0] ?? null} onClick={onDriftTag} />}
       {drift}
       {drive && !drifting && <DriveWorld objects={driveObjects} buildings={buildings} h={MAP_H} smash={smash} boxSpots={cityStreets} trees={treeBubble} {...drive} />}
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
