@@ -2,8 +2,8 @@
 // Elected every week by contributions, from the town's standings (the towns'
 // weekly race: Monday 00:00 UTC, each day capped at 100). One office per
 // person, filled from the top down: the president is the top dev in Brazil;
-// each state's governor is its top dev left, its three senators the next
-// three (three per state, as in the real Senate); each city's mayor is its
+// each state's governor is its top dev left, its senator the next one; each
+// city's mayor is its
 // top dev left (a state's second city has its own). An office nobody is left
 // for stays empty. Only devs who coded count. The founder (the first to
 // arrive in a state) is not elected and never changes. Pure.
@@ -49,7 +49,7 @@ export function brasilOffices(layout: BrasilLayout, totals: ReadonlyMap<string, 
     if (!gov) continue;
     governors.set(s.uf, gov);
     give(gov, { kind: "governor", uf: s.uf });
-    const sen = rank(inState(s.uf)).slice(0, 3);
+    const sen = rank(inState(s.uf)).slice(0, 1);
     if (sen.length) senators.set(s.uf, sen);
     for (const l of sen) give(l, { kind: "senator", uf: s.uf });
   }

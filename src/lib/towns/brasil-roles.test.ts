@@ -15,14 +15,14 @@ describe("brasilOffices", () => {
   const totals = new Map([["ana", 50], ["bia", 90], ["caio", 10], ["duda", 0], ["enzo", 70], ["fabi", 200], ["gus", 300]]);
   const o = brasilOffices(layout, totals);
   it("elects the top dev of Brazil president, the island included", () => expect(o.president).toBe("gus"));
-  it("one office each, from the top down: governor, then the next three to the Senate", () => {
+  it("one office each, from the top down: governor, then the next one to the Senate", () => {
     expect(o.governors.get("SP")).toBe("bia");
-    expect(o.senators.get("SP")).toEqual(["enzo", "ana", "caio"]);
+    expect(o.senators.get("SP")).toEqual(["enzo"]);
     expect(o.governors.get("BA")).toBe("fabi");
     expect(o.senators.has("BA")).toBe(false);
   });
   it("a mayor is whoever is left; nobody who didn't code holds anything", () => {
-    expect(o.mayors.has("São Paulo")).toBe(false);
+    expect(o.mayors.get("São Paulo")?.login).toBe("ana");
     expect(o.byLogin.has("duda")).toBe(false);
     expect(o.byLogin.get("bia")?.map(officeLabel)).toEqual(["Governor of SP"]);
     expect([...o.byLogin.values()].every((os) => os.length === 1)).toBe(true);
