@@ -574,7 +574,6 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
               onClose={() => setPicker(null)}
             />
           )}
-          {!picker && !home && !state && !focused && !panel && <FirstVisit onPut={() => openPicker(null)} />}
         </div>
       )}
 
@@ -844,60 +843,6 @@ function Arrivals({ arrivals, onPick }: { arrivals: { login: string; uf: UF | nu
       <span className="shrink-0 text-lime">{a.uf ?? "island"}</span>
       <span className="shrink-0">{ago(a.at, now)}</span>
     </button>
-  );
-}
-
-const FIRST_VISIT_KEY = "gc:brasil-how-dismissed";
-
-/** Someone not on the map yet, the first time here: the two ways in, under the search. Closed for good with ✕. */
-function FirstVisit({ onPut }: { onPut: () => void }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    let dismissed = false;
-    try {
-      dismissed = localStorage.getItem(FIRST_VISIT_KEY) === "1";
-    } catch {
-      // storage blocked: show it
-    }
-    if (dismissed) return;
-    const t = setTimeout(() => {
-      setOpen(true);
-      posthog.capture("brasil_first_visit_shown");
-    }, 900);
-    return () => clearTimeout(t);
-  }, []);
-  if (!open) return null;
-  const close = (put = false) => {
-    posthog.capture("brasil_first_visit_closed", { put });
-    setOpen(false);
-    try {
-      localStorage.setItem(FIRST_VISIT_KEY, "1");
-    } catch {
-      // storage blocked
-    }
-  };
-  return (
-    <div className="pointer-events-auto mt-1 w-full border-[3px] border-border bg-bg/95 p-3 font-pixel uppercase backdrop-blur-sm animate-[fade-in_0.3s_ease-out] sm:w-[min(420px,calc(100vw-32px))]">
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <p className="text-[11px] text-cream">Get your building on the map</p>
-        <button type="button" onClick={() => close()} aria-label="Close" className="text-[10px] text-muted hover:text-cream">
-          ✕
-        </button>
-      </div>
-      <p className="text-[10px] normal-case leading-relaxed text-muted">
-        Comment your GitHub username and your state on <span className="text-cream">@samuelrizzondev</span>&apos;s reel, or put it here yourself: your building goes up in your state&apos;s city.
-      </p>
-      <button
-        type="button"
-        onClick={() => {
-          close(true);
-          onPut();
-        }}
-        className="btn-press mt-2.5 w-full border-2 border-lime bg-lime py-1.5 text-[10px] text-bg"
-      >
-        Put my building
-      </button>
-    </div>
   );
 }
 
