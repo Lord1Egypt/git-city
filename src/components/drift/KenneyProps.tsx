@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
@@ -11,9 +11,7 @@ import { MODELS, type PropItem, type PropKind } from "@/lib/drift/props";
 // rocks and logs, the City Kit Industrial's containers and tanks. Each model
 // is fitted to a size in meters (the kits use different scales), centered on
 // its footprint, and drawn as one instanced mesh per part, so a hundred trees
-// cost what one does. Positions are meters, like the track. `tone` darkens
-// their colors for a scene lit hotter than the drift spots' afternoon (a
-// town's night, drawn at a higher exposure).
+// cost what one does. Positions are meters, like the track.
 
 const U = M_TO_UNIT;
 const _m = new THREE.Matrix4();
@@ -52,29 +50,8 @@ function useParts(kind: PropKind): Part[] {
   }, [gltf, def]);
 }
 
-/** The part's material, its colors scaled by `tone` (a copy, so other scenes keep theirs). */
-function useToned(material: Part["material"], tone: number): Part["material"] {
-  const toned = useMemo(() => {
-    if (tone === 1) return null;
-    const one = (m: THREE.Material) => {
-      const c = m.clone();
-      (c as THREE.MeshStandardMaterial).color?.multiplyScalar(tone);
-      return c;
-    };
-    return Array.isArray(material) ? material.map(one) : one(material);
-  }, [material, tone]);
-  useEffect(
-    () => () => {
-      if (toned) (Array.isArray(toned) ? toned : [toned]).forEach((m) => m.dispose());
-    },
-    [toned],
-  );
-  return toned ?? material;
-}
-
-function PartMesh({ part, items, tone }: { part: Part; items: PropItem[]; tone: number }) {
+function PartMesh({ part, items }: { part: Part; items: PropItem[] }) {
   const ref = useRef<THREE.InstancedMesh>(null);
-  const material = useToned(part.material, tone);
   useLayoutEffect(() => {
     const m = ref.current;
     if (!m) return;
@@ -89,21 +66,21 @@ function PartMesh({ part, items, tone }: { part: Part; items: PropItem[]; tone: 
     m.instanceMatrix.needsUpdate = true;
     m.computeBoundingSphere();
   }, [items, part]);
-  return <instancedMesh key={items.length} ref={ref} args={[part.geometry, material, items.length]} castShadow={false} receiveShadow={false} />;
+  return <instancedMesh key={items.length} ref={ref} args={[part.geometry, part.material, items.length]} castShadow={false} receiveShadow={false} />;
 }
 
-function Kind({ kind, items, tone }: { kind: PropKind; items: PropItem[]; tone: number }) {
+function Kind({ kind, items }: { kind: PropKind; items: PropItem[] }) {
   const parts = useParts(kind);
   return (
     <>
       {parts.map((p, i) => (
-        <PartMesh key={i} part={p} items={items} tone={tone} />
+        <PartMesh key={i} part={p} items={items} />
       ))}
     </>
   );
 }
 
-export default function KenneyProps({ items, tone = 1 }: { items: PropItem[]; tone?: number }) {
+export default function KenneyProps({ items }: { items: PropItem[] }) {
   const byKind = useMemo(() => {
     const map = new Map<PropKind, PropItem[]>();
     for (const it of items) {
@@ -116,7 +93,7 @@ export default function KenneyProps({ items, tone = 1 }: { items: PropItem[]; to
   return (
     <>
       {byKind.map(([kind, list]) => (
-        <Kind key={kind} kind={kind} items={list} tone={tone} />
+        <Kind key={kind} kind={kind} items={list} />
       ))}
     </>
   );

@@ -16,6 +16,7 @@ import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import DriftCamera from "./DriftCamera";
 import HarborGround from "./HarborGround";
 import KenneyProps from "./KenneyProps";
+import Toned from "./Toned";
 import { bounds, sceneryFor } from "@/lib/drift/scenery";
 import { Ghost } from "@/components/race/Ghost";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
@@ -83,8 +84,8 @@ export interface DriftWorldProps {
   carOutRef?: React.MutableRefObject<CarApi | null>;
   /** The spot's own ground instead of the race track's grass; null for none (a town's track sits on the town's land). */
   ground?: ReactNode;
-  /** How much the scenery's colors are darkened (1: as modeled), for a scene lit hotter than the spots' afternoon. */
-  propTone?: number;
+  /** How much the track's and the scenery's colors are darkened (1: as made), for a scene lit hotter than the spots' afternoon. */
+  tone?: number;
 }
 
 const U = M_TO_UNIT;
@@ -176,7 +177,7 @@ export default function DriftWorld({
   touch,
   carOutRef,
   ground,
-  propTone = 1,
+  tone = 1,
   slot = 0,
 }: DriftWorldProps) {
   const track = course.track;
@@ -428,12 +429,14 @@ export default function DriftWorld({
 
   return (
     <Boundary onFail={onFail}>
-      <TrackScene track={track} lit={lit} title={title} grass={ground === undefined && spot.id !== "harbor"} stands={false} trees={false}>
-        {ground ?? (spot.id === "harbor" && <HarborGround track={track} />)}
-        <Suspense fallback={null}>
-          <KenneyProps items={scenery} tone={propTone} />
-        </Suspense>
-      </TrackScene>
+      <Toned tone={tone}>
+        <TrackScene track={track} lit={lit} title={title} grass={ground === undefined && spot.id !== "harbor"} stands={false} trees={false}>
+          {ground ?? (spot.id === "harbor" && <HarborGround track={track} />)}
+          <Suspense fallback={null}>
+            <KenneyProps items={scenery} />
+          </Suspense>
+        </TrackScene>
+      </Toned>
       <Suspense fallback={null}>
         <Physics timeStep={1 / 60} interpolate paused={hidden || paused} gravity={[0, GRAVITY, 0]} updatePriority={-50}>
           <Walls track={track} />
