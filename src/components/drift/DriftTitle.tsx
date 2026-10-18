@@ -86,6 +86,7 @@ export default function DriftTitle({
   rival,
   onStart,
   onSpots,
+  exitLabel = "Spots",
 }: {
   spot: LiveSpot;
   best: number | null;
@@ -96,6 +97,8 @@ export default function DriftTitle({
   rival: string | null;
   onStart: () => void;
   onSpots: () => void;
+  /** The way out when it isn't the spots (a town's track: back to the city). */
+  exitLabel?: string;
 }) {
   const medals = medalScores(spot);
   const top = board.slice(0, 3);
@@ -172,7 +175,7 @@ export default function DriftTitle({
       {/* What to do */}
       <div className="pointer-events-auto absolute bottom-[4vh] left-4 right-4 flex items-stretch md:bottom-[6vh] md:left-auto md:right-[6vw]">
         <button type="button" onClick={onSpots} className="drift-band flex items-center gap-3 bg-[#141417] px-5 text-cream shadow-[0_6px_0_rgba(0,0,0,0.35)] hover:text-lime" style={{ fontSize: TEXT.body, animationDelay: "560ms" }}>
-          <Chip>Esc</Chip> Spots
+          <Chip>Esc</Chip> {exitLabel}
         </button>
         <button type="button" onClick={onStart} autoFocus className="drift-band flex flex-1 items-center justify-center gap-3 bg-cream px-7 py-4 text-bg shadow-[0_6px_0_rgba(0,0,0,0.35)] outline-none hover:bg-lime focus-visible:bg-lime" style={{ fontSize: TEXT.big, animationDelay: "600ms" }}>
           <Chip tone="dark">Enter</Chip> Drift

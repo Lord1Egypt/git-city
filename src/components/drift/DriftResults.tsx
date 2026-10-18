@@ -49,6 +49,8 @@ export interface DriftResultsProps {
   onSpots: () => void;
   /** A town's track: its own words for again and the way out, and the page sign-in and challenges come back to. */
   town?: { again: string; exit: string; path: string };
+  /** The left of the screen, under the blur once the rows are in (a town's track: its medals and board). */
+  aside?: React.ReactNode;
 }
 
 const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
@@ -139,7 +141,8 @@ export default function DriftResults(p: DriftResultsProps) {
 
       {showing && (
         <>
-          <Backdrop side="right" />
+          <Backdrop side={p.aside ? undefined : "right"} />
+          {beat >= 3 && p.aside && <div className="absolute left-[6vw] top-[10vh] hidden w-[min(440px,34vw)] flex-col md:flex">{p.aside}</div>}
           <div className="absolute left-4 right-4 top-[5vh] flex flex-col items-stretch md:left-auto md:right-[6vw] md:top-[10vh] md:w-[min(620px,46vw)]">
             <Band className="justify-between px-5 py-2.5" style={{ fontSize: T.small }}>
               <span className="text-lime">{p.spot.name} · finish</span>

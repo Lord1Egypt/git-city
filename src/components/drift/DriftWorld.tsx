@@ -81,7 +81,7 @@ export interface DriftWorldProps {
   slot?: number;
   /** Your car for the page (the live room streams it); null once this world unmounts. */
   carOutRef?: React.MutableRefObject<CarApi | null>;
-  /** The spot's own ground instead of the race track's grass (a town's track lays its land). */
+  /** The spot's own ground instead of the race track's grass; null for none (a town's track sits on the town's land). */
   ground?: ReactNode;
 }
 
@@ -425,7 +425,7 @@ export default function DriftWorld({
 
   return (
     <Boundary onFail={onFail}>
-      <TrackScene track={track} lit={lit} title={title} grass={!ground && spot.id !== "harbor"} stands={false} trees={false}>
+      <TrackScene track={track} lit={lit} title={title} grass={ground === undefined && spot.id !== "harbor"} stands={false} trees={false}>
         {ground ?? (spot.id === "harbor" && <HarborGround track={track} />)}
         <Suspense fallback={null}>
           <KenneyProps items={scenery} />
