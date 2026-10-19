@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { timedFetch } from "./supabase-fetch";
 
 /** Server-side Supabase client with cookie-based auth (for Server Components & Route Handlers) */
 export async function createServerSupabase() {
@@ -9,6 +10,7 @@ export async function createServerSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: timedFetch(10_000) },
       cookies: {
         getAll() {
           return cookieStore.getAll();

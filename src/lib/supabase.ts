@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createBrowserClient } from "@supabase/ssr";
+import { timedFetch } from "./supabase-fetch";
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null;
 
@@ -22,7 +23,7 @@ export function getSupabaseAdmin(): SupabaseClient {
   adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
+    { auth: { persistSession: false }, global: { fetch: timedFetch(15_000) } }
   );
   return adminClient;
 }

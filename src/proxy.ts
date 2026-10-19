@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { rateLimit } from "@/lib/rate-limit";
+import { timedFetch } from "@/lib/supabase-fetch";
 
 // ---------------------------------------------------------------------------
 // Route-specific rate limits: [maxRequests, windowMs]
@@ -162,6 +163,8 @@ export async function proxy(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
+        // Only refreshes the session: when auth is slow the page goes on without it, not after a minute.
+        global: { fetch: timedFetch(4_000) },
         cookies: {
           getAll() {
             return request.cookies.getAll();
@@ -179,7 +182,7 @@ export async function proxy(request: NextRequest) {
       },
     );
 
-    await supabase.auth.getUser();
+    await supabase.auth.getUser().catch(() => {});
   }
 
   // ── 3. Security headers ─────────────────────────────────────────────
