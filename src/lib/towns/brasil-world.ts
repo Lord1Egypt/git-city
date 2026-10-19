@@ -3,8 +3,9 @@
 // (lib/league-city/types), so the towns' renderers and drive mode take them
 // as they are: streets and highways, a building per dev, a fountain in every
 // square, a lamp on every block's corners, trees along the sidewalks and on
-// the lawns, a strip of woods round every city, copses out in the country,
-// palms round the island, and the leading state's blimp. Deterministic for
+// the lawns, a strip of woods round every city, copses out in the country
+// (never on the drift track), palms round the island, and the leading
+// state's blimp. Deterministic for
 // a seed, so the same devs give the same map.
 
 import type { CityBuilding } from "../github";
@@ -12,6 +13,7 @@ import { LOT } from "../league-city/grid";
 import { RAMP } from "../league-city/ramp";
 import { faceRoad, lotKey } from "../league-city/placement";
 import type { CityObject, TreeType } from "../league-city/types";
+import { inDriftSite } from "./brasil-drift";
 import { STATE_RINGS, inState, onLand } from "./brasil-geo";
 import { CITY, ranking, type BrasilLayout, type MapDev, type UF } from "./brasil-map";
 
@@ -40,8 +42,13 @@ export function brasilWorld(layout: BrasilLayout, building: (dev: MapDev, founde
   const byDevId = new Map<number, CityBuilding>();
   const item = (id: string, type: CityObject["item_type"], x: number, z: number, extra: Partial<CityObject> = {}) =>
     objects.push({ id, kind: "item", item_type: type, developer_id: null, x, z, px: null, pz: null, rot: 0, is_new: false, ...extra });
-  const tree = (id: string, types: TreeType[], wx: number, wz: number) =>
-    item(id, types[Math.floor(rand() * types.length)], Math.round(wx / LOT), Math.round(wz / LOT), { px: wx, pz: wz, rot: Math.floor(rand() * 360) });
+  const tree = (id: string, types: TreeType[], wx: number, wz: number) => {
+    const type = types[Math.floor(rand() * types.length)];
+    const rot = Math.floor(rand() * 360);
+    // None on the drift track (drawn after the dice, so every other tree stays where it was).
+    const [x, z] = [Math.round(wx / LOT), Math.round(wz / LOT)];
+    if (!inDriftSite(x, z)) item(id, type, x, z, { px: wx, pz: wz, rot });
+  };
 
   const all = [...layout.cities, layout.island];
   // Every lot a city or a highway uses: the woods stay off them.

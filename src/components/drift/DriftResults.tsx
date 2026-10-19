@@ -47,13 +47,17 @@ export interface DriftResultsProps {
   onRetryPost: () => void;
   onRaceGhost: (login: string) => void;
   onSpots: () => void;
+  /** A town's track: its own words for again and the way out, and the page sign-in and challenges come back to. */
+  town?: { again: string; exit: string; path: string };
+  /** The left of the screen, under the blur once the rows are in (a town's track: its medals and board). */
+  aside?: React.ReactNode;
 }
 
 const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
 const T = { hero: "clamp(40px, min(11vh, 14vw), 128px)", big: "clamp(16px, min(3vh, 4.4vw), 34px)", body: "clamp(11px, min(1.8vh, 3.2vw), 19px)", small: "clamp(10px, min(1.4vh, 2.6vw), 15px)" };
 
 /** Rows around a score that isn't on the board yet: two above, you, two below. */
-function projected(board: BoardRowLite[], score: number, you: string): BoardRowLite[] {
+export function projected(board: BoardRowLite[], score: number, you: string): BoardRowLite[] {
   const others = board.filter((r) => r.login.toLowerCase() !== you.toLowerCase());
   const at = others.filter((r) => r.score > score).length;
   const rows: BoardRowLite[] = others.slice(Math.max(0, at - 2), at).map((r, i, a) => ({ ...r, rank: at - a.length + i + 1 }));
@@ -94,9 +98,10 @@ export default function DriftResults(p: DriftResultsProps) {
   }, [showing, p.score]);
 
   const cb = useRef({ p, challenge: () => {} });
+  const home = p.town?.path ?? `/drift/${p.spot.id}`;
   const challenge = () => {
     if (!p.you) return;
-    const url = `${window.location.origin}/drift/${p.spot.id}?vs=${encodeURIComponent(p.you)}`;
+    const url = p.town ? `${window.location.origin}${home}` : `${window.location.origin}${home}?vs=${encodeURIComponent(p.you)}`;
     navigator.clipboard?.writeText(url).then(
       () => setCopied(true),
       () => setCopied(false),
@@ -121,7 +126,7 @@ export default function DriftResults(p: DriftResultsProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const signIn = () => void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=/drift/${p.spot.id}`);
+  const signIn = () => void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?next=${home}`);
   const act = "drift-band flex items-center gap-3 shadow-[0_6px_0_rgba(0,0,0,0.35)]";
 
   return (
@@ -136,7 +141,8 @@ export default function DriftResults(p: DriftResultsProps) {
 
       {showing && (
         <>
-          <Backdrop side="right" />
+          <Backdrop side={p.aside ? undefined : "right"} />
+          {beat >= 3 && p.aside && <div className="absolute left-[6vw] top-[10vh] hidden w-[min(440px,34vw)] flex-col md:flex">{p.aside}</div>}
           <div className="absolute left-4 right-4 top-[5vh] flex flex-col items-stretch md:left-auto md:right-[6vw] md:top-[10vh] md:w-[min(620px,46vw)]">
             <Band className="justify-between px-5 py-2.5" style={{ fontSize: T.small }}>
               <span className="text-lime">{p.spot.name} · finish</span>
@@ -235,7 +241,7 @@ export default function DriftResults(p: DriftResultsProps) {
           {beat >= 3 && (
             <div className="pointer-events-auto absolute bottom-[4vh] left-4 right-4 grid grid-cols-2 items-stretch md:bottom-[6vh] md:left-auto md:right-[6vw] md:flex md:flex-wrap md:justify-end" style={{ fontSize: T.body }}>
               <button type="button" onClick={p.onSpots} className={`${act} bg-[#141417] px-4 text-cream hover:text-lime`} style={{ animationDelay: "560ms" }}>
-                <Chip>Esc</Chip> Spots
+                <Chip>Esc</Chip> {p.town?.exit ?? "Spots"}
               </button>
               {p.post.status === "signed-out" && (
                 <button type="button" onClick={signIn} className={`${act} bg-[#141417] px-4 text-lime`} style={{ animationDelay: "520ms" }}>
@@ -263,7 +269,7 @@ export default function DriftResults(p: DriftResultsProps) {
                 </button>
               )}
               <button type="button" onClick={p.onRetry} autoFocus className={`${act} col-span-2 justify-center bg-cream px-7 py-4 text-bg outline-none hover:bg-lime focus-visible:bg-lime`} style={{ fontSize: T.big, animationDelay: "420ms" }}>
-                <Chip tone="dark">R</Chip> Again
+                <Chip tone="dark">R</Chip> {p.town?.again ?? "Again"}
               </button>
             </div>
           )}

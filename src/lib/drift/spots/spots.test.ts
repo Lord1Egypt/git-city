@@ -3,10 +3,10 @@ import { offsetAt } from "../../league-city/race/layout";
 import { finishOf } from "../../league-city/race/track";
 import { TICK_MS, type Frames } from "../frames";
 import { validateRun } from "../validate";
-import { SPOTS, courseOf, getLiveSpot } from "./index";
+import { SPOTS, TOWN_SPOTS, courseOf, getLiveSpot, getSpot } from "./index";
 import { medalFor, medalScores, type LiveSpot } from "./types";
 
-const live = SPOTS.filter((s): s is LiveSpot => s.status === "live");
+const live = [...SPOTS.filter((s): s is LiveSpot => s.status === "live"), ...TOWN_SPOTS];
 
 /** Frames of a car driving the line of pole position (a quarter of the width left of center) at `speed` m/s from the grid to past the finish. */
 function lap(spot: LiveSpot, speed = 18): Frames {
@@ -96,5 +96,18 @@ describe("the spot list", () => {
     ]);
     expect(getLiveSpot("spiral")).toBeNull();
     expect(getLiveSpot("nope")).toBeNull();
+  });
+
+  it("keeps a town's track off the list but live for runs and boards", () => {
+    expect(getSpot("brasil")).toBeNull();
+    expect(getLiveSpot("brasil")?.id).toBe("brasil");
+    for (const t of TOWN_SPOTS) expect(t.id).toMatch(/^[a-z0-9-]{1,32}$/);
+  });
+
+  it("gives the Brasil town a track of its own, not Harbor's laid again", () => {
+    const harbor = courseOf(getLiveSpot("harbor")!).track;
+    const brasil = courseOf(getLiveSpot("brasil")!).track;
+    expect(Math.abs(brasil.length - harbor.length)).toBeGreaterThan(20);
+    expect(brasil.checkpoints.length).not.toBe(harbor.checkpoints.length);
   });
 });

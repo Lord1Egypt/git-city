@@ -7,7 +7,7 @@ import type { Surface } from "../../league-city/drive/surface";
 import type { TrackSpec } from "../../league-city/race/track";
 import type { Clip } from "../score";
 
-export type SpotId = "harbor" | "touge" | "cold-storage" | "salt-flat" | "permafrost" | "spiral";
+export type SpotId = "harbor" | "touge" | "brasil" | "cold-storage" | "salt-flat" | "permafrost" | "spiral";
 
 export interface LiveSpot {
   id: SpotId;

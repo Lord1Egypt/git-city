@@ -1,7 +1,7 @@
 "use client";
 
 import "@/lib/silenceThreeClockWarning";
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, MapControls } from "@react-three/drei";
@@ -31,6 +31,8 @@ import { MAP_BOUNDS, MAP_H, OUTLINE, RIVERS, STATE_RINGS, type Ring } from "@/li
 import { mapNav, type MapCameraStore } from "@/lib/map-nav";
 import { usePerfMode } from "@/lib/perfMode";
 import { stateOf, type CityLayout, type UF } from "@/lib/towns/brasil-map";
+import type { BoardRowLite } from "@/components/drift/DriftTitle";
+import { DriftSite, DriftTag } from "./BrasilDrift";
 
 // The Brasil town: the country on its real outline under the towns' night
 // sky, a pale coast, the states' borders dashed in lime, a city in every
@@ -39,6 +41,8 @@ import { stateOf, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 // Over every city floats its tag (the state, the founder, how many devs);
 // a tag flies the camera to its city. The camera is a map's: drag to pan,
 // right-drag to turn, scroll to zoom. Drive mode is the towns' (DriveWorld).
+// Between São Paulo and Rio lies the drift track (BrasilDrift): crossing its
+// START line swaps the town's car for a drift run (DriftWorld) right there.
 
 const DriveWorld = dynamic(() => import("@/components/league/drive/DriveWorld"), { ssr: false, loading: () => null });
 
@@ -637,6 +641,12 @@ export interface BrasilSceneProps {
   watching?: CarFeed[];
   /** A lot just taken: a lime ring spreads from it once (a new key plays it again). */
   pulse?: { x: number; z: number; key: number } | null;
+  /** A drift run on the town's track: its world, in place of the town's car. */
+  drift?: ReactNode;
+  /** The track's top five, for the sign by its gate. */
+  driftBoard?: BoardRowLite[];
+  /** The track's tag on the map: drive there. */
+  onDriftTag?: () => void;
 }
 
 const WatchedCars = dynamic(() => import("@/components/league/drive/WatchedCars"), { ssr: false, loading: () => null });
@@ -692,6 +702,7 @@ function DriverPin({ id, name, at }: { id: string; name: string; at: (id: string
 }
 
 const PULSE_S = 1.8;
+const NO_BOARD: BoardRowLite[] = [];
 
 /** Three lime rings spreading from a lot and fading, once. */
 function Pulse({ x, z }: { x: number; z: number }) {
@@ -728,20 +739,22 @@ function Pulse({ x, z }: { x: number; z: number }) {
   );
 }
 
-export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null, fresh, offices, drivers, driverAt }: BrasilSceneProps) {
+export default function BrasilScene({ cities, island, objects, buildings, cameraApi, cameraStore, onTag, onBuildingClick, focused = null, drive, smash, pulse = null, watching, onCity, cameraStart = null, stats = false, crowned = null, fresh, offices, drivers, driverAt, drift, driftBoard = NO_BOARD, onDriftTag }: BrasilSceneProps) {
   const allCities = useMemo(() => [...cities, island], [cities, island]);
   // Phones and weak GPUs draw at a lower resolution, as in the main city (?perf=low|high overrides).
   const { mode: perf } = usePerfMode();
   // Dev only: ?off=ground,roads hides layers, to see what each one costs.
   const [hidden] = useState(() => (stats && typeof window !== "undefined" ? new Set((new URLSearchParams(window.location.search).get("off") ?? "").split(",")) : new Set<string>()));
   const off = (layer: string) => hidden.has(layer);
-  const driving = !!drive;
+  const drifting = !!drift;
+  const driving = !!drive || drifting;
   const [near, setNear] = useState(false);
   // Driving: the trees fall instead of stopping the car (LeagueTrees' knock, so they're out of the colliders),
   // and the lamps and fountains round where the car starts are physics props you can knock over (thousands
   // of them across the country would be too many bodies); their standing copies hide while you drive.
   const spawnAt = useMemo(() => {
     if (!drive) return null;
+    if (drive.spawnAt) return [drive.spawnAt.x, drive.spawnAt.z] as [number, number];
     const o = objects.find((x) => x.kind === "building" && x.developer_id === drive.viewerDevId);
     return o ? lotToWorld(o.x, o.z) : null;
   }, [objects, drive]);
@@ -821,7 +834,10 @@ export default function BrasilScene({ cities, island, objects, buildings, camera
       {smash && !off("buildings") && <RubbleFlags store={smash} />}
       {!driving && <NearPlates buildings={buildings} fresh={fresh} offices={offices} />}
       {!driving && [...cities, island].map((c) => <Tag key={`${c.uf ?? "island"}-${c.second ? 2 : 1}`} city={c} near={near} crowned={!!crowned && c.uf === crowned && !c.second} onClick={() => onTag?.(c)} />)}
-      {driving && drive && <DriveWorld objects={driveObjects} buildings={buildings} h={MAP_H} smash={smash} boxSpots={cityStreets} trees={treeBubble} {...drive} />}
+      {!drifting && <DriftSite board={driftBoard} />}
+      {!driving && onDriftTag && <DriftTag record={driftBoard[0] ?? null} onClick={onDriftTag} />}
+      {drift}
+      {drive && !drifting && <DriveWorld objects={driveObjects} buildings={buildings} h={MAP_H} smash={smash} boxSpots={cityStreets} trees={treeBubble} {...drive} />}
       {pulse && !driving && <Pulse key={pulse.key} x={pulse.x} z={pulse.z} />}
       {stats && <Stats />}
       {!driving && watching && watching.length > 0 && <WatchedCars cars={watching} />}

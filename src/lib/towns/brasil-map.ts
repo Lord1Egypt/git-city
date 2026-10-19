@@ -22,6 +22,7 @@
 // Pure: lots in, lots out (lib/league-city/grid).
 
 import { LOT } from "../league-city/grid";
+import { inDriftSite } from "./brasil-drift";
 import { CAPITALS, ISLAND, SECOND_CITIES, coastDistance, inState, onLand, project, stateMiddle } from "./brasil-geo";
 
 export type UF =
@@ -242,7 +243,8 @@ function planOf(owner: Owner, hubIndex: number = owner === "island" ? HUB.island
   const fits =
     owner === "island"
       ? (x: number, z: number) => !onLand(x * LOT, z * LOT) && coastDistance(x * LOT, z * LOT) >= CITY.islandShore * LOT
-      : (x: number, z: number) => onLand(x * LOT, z * LOT) && coastDistance(x * LOT, z * LOT) >= coast;
+      : // The drift track's lots are nobody's: no block, no avenue grows into them.
+        (x: number, z: number) => onLand(x * LOT, z * LOT) && coastDistance(x * LOT, z * LOT) >= coast && !inDriftSite(x, z);
   const phase = hash(seed, 7, 3) * Math.PI * 2;
   const wob = (a: number) => 1 + CITY.wobble * (0.6 * Math.sin(2 * a + phase) + 0.4 * Math.sin(3 * a + phase * 1.7));
   const order: { b: [number, number]; d: number }[] = [];
@@ -326,11 +328,13 @@ export class BrasilPlacer {
     }
   }
 
-  /** Whether a city may start using a block: on its land, and nobody else's ground. */
+  /** Whether a city may start using a block: on its land, nobody else's ground, its streets off the drift track. */
   private free(plan: Plan, block: [number, number]): boolean {
     const [hx, hz] = plan.at;
     for (let lx = hx + block[0] * P; lx <= hx + block[0] * P + P; lx++) {
       for (let lz = hz + block[1] * P; lz <= hz + block[1] * P + P; lz++) {
+        // Its streets too stay off the drift track.
+        if (inDriftSite(lx, lz)) return false;
         const c = this.claims.get(key(lx, lz));
         if (c && c !== plan.id) return false;
       }
@@ -484,8 +488,8 @@ export function layoutBrasil(devs: readonly MapDev[]): BrasilLayout {
 
 /**
  * Each capital to its two nearest, once per pair: out along one's east-west
- * avenue, in along the other's north-south one. Never over a building, a lawn
- * or the sea (a highway through a city runs on its streets).
+ * avenue, in along the other's north-south one. Never over a building, a lawn,
+ * the sea or the drift track (a highway through a city runs on its streets).
  */
 function highways(cities: CityLayout[]): [number, number][] {
   const blocked = new Set(cities.flatMap((c) => [...c.devs.map((d) => key(d.x, d.z)), ...c.lawns.map((l) => l.join()), c.center.join()]));
@@ -499,7 +503,7 @@ function highways(cities: CityLayout[]): [number, number][] {
     for (let z = Math.min(az, bz); z <= Math.max(az, bz); z++) lots.push([bx, z]);
     for (const [x, z] of lots) {
       const k = key(x, z);
-      if (!blocked.has(k) && !streets.has(k) && onLand(x * LOT, z * LOT)) out.add(k);
+      if (!blocked.has(k) && !streets.has(k) && onLand(x * LOT, z * LOT) && !inDriftSite(x, z)) out.add(k);
     }
   };
   const capitals = cities.filter((c) => !c.second);

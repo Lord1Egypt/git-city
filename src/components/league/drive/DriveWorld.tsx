@@ -17,7 +17,7 @@ import { CONE, CRATE } from "@/lib/league-city/toys";
 import type { CityBuilding } from "@/lib/github";
 import type { CityObject } from "@/lib/league-city/types";
 import { buildColliders, colliderKey, type ColliderSpec } from "@/lib/league-city/drive/colliders";
-import { spawnPoint } from "@/lib/league-city/drive/spawn";
+import { spawnPoint, type Spawn } from "@/lib/league-city/drive/spawn";
 import type { IntroPose } from "@/lib/league-city/intro";
 import type { TouchDrive } from "@/lib/league-city/drive/touch";
 import type { DriveCameraMode, DriveTelemetry } from "@/lib/league-city/drive/telemetry";
@@ -59,6 +59,8 @@ export interface DriveWorldProps {
   viewerDevId: number | null;
   /** Start at this dev's building instead of yours (the knocked-down email's Hit back). */
   spawnDevId?: number | null;
+  /** Start here instead of at a building (back from a town's drift track). */
+  spawnAt?: Spawn | null;
   /** The town intro is driving the car (see Car); input and the drive camera wait for it. */
   scripted?: React.MutableRefObject<IntroPose | null>;
   /** The intro still has the camera and the controls. */
@@ -272,6 +274,7 @@ export default function DriveWorld({
   h,
   viewerDevId,
   spawnDevId = null,
+  spawnAt = null,
   scripted,
   cinematic = false,
   seamless = false,
@@ -350,7 +353,7 @@ export default function DriveWorld({
   const smashApi = useRef<SmashApi | null>(null);
   const fixed = useMemo(() => specs.filter((s) => s.body === "fixed"), [specs]);
   const dynamic = useMemo(() => specs.filter((s) => s.body === "dynamic"), [specs]);
-  const spawn = useMemo(() => spawnPoint(objects, spawnDevId ?? viewerDevId, h), [objects, spawnDevId, viewerDevId, h]);
+  const spawn = useMemo(() => spawnAt ?? spawnPoint(objects, spawnDevId ?? viewerDevId, h), [spawnAt, objects, spawnDevId, viewerDevId, h]);
 
   const stallRef = useRef<number | null>(stallAt);
   useEffect(() => {

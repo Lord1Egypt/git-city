@@ -11,12 +11,12 @@ import SkidMarks from "@/components/league/drive/SkidMarks";
 import { CameraKey, DriveAudio, LocalFx } from "@/components/league/drive/carFx";
 import type { FxSource } from "@/components/league/drive/fx";
 import { useDriveInput } from "@/components/league/drive/useDriveInput";
-import TrackScene from "@/components/race/TrackScene";
+import TrackScene, { DAY_PALETTE, NIGHT_PALETTE } from "@/components/race/TrackScene";
 import type { DriveCameraMode } from "@/lib/league-city/drive/telemetry";
 import DriftCamera from "./DriftCamera";
 import HarborGround from "./HarborGround";
-import KenneyProps from "./KenneyProps";
-import { sceneryFor } from "@/lib/drift/scenery";
+import KenneyProps, { NIGHT_PAINT } from "./KenneyProps";
+import { bounds, sceneryFor } from "@/lib/drift/scenery";
 import { Ghost } from "@/components/race/Ghost";
 import type { Spawn } from "@/lib/league-city/drive/spawn";
 import type { TouchDrive } from "@/lib/league-city/drive/touch";
@@ -81,6 +81,10 @@ export interface DriftWorldProps {
   slot?: number;
   /** Your car for the page (the live room streams it); null once this world unmounts. */
   carOutRef?: React.MutableRefObject<CarApi | null>;
+  /** The spot's own ground instead of the race track's grass; null for none (a town's track sits on the town's land). */
+  ground?: ReactNode;
+  /** In a town at night: the track and its scenery in the dark set, as deep as the town's buildings. */
+  night?: boolean;
 }
 
 const U = M_TO_UNIT;
@@ -116,10 +120,15 @@ const rotOf = (heading: number) => ((Math.PI - heading) * 180) / Math.PI;
 
 function Walls({ track }: { track: Track }) {
   const segs = useMemo(() => wallSegments(track), [track]);
+  // The floor under the track's middle: a town's track sits far from the origin.
+  const mid = useMemo(() => {
+    const b = bounds(track);
+    return [(b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2];
+  }, [track]);
   const h = track.spec.wallHeight / 2;
   return (
     <RigidBody type="fixed" colliders={false}>
-      <CuboidCollider args={[2000, 1, 2000]} position={[0, -1, 0]} friction={0.6} />
+      <CuboidCollider args={[2000, 1, 2000]} position={[mid[0], -1, mid[1]]} friction={0.6} />
       {segs.map((w) => (
         <CuboidCollider
           key={`${w.side}:${w.i}:${w.x}`}
@@ -166,6 +175,8 @@ export default function DriftWorld({
   onFail,
   touch,
   carOutRef,
+  ground,
+  night = false,
   slot = 0,
 }: DriftWorldProps) {
   const track = course.track;
@@ -417,10 +428,10 @@ export default function DriftWorld({
 
   return (
     <Boundary onFail={onFail}>
-      <TrackScene track={track} lit={lit} title={title} grass={spot.id !== "harbor"} stands={false} trees={false}>
-        {spot.id === "harbor" && <HarborGround track={track} />}
+      <TrackScene track={track} lit={lit} title={title} grass={ground === undefined && spot.id !== "harbor"} stands={false} trees={false} palette={night ? NIGHT_PALETTE : DAY_PALETTE}>
+        {ground ?? (spot.id === "harbor" && <HarborGround track={track} />)}
         <Suspense fallback={null}>
-          <KenneyProps items={scenery} />
+          <KenneyProps items={scenery} paint={night ? NIGHT_PAINT : null} />
         </Suspense>
       </TrackScene>
       <Suspense fallback={null}>

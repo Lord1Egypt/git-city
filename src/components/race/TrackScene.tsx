@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
@@ -17,12 +17,37 @@ import { RACE } from "@/lib/league-city/race/race";
 
 const U = M_TO_UNIT;
 export const GRASS = "#4f9e3c";
-const ASPHALT = "#454b57";
-const LINE = "#ffffff";
-const CURB_RED = "#e0323c";
-const CURB_WHITE = "#f2f2f2";
-const WALL_A = "#2f6fe4";
-const WALL_B = "#eef0f4";
+/** The track's colors. A town's night lights everything hot (its buildings are near-black), so a track there takes the dark set. */
+export interface TrackPalette {
+  asphalt: string;
+  line: string;
+  curb: [string, string];
+  wall: [string, string];
+  checker: [string, string];
+  /** The corner boards: board, chevrons. */
+  chevron: [string, string];
+}
+
+export const DAY_PALETTE: TrackPalette = {
+  asphalt: "#454b57",
+  line: "#ffffff",
+  curb: ["#e0323c", "#f2f2f2"],
+  wall: ["#2f6fe4", "#eef0f4"],
+  checker: ["#111318", "#f4f4f4"],
+  chevron: ["#ffd21f", "#15171c"],
+};
+
+/** The same track for a town at night: mid tones that its hot light lifts to readable, accents kept saturated. */
+export const NIGHT_PALETTE: TrackPalette = {
+  asphalt: "#1e242c",
+  line: "#9aa8a0",
+  curb: ["#a3262e", "#8a968f"],
+  wall: ["#2a58b8", "#8a968f"],
+  checker: ["#0a0c0f", "#9aa8a0"],
+  chevron: ["#c9a414", "#0a0c0f"],
+};
+
+const Palette = createContext<TrackPalette>(DAY_PALETTE);
 
 /** A flat ribbon from `a` to `b` m left of the centerline over [s0, s1], a quad every `step` m. */
 export function ribbon(t: Track, s0: number, s1: number, a: number, b: number, y: number, step = 2, stripe?: { every: number; colors: [THREE.Color, THREE.Color] }) {
@@ -60,6 +85,7 @@ export function useDispose<T extends { dispose: () => void }>(v: T): T {
 }
 
 function Surface({ track, grass = true }: { track: Track; grass?: boolean }) {
+  const pal = useContext(Palette);
   const asphalt = useDispose(useMemo(() => ribbon(track, 0, track.length, track.spec.width / 2, -track.spec.width / 2, 0.05), [track]));
   const edges = useDispose(
     useMemo(() => {
@@ -74,7 +100,7 @@ function Surface({ track, grass = true }: { track: Track; grass?: boolean }) {
   );
   const curbs = useDispose(
     useMemo(() => {
-      const colors: [THREE.Color, THREE.Color] = [new THREE.Color(CURB_RED), new THREE.Color(CURB_WHITE)];
+      const colors: [THREE.Color, THREE.Color] = [new THREE.Color(pal.curb[0]), new THREE.Color(pal.curb[1])];
       const w = track.spec.width / 2;
       const parts = curbRuns(track).flatMap(([s0, s1]) => [
         ribbon(track, s0, s1, w + track.spec.curb, w, 0.1, 1, { every: 2.5, colors }),
@@ -83,7 +109,7 @@ function Surface({ track, grass = true }: { track: Track; grass?: boolean }) {
       const g = mergeFlat(parts);
       parts.forEach((p) => p.dispose());
       return g;
-    }, [track]),
+    }, [track, pal]),
   );
   return (
     <group>
@@ -95,13 +121,13 @@ function Surface({ track, grass = true }: { track: Track; grass?: boolean }) {
         </mesh>
       )}
       <mesh geometry={asphalt}>
-        <meshStandardMaterial color={ASPHALT} roughness={0.9} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
+        <meshStandardMaterial color={pal.asphalt} roughness={0.9} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
       <mesh geometry={curbs}>
         <meshStandardMaterial vertexColors polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
       </mesh>
       <mesh geometry={edges}>
-        <meshStandardMaterial color={LINE} emissive={LINE} emissiveIntensity={0.2} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+        <meshStandardMaterial color={pal.line} emissive={pal.line} emissiveIntensity={0.2} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
       </mesh>
     </group>
   );
@@ -188,12 +214,13 @@ const WALL_STRIPE = 6;
 const WALL_H = 1.2;
 
 function Walls({ track }: { track: Track }) {
+  const pal = useContext(Palette);
   const geo = useDispose(
     useMemo(() => {
       const pos: number[] = [];
       const col: number[] = [];
-      const a = new THREE.Color(WALL_A);
-      const b = new THREE.Color(WALL_B);
+      const a = new THREE.Color(pal.wall[0]);
+      const b = new THREE.Color(pal.wall[1]);
       const h = WALL_H * U;
       const t = track.spec.wallThickness / 2;
       const n = Math.round(track.length / 2);
@@ -223,7 +250,7 @@ function Walls({ track }: { track: Track }) {
       g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
       g.computeVertexNormals();
       return g;
-    }, [track]),
+    }, [track, pal]),
   );
   return (
     <mesh geometry={geo}>
@@ -236,14 +263,15 @@ function Walls({ track }: { track: Track }) {
 
 /** Yellow boards with black chevrons on the outside of every corner, pointing the way it turns. */
 function Chevrons({ track }: { track: Track }) {
+  const pal = useContext(Palette);
   const tex = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 128;
     c.height = 64;
     const g = c.getContext("2d")!;
-    g.fillStyle = "#ffd21f";
+    g.fillStyle = pal.chevron[0];
     g.fillRect(0, 0, 128, 64);
-    g.fillStyle = "#15171c";
+    g.fillStyle = pal.chevron[1];
     for (const x0 of [14, 58]) {
       g.beginPath();
       g.moveTo(x0, 8);
@@ -258,7 +286,7 @@ function Chevrons({ track }: { track: Track }) {
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
-  }, []);
+  }, [pal]);
   useDispose(tex);
   const boards = useMemo(() => {
     const out: THREE.Matrix4[] = [];
@@ -305,6 +333,7 @@ function Chevrons({ track }: { track: Track }) {
 // ─── Start line ──────────────────────────────────────────────
 
 function StartLine({ track, at = 0 }: { track: Track; at?: number }) {
+  const pal = useContext(Palette);
   const items = useMemo(() => {
     const out: Parameters<typeof Boxes>[0]["items"] = [];
     const p = pointAt(track, at);
@@ -315,15 +344,15 @@ function StartLine({ track, at = 0 }: { track: Track; at?: number }) {
       for (let c = 0; c < cells; c++) {
         const off = -track.spec.width / 2 + size * (c + 0.5);
         const q = offsetAt(track, at + (row - 0.5) * size, off);
-        out.push({ x: q.x, y: 0.07, z: q.z, rotY, w: size, h: 0.1, d: size, color: (row + c) % 2 ? "#111318" : "#f4f4f4" });
+        out.push({ x: q.x, y: 0.07, z: q.z, rotY, w: size, h: 0.1, d: size, color: pal.checker[(row + c) % 2 ? 0 : 1] });
       }
     }
     // Grid boxes: a white bar across the front of each slot (at the start only).
     for (const g of at === 0 ? track.grid : []) {
-      out.push({ x: g.x + Math.sin(g.heading) * 2.2, y: 0.07, z: g.z + Math.cos(g.heading) * 2.2, rotY: g.heading, w: 3, h: 0.1, d: 0.35, color: LINE });
+      out.push({ x: g.x + Math.sin(g.heading) * 2.2, y: 0.07, z: g.z + Math.cos(g.heading) * 2.2, rotY: g.heading, w: 3, h: 0.1, d: 0.35, color: pal.line });
     }
     return out;
-  }, [track, at]);
+  }, [track, at, pal]);
   return <Boxes items={items} emissive={0.1} />;
 }
 
@@ -474,6 +503,7 @@ const unlit = { current: 0 };
 
 /** A run's two ends: the walls across the road, striped like the rest, so the track visibly stops. */
 function EndCaps({ track }: { track: Track }) {
+  const pal = useContext(Palette);
   const items = useMemo(
     () =>
       wallSegments(track)
@@ -482,10 +512,10 @@ function EndCaps({ track }: { track: Track }) {
           const n = 6;
           return Array.from({ length: n }, (_, k) => {
             const off = (k - (n - 1) / 2) * (w.len / n);
-            return { x: w.x + Math.sin(w.rotY) * off, y: WALL_H / 2, z: w.z + Math.cos(w.rotY) * off, rotY: w.rotY, w: track.spec.wallThickness, h: WALL_H, d: w.len / n, color: k % 2 ? WALL_A : WALL_B };
+            return { x: w.x + Math.sin(w.rotY) * off, y: WALL_H / 2, z: w.z + Math.cos(w.rotY) * off, rotY: w.rotY, w: track.spec.wallThickness, h: WALL_H, d: w.len / n, color: pal.wall[k % 2 ? 0 : 1] };
           });
         }),
-    [track],
+    [track, pal],
   );
   return <Boxes items={items} emissive={0.1} />;
 }
@@ -494,7 +524,8 @@ function EndCaps({ track }: { track: Track }) {
  * The track and what stands around it. A drift spot keeps the look and swaps
  * the surroundings: `grass` off when the spot lays its own ground, `stands`
  * off for the grandstands and pits, `trees` off for the scattered trees, and
- * its own scenery as children.
+ * its own scenery as children. `walls` off draws only the asphalt and the
+ * line, for a track seen from the town before you're on it.
  */
 export default function TrackScene({
   track,
@@ -503,6 +534,8 @@ export default function TrackScene({
   grass = true,
   stands = true,
   trees = true,
+  walls = true,
+  palette = DAY_PALETTE,
   children,
 }: {
   track: Track;
@@ -511,25 +544,30 @@ export default function TrackScene({
   grass?: boolean;
   stands?: boolean;
   trees?: boolean;
+  walls?: boolean;
+  /** Its colors (NIGHT_PALETTE in a town at night). */
+  palette?: TrackPalette;
   children?: React.ReactNode;
 }) {
   return (
-    <group>
-      <Surface track={track} grass={grass} />
-      <Walls track={track} />
-      <StartLine track={track} />
-      <Gantry track={track} lit={lit} title={title} />
-      {!track.closed && (
-        <>
-          <StartLine track={track} at={finishOf(track)} />
-          <Gantry track={track} lit={unlit} title="Finish" at={finishOf(track)} />
-          <EndCaps track={track} />
-        </>
-      )}
-      {stands && <Stands track={track} />}
-      <Chevrons track={track} />
-      {trees && <Trees track={track} />}
-      {children}
-    </group>
+    <Palette.Provider value={palette}>
+      <group>
+        <Surface track={track} grass={grass} />
+        {walls && <Walls track={track} />}
+        <StartLine track={track} />
+        <Gantry track={track} lit={lit} title={title} />
+        {!track.closed && (
+          <>
+            <StartLine track={track} at={finishOf(track)} />
+            <Gantry track={track} lit={unlit} title="Finish" at={finishOf(track)} />
+            <EndCaps track={track} />
+          </>
+        )}
+        {stands && <Stands track={track} />}
+        {walls && <Chevrons track={track} />}
+        {trees && <Trees track={track} />}
+        {children}
+      </group>
+    </Palette.Provider>
   );
 }

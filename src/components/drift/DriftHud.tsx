@@ -92,6 +92,8 @@ export interface DriftHudProps {
   onRestart: () => void;
   onRespawn: () => void;
   onExit: () => void;
+  /** The pause menu's way out, when it isn't back to the spots (a town's track: back to the city). */
+  exitLabel?: string;
   /** A phone: the touch controls show the speed, the prompts speak touch. */
   touch?: boolean;
   /** A room with friends: their live scores under yours, and no starting over mid-run. */
@@ -390,7 +392,7 @@ function PauseMenu(p: DriftHudProps & { medals: [Medal, number][] }) {
     { id: "resume", chip: "Esc", label: "Resume", act: () => p.onPause(false) },
     ...(p.room ? [] : [{ id: "restart", chip: "R", label: "Start over", act: () => { p.onPause(false); p.onRestart(); } }]),
     ...(p.stage === "run" ? [{ id: "checkpoint", label: "Last checkpoint", act: () => { p.onPause(false); p.onRespawn(); } }] : []),
-    { id: "spots", chip: "Q", label: p.room ? "Leave the room" : "Back to spots", act: p.onExit },
+    { id: "spots", chip: "Q", label: p.room ? "Leave the room" : (p.exitLabel ?? "Back to spots"), act: p.onExit },
   ];
   const [sel, setSel] = useState(0);
   // A game menu: ↑↓ (or W S) choose, Enter or Space picks, the letters jump straight there. Esc lives on the page.
