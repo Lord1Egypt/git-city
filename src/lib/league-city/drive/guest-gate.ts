@@ -8,8 +8,11 @@ export const GATE_FIRST_MS = DEV ? 5_000 : 30_000;
 /** Then again after this much more (10 s in dev). */
 export const GATE_AGAIN_MS = DEV ? 10_000 : 60_000;
 
-/** start: the car was just handed over (no stall). time: driving long enough. crown: won a crown rush. */
-export type GateReason = "start" | "time" | "crown";
+/**
+ * start: the car was just handed over (no stall). time: driving long enough.
+ * crown: won a crown rush. taste: the guest's free building just fell (no stall).
+ */
+export type GateReason = "start" | "time" | "crown" | "taste";
 
 /** Driving time (ms) before timed stop number `stops` (0 = the first). */
 export function gateDueMs(stops: number): number {

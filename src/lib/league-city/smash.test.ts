@@ -107,6 +107,14 @@ describe("standingHeight", () => {
     expect(s.isDamaged(0)).toBe(false);
   });
 
+  it("with `only`, breaks just that building (a guest's free one)", () => {
+    const s = smashStoreFor([tower, { ...tower, loginLower: "b", position: [30, 0, 0] }]);
+    const hits = s.hitCircle(15, 0, 30, 1, 0, 0, undefined, undefined, "b");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((h) => h.target === 1)).toBe(true);
+    expect(s.isDamaged(0)).toBe(false);
+  });
+
   it("a fallen building is shielded: no floor comes off until the shield ends", () => {
     const s = smashStoreFor([{ ...tower, floors: 1, windowsPerFloor: 1, sideWindowsPerFloor: 1 }]);
     const { down } = s.hitColumns(0, [0], 1, 1000, "b");

@@ -159,6 +159,11 @@ describe("detectOvertakes", () => {
     expect(o).toEqual([{ developerId: 1, overtakerLogin: "u2", gap: 40, newRank: 2 }]);
   });
 
+  it("counts the others who passed you in the same fetch", () => {
+    const o = detectOvertakes(snap([[1, 100], [2, 50], [3, 40]]), snap([[1, 100], [2, 140], [3, 120]]));
+    expect(o).toEqual([{ developerId: 1, overtakerLogin: "u3", gap: 20, newRank: 3, others: 1 }]);
+  });
+
   it("stays quiet when nothing changed", () => {
     expect(detectOvertakes(snap([[1, 100], [2, 50]]), snap([[1, 110], [2, 60]]))).toEqual([]);
   });

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import posthog from "posthog-js";
 import type { DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { floorScoring } from "@/lib/towns/play-board";
 import { HUD_BOX } from "../shared";
@@ -29,9 +30,18 @@ export default function SmashNotice({ telemetry, touch = false }: { telemetry: D
 
   useEffect(() => {
     let raf = 0;
+    let hinted = false;
     const tick = () => {
       const now = performance.now();
-      if (hint.current) hint.current.dataset.on = String(telemetry.sideHintAt > 0 && now - telemetry.sideHintAt < HINT_MS);
+      if (hint.current) {
+        const on = telemetry.sideHintAt > 0 && now - telemetry.sideHintAt < HINT_MS;
+        hint.current.dataset.on = String(on);
+        // Once a drive: a guest ran into a building it can't knock down.
+        if (on && !hinted) {
+          hinted = true;
+          posthog.capture("smash_hint_shown", { path: pathname });
+        }
+      }
       if (shield.current && hours.current) {
         const on = telemetry.shieldHintAt > 0 && now - telemetry.shieldHintAt < HINT_MS;
         shield.current.dataset.on = String(on);
@@ -55,7 +65,7 @@ export default function SmashNotice({ telemetry, touch = false }: { telemetry: D
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [telemetry]);
+  }, [telemetry, pathname]);
 
   // The box without its pointer-events-auto: the chips only take the pointer while they show.
   const chip = `${HUD_BOX.replace("pointer-events-auto", "")} absolute ${touch ? "bottom-[12.5rem]" : "bottom-32"} left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap px-3 py-1.5 text-[10px] text-cream opacity-0 transition-opacity data-[on=true]:opacity-100`;
@@ -63,7 +73,11 @@ export default function SmashNotice({ telemetry, touch = false }: { telemetry: D
     <>
       <div ref={hint} data-on="false" className={`${chip} pointer-events-none data-[on=true]:pointer-events-auto`}>
         Sign in to knock buildings down
-        <a href={`/api/auth/github?redirect=${encodeURIComponent(`${pathname}?drive=1`)}`} className="border-2 border-lime px-1.5 text-lime hover:bg-lime/10">
+        <a
+          href={`/api/auth/github?redirect=${encodeURIComponent(`${pathname}?drive=1`)}`}
+          onClick={() => posthog.capture("signin_clicked", { where: "smash_hint", path: pathname })}
+          className="border-2 border-lime px-1.5 text-lime hover:bg-lime/10"
+        >
           Sign in
         </a>
       </div>

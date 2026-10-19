@@ -46,6 +46,8 @@ const BATTLE: BattleResultEmailData = {
 export const TOWNS_PREVIEWS: EmailPreviews = {
   "battle-start": () => renderBattleStartEmail({ side: "claude", heroUrl: `${EMAIL_BASE_URL}/towns/battle-image` }, PREVIEW_LINKS),
   "battle-result-lost": () => renderBattleResultEmail(BATTLE, PREVIEW_LINKS),
+  "battle-result-smashed": () =>
+    renderBattleResultEmail({ ...BATTLE, smash: { by: ["rizzo", "leerob", "shadcn"], knocked: 4, hitBack: { login: "rizzo", slug: "claude" } } }, PREVIEW_LINKS),
   "battle-result-won": () => renderBattleResultEmail({ ...BATTLE, side: "claude", mine: 131 }, PREVIEW_LINKS),
   "battle-result-tie": () => renderBattleResultEmail({ ...BATTLE, winner: null, codex: 84, mine: 0 }, PREVIEW_LINKS),
   // forceSend: the engine sends these without an unsubscribe link.
@@ -57,6 +59,8 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
   "town-joined-no-emblem": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: false }, PREVIEW_LINKS),
   "town-overtaken": () =>
     renderLeagueOvertakenEmail({ ...TOWN, overtakerLogin: "pyromains", gap: 12, newRank: 2, hoursLeft: 57 }, PREVIEW_LINKS),
+  "town-overtaken-several": () =>
+    renderLeagueOvertakenEmail({ ...TOWN, overtakerLogin: "pyromains", others: 2, gap: 12, newRank: 5, hoursLeft: 57 }, PREVIEW_LINKS),
   "town-overtaken-last-hours": () =>
     renderLeagueOvertakenEmail(
       { ...TOWN, overtakerLogin: "kristoferborges", gap: 1, newRank: 4, hoursLeft: 5 },
@@ -94,6 +98,8 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
       PREVIEW_LINKS,
     ),
   "town-weekly-lost": () => renderLeagueWeeklyEmail(WEEK, PREVIEW_LINKS),
+  "town-weekly-smashed": () =>
+    renderLeagueWeeklyEmail({ ...WEEK, smash: { by: ["rizzo"], knocked: 2, hitBack: { login: "rizzo", slug: "fulldev" } } }, PREVIEW_LINKS),
   "town-weekly-off-podium": () => renderLeagueWeeklyEmail({ ...WEEK, me: { rank: 5, login: "zappymanwho", total: 90 } }, PREVIEW_LINKS),
   "town-weekly-no-winner": () =>
     renderLeagueWeeklyEmail(

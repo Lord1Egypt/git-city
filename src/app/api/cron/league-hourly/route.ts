@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
     }
     overtakes = toNotify.length;
     // Awaited: a serverless function can be frozen once the response is sent.
-    // Stops short of maxDuration; skipped ones are lost (max one per dev per day anyway).
+    // Stops short of maxDuration; skipped ones are lost (max one per dev every 3 days anyway).
     await mapWithConcurrency(toNotify, 4, async (n) => {
       if (Date.now() - started > 285_000) return;
       await sendLeagueOvertakenNotification(n);

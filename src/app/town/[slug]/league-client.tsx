@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import posthog from "posthog-js";
 import PixelSpinner from "@/components/leagues/PixelSpinner";
 import { useTownVisit } from "@/components/towns/useTownVisit";
 import { useActiveTime } from "@/components/towns/useActiveTime";
@@ -46,6 +47,7 @@ import { loadVolume, saveVolume } from "@/lib/league-city/drive/volume";
 import { gateDueMs, stallDone, type GateReason } from "@/lib/league-city/drive/guest-gate";
 import GuestGate from "@/components/league/hud/drive/GuestGate";
 import ArrivalChoice from "@/components/league/hud/drive/ArrivalChoice";
+import AwayCard from "@/components/towns/AwayCard";
 import { signInWithGitHub } from "@/lib/sign-in";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { createEditorStore } from "@/lib/league-city/editor/store";
@@ -408,7 +410,7 @@ export default function LeagueClient({
   const driverName = viewer?.login ?? guest;
   // Guests get pulled over (lib drive/guest-gate): a sign-in choice when the car is theirs, then the car
   // runs out of gas now and then, rolls to a stop, and the choice holds it until they sign in or drive on.
-  const [gate, setGate] = useState<{ reason: GateReason; stops: number; drivenMs: number; stallAt: number; open: boolean } | null>(null);
+  const [gate, setGate] = useState<{ reason: GateReason; stops: number; drivenMs: number; stallAt: number; open: boolean; login?: string } | null>(null);
   const guestDriven = useRef(0);
   const guestStops = useRef(0);
   const gateClosedAt = useRef(0);
@@ -458,6 +460,15 @@ export default function LeagueClient({
   // Phone controls (lib drive/touch): on screen on touch devices, read by the car.
   const touchRef = useRef<TouchDrive>(createTouch());
   const touchUi = useTouch();
+  // The "while you were away" box: in the corner column from sm up, under the phone header below (one of them).
+  const [desktopAway, setDesktopAway] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const on = () => setDesktopAway(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
   const enterDrive = useCallback((route: DriveRoute | null = null) => {
     setFocused(null);
     setPanel(null);
@@ -556,6 +567,19 @@ export default function LeagueClient({
     return () => window.clearTimeout(t);
   }, [viewer, driving, crownWonAt]);
 
+  // A guest's free building fell (on their screen only): once the rubble settles, the car stops on "plant your flag".
+  const tasteTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (tasteTimer.current) window.clearTimeout(tasteTimer.current);
+  }, []);
+  const onTaste = useCallback((login: string) => {
+    posthog.capture("guest_taste_down", { town: league.slug });
+    tasteTimer.current = window.setTimeout(
+      () => setGate((g) => g ?? { reason: "taste", stops: guestStops.current, drivenMs: guestDriven.current, stallAt: performance.now(), open: true, login }),
+      1200,
+    );
+  }, [league.slug]);
+
   // Out of gas: the terminal opens once the car has rolled to a stop.
   const stalling = !!gate && !gate.open;
   useEffect(() => {
@@ -567,8 +591,8 @@ export default function LeagueClient({
   }, [stalling, telemetry]);
 
   const gateContinue = useCallback(() => {
-    // The opening choice doesn't count as a stop: the first timed one is still GATE_FIRST_MS away.
-    if (gate?.reason !== "start") {
+    // The opening choice (and the free building's) doesn't count as a stop: the first timed one is still GATE_FIRST_MS away.
+    if (gate?.reason !== "start" && gate?.reason !== "taste") {
       guestStops.current += 1;
       // The next stop is a full interval away from now, whatever stopped you.
       guestDriven.current = Math.min(guestDriven.current, gateDueMs(guestStops.current - 1));
@@ -576,15 +600,18 @@ export default function LeagueClient({
     gateClosedAt.current = performance.now();
     setGate(null);
   }, [gate?.reason]);
+  const tasteAt = gate?.reason === "taste" ? gate.login : undefined;
   const gateSignIn = useCallback(() => {
+    // After the free building: back in the car next to it, to knock it down for real.
+    const at = tasteAt;
     // A town you can move into: come back to the join panel, not the car.
-    if (joinAction === "join" || joinAction === "ask") {
+    if (!at && (joinAction === "join" || joinAction === "ask")) {
       void signInToJoin({ leagueSlug: league.slug, refLogin, inviteToken, invitee: invite });
       return;
     }
-    const params = new URLSearchParams({ next: `/town/${league.slug}?drive=1` });
+    const params = new URLSearchParams({ next: `/town/${league.slug}?drive=1${at ? `&at=${encodeURIComponent(at)}` : ""}` });
     void signInWithGitHub(createBrowserSupabase(), `${window.location.origin}/auth/callback?${params.toString()}`);
-  }, [league.slug, joinAction, refLogin, inviteToken, invite]);
+  }, [league.slug, joinAction, refLogin, inviteToken, invite, tasteAt]);
   // Put your building here, from the arrival choice or the drive HUD: a guest
   // signs in straight away (and comes back to the join panel); anyone else
   // leaves the car for the join panel.
@@ -650,9 +677,10 @@ export default function LeagueClient({
             onHonk: (b: CityBuilding) => setFocused(b),
             crownApi,
             onCrown: setCrownView,
+            onTaste: viewer ? undefined : onTaste,
           }
         : undefined,
-    [driving, viewerDevId, spawnDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, gate, arriving, onDriveReady, onDriveFail, league.slug, driverName],
+    [driving, viewerDevId, spawnDevId, cinematic, firstDrive, telemetry, driveCamera, toggleCamera, muted, volume, emoteLog, paused, gate, arriving, onDriveReady, onDriveFail, league.slug, driverName, viewer, onTaste],
   );
 
   // Everyone out driving, drawn in view mode too (the drive room takes over in the car).
@@ -759,9 +787,12 @@ export default function LeagueClient({
       // Your turn: the car is already yours and rolling (a newcomer's stops on the arrival choice).
       setCinematic(false);
       setFirstDrive(true);
-      if (offerJoin) setArriving(true);
+      if (offerJoin) {
+        setArriving(true);
+        posthog.capture("arrival_choice_shown", { town: league.slug, signed_in: !!viewer });
+      }
     }
-  }, [intro, offerJoin]);
+  }, [intro, offerJoin, league.slug, viewer]);
   const skipIntro = useCallback(() => {
     if (intro?.drive) setIntro({ ...intro, skip: intro.skip + 1 });
     else endIntro();
@@ -1087,9 +1118,24 @@ export default function LeagueClient({
           held={arriving}
           join={
             offerJoin && !arriving
-              ? { label: joinLabel, short: "Join", onClick: joinFromCar }
+              ? {
+                  label: joinLabel,
+                  short: "Join",
+                  onClick: () => {
+                    posthog.capture("join_clicked", { where: "hud", town: league.slug, signed_in: !!viewer });
+                    joinFromCar();
+                  },
+                }
               : !viewer
-                ? { label: "Sign in", short: "Sign in", signIn: true, onClick: gateSignIn }
+                ? {
+                    label: "Sign in",
+                    short: "Sign in",
+                    signIn: true,
+                    onClick: () => {
+                      posthog.capture("signin_clicked", { where: "hud", town: league.slug });
+                      gateSignIn();
+                    },
+                  }
                 : undefined
           }
           drivers={drivers}
@@ -1113,8 +1159,14 @@ export default function LeagueClient({
             label={joinLabel}
             detail={joinDetail}
             driveDetail="Look around first. Add your building anytime from the top bar."
-            onJoin={joinFromCar}
-            onDrive={() => setArriving(false)}
+            onJoin={() => {
+              posthog.capture("arrival_choice_answered", { choice: "join", town: league.slug, signed_in: !!viewer });
+              joinFromCar();
+            }}
+            onDrive={() => {
+              posthog.capture("arrival_choice_answered", { choice: "drive", town: league.slug, signed_in: !!viewer });
+              setArriving(false);
+            }}
           />
         </div>
       )}
@@ -1123,6 +1175,7 @@ export default function LeagueClient({
           key={`${gate.reason}-${gate.stops}`}
           reason={gate.reason}
           town={townDisplayName(league.name)}
+          login={gate.login}
           onSignIn={gateSignIn}
           onContinue={gateContinue}
         />
@@ -1157,6 +1210,7 @@ export default function LeagueClient({
           <div className="pointer-events-none fixed left-4 top-4 z-30 flex flex-col gap-3 max-sm:hidden" style={hudEnter ? { animation: "fade-in 0.45s ease-out both" } : undefined}>
             <LeagueTitle data={data} badges={badges} logoUrl={identity.logoUrl} place={place} pendingRequests={pendingRequests} />
             {questCard}
+            {desktopAway && <AwayCard signedIn={!!viewer} />}
           </div>
           {/* Phones: one compact header row. */}
           <div
@@ -1172,6 +1226,11 @@ export default function LeagueClient({
               onRace={() => setPanel("standings")}
             />
             {questCard && !panel && <div className="mt-2">{questCard}</div>}
+            {!desktopAway && !panel && (
+              <div className="pointer-events-auto mt-2">
+                <AwayCard signedIn={!!viewer} />
+              </div>
+            )}
           </div>
           {/* The lo-fi player's spot: above the bar on phones, bottom left on desktop. */}
           <div

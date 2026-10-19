@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; at?: string; join?: string; new?: string; uf?: string }>;
+  searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; at?: string; join?: string; new?: string; uf?: string; pick?: string }>;
 };
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -98,6 +98,7 @@ export default async function LeaguePage({ params, searchParams }: Props) {
         viewerLogin={viewer?.github_login ?? null}
         home={home ? (home.dev.uf ?? "island") : null}
         startAt={atLogin ? { login: atLogin } : uf ? { uf } : null}
+        startPick={query.pick === "1"}
         week={week}
       />
     );

@@ -4,6 +4,7 @@ import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { CROWN_DAYS, PIXEL_MIN_ACTIVE, WINNER_PIXELS, WINNER_XP, type ClosedLeague } from "../leagues/close";
 import { townDisplayName } from "../towns/names";
 import { contributions, ordinal, townHero } from "./town-email";
+import { hitBackLink, hitBackUrl, smashLine, weekSmashes, type WeekSmashes } from "./week-smashes";
 
 interface Placing {
   rank: number;
@@ -23,6 +24,8 @@ export interface LeagueWeeklyEmailData {
   townOfWeekLine: string | null;
   /** "Acme Town finished 4th of 12 towns, 84 per dev." Null when unranked. */
   townLine: string | null;
+  /** Who knocked you down that week and how many you knocked down (null: neither). */
+  smash?: WeekSmashes | null;
 }
 
 function leagueWeeklyHeader(d: LeagueWeeklyEmailData) {
@@ -65,6 +68,8 @@ export function renderLeagueWeeklyEmail(d: LeagueWeeklyEmailData, links: EmailLi
   const { town, variant, subject, preheader, intro } = leagueWeeklyHeader(d);
   const townUrl = trackedUrl(`/town/${d.leagueSlug}`, "league_weekly");
   const next = "A new week started Monday 00:00 UTC and everyone is back at zero.";
+  const smash = d.smash ? smashLine(d.smash) : "";
+  const hitBack = d.smash ? hitBackUrl(d.smash, "league_weekly") : null;
 
   const shown = d.standings.slice(0, 3);
   if (d.me.rank > 3) shown.push(d.me);
@@ -90,8 +95,10 @@ export function renderLeagueWeeklyEmail(d: LeagueWeeklyEmailData, links: EmailLi
       paragraph(intro),
       d.townLine ? paragraph(d.townLine) : "",
       rows.length ? label("Final standings") + detailRows(rows) : "",
+      smash ? paragraph(smash) : "",
       paragraph(next),
       button("See this week's race", townUrl),
+      d.smash ? hitBackLink(d.smash, "league_weekly") : "",
     ].join("\n"),
     reason,
     links,
@@ -105,10 +112,12 @@ export function renderLeagueWeeklyEmail(d: LeagueWeeklyEmailData, links: EmailLi
       intro,
       ...(d.townLine ? ["", d.townLine] : []),
       ...(rows.length ? ["", "Final standings:", ...rows.map((r) => `${r.label}: ${r.value}`)] : []),
+      ...(smash ? ["", smash] : []),
       "",
       next,
       "",
       `See this week's race: ${townUrl}`,
+      ...(hitBack && d.smash?.hitBack ? ["", `Hit @${d.smash.hitBack.login} back: ${hitBack}`] : []),
     ],
     reason,
     links,
@@ -140,6 +149,17 @@ export async function sendLeagueWeeklyResults(
       ? `${town} finished ${ordinal(closed.townRank)} of ${closed.townTotal} towns, with ${contributions(week.town.perDev)} per dev.`
       : null;
 
+  const from = `${week.weekStart}T00:00:00Z`;
+  const to = new Date(Date.parse(from) + 7 * 86_400_000).toISOString();
+  const smashes = await weekSmashes(
+    week.standings.map((s) => s.developer_id),
+    from,
+    to,
+  ).catch((err) => {
+    console.error("[league-weekly] smash lines skipped", err);
+    return new Map<number, WeekSmashes>();
+  });
+
   let sent = 0;
   for (const me of week.standings) {
     const data: LeagueWeeklyEmailData = {
@@ -150,6 +170,7 @@ export async function sendLeagueWeeklyResults(
       winnerLogin: winner?.login ?? null,
       townOfWeekLine,
       townLine,
+      smash: smashes.get(me.developer_id) ?? null,
     };
     const { subject, preheader } = leagueWeeklyHeader(data);
 

@@ -107,6 +107,8 @@ export interface DriveWorldProps {
   smash?: SmashStore;
   /** Single-player preview: no drive room, no other cars. */
   offline?: boolean;
+  /** Guests: one free building breaks on this screen only; called with its login once it falls. */
+  onTaste?: (login: string) => void;
 }
 
 /** Your Supabase access token for the drive room (null signed out: you drive, you don't smash). */
@@ -298,6 +300,7 @@ export default function DriveWorld({
   onCrown,
   smash,
   offline = false,
+  onTaste,
 }: DriveWorldProps) {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
@@ -314,10 +317,38 @@ export default function DriveWorld({
   useEffect(() => {
     sideRef.current = side;
   }, [side]);
-  const solid = useMemo(
-    () => (smash && side === "smash" ? buildings.filter((b) => !smash.index.has(b.loginLower) || b.loginLower === name.toLowerCase()) : buildings),
-    [smash, side, buildings, name],
+  // A guest's free building (Smash `taste`): until the car runs into one,
+  // every building lets it in; then only that one does, standing or fallen.
+  const [tasteLogin, setTasteLogin] = useState<string | null>(null);
+  const [tasteUsed, setTasteUsed] = useState(false);
+  const tasting = !!smash && !!onTaste && side === "none";
+  const onTasteRef = useRef(onTaste);
+  useEffect(() => {
+    onTasteRef.current = onTaste;
+  }, [onTaste]);
+  const taste = useMemo(
+    () =>
+      tasting
+        ? {
+            login: tasteLogin,
+            used: tasteUsed,
+            lock: (login: string) => setTasteLogin(login),
+            down: (login: string) => {
+              setTasteUsed(true);
+              onTasteRef.current?.(login);
+            },
+          }
+        : null,
+    [tasting, tasteLogin, tasteUsed],
   );
+  const solid = useMemo(() => {
+    if (!smash) return buildings;
+    const me = name.toLowerCase();
+    if (side === "smash") return buildings.filter((b) => !smash.index.has(b.loginLower) || b.loginLower === me);
+    if (!tasting) return buildings;
+    if (tasteLogin) return buildings.filter((b) => b.loginLower !== tasteLogin);
+    return tasteUsed ? buildings : buildings.filter((b) => !smash.index.has(b.loginLower) || b.loginLower === me);
+  }, [smash, side, buildings, name, tasting, tasteLogin, tasteUsed]);
   const specs = useMemo(() => buildColliders(objects, solid, h), [objects, solid, h]);
   const smashApi = useRef<SmashApi | null>(null);
   const fixed = useMemo(() => specs.filter((s) => s.body === "fixed"), [specs]);
@@ -503,6 +534,7 @@ export default function DriveWorld({
               send={send}
               me={name.toLowerCase()}
               telemetryRef={telemetryRef}
+              taste={taste}
             />
           )}
           {flash && <HonkFlash key={flash.at} building={flash.b} at={flash.at} />}

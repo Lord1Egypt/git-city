@@ -7,6 +7,7 @@ import { renderLayout, renderText, type EmailLinks } from "./email/layout";
 import { bulletList, button, heading, paragraph, trackedUrl } from "./email/components";
 import { FROM_MAIL, FROM_NOTIFY } from "./email/senders";
 import { LEGAL_POSTAL_ADDRESS } from "./legal";
+import { captureServer } from "./posthog-server";
 
 // ── Types ──
 
@@ -39,6 +40,7 @@ export interface NotificationPayload {
 
   // Behavior
   forceSend?: boolean;                   // bypass preferences (purchase receipts)
+  skipCap?: boolean;                     // bypass the shared hourly/daily/weekly cap, keep preferences (has its own cap)
   channels?: Channel[];                  // restrict to these channels (default: ["email"])
   skipIfActive?: boolean;                // skip if user was active < 5 min ago
   priority?: Priority;                   // high = never batch, low = batch eligible
@@ -122,7 +124,24 @@ export async function sendNotification(payload: NotificationPayload): Promise<Se
     }
   }
 
+  await reportSkips(payload, results);
   return results;
+}
+
+/**
+ * A dropped email leaves no row in notification_log (a row would count toward
+ * the cap and take the dedup key), so it goes to PostHog instead. Duplicates
+ * are the dedup working, not a drop.
+ */
+async function reportSkips(payload: NotificationPayload, results: SendResult[]): Promise<void> {
+  const skips = results.filter((r) => !r.success && !r.batched && r.skipped && r.skipped !== "duplicate");
+  if (skips.length === 0) return;
+  const { data } = await getSupabaseAdmin().from("developers").select("github_login").eq("id", payload.developerId).maybeSingle();
+  const login = (data?.github_login as string | undefined)?.toLowerCase();
+  if (!login) return;
+  for (const r of skips) {
+    await captureServer(login, "notification_skipped", { type: payload.type, category: payload.category, channel: r.channel, reason: r.skipped });
+  }
 }
 
 /** Collapse a sendNotification result into one outcome, for cron counters. */
@@ -260,7 +279,7 @@ async function processChannel(
   }
 
   // 4. Rate limit check (exempt transactional, if rate limited and batch eligible, route to batch)
-  const isExempt = RATE_LIMIT_EXEMPT.includes(payload.category) || payload.forceSend;
+  const isExempt = RATE_LIMIT_EXEMPT.includes(payload.category) || payload.forceSend || payload.skipCap;
   const rateLimited = isExempt ? null : await checkRateLimit(sb, payload.developerId, channel);
   if (rateLimited) {
     if (payload.batchKey && payload.priority !== "high") {
