@@ -73,6 +73,8 @@ export interface BrasilTownProps {
   week: BrasilWeek;
   /** The presidential race and who's in office. */
   election: ElectionView;
+  /** ?vote=34, from a shared vote: the voting machine opens with that number typed. */
+  startVote?: number | null;
 }
 
 type PanelId = "states" | "election" | null;
@@ -87,7 +89,7 @@ const HUD_BG = "bg-bg/90";
 const HUD_EDGE = "border-border";
 const HUD_SOFT = "text-muted";
 
-export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt, startPick = false, week: officeWeek, election }: BrasilTownProps) {
+export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt, startPick = false, week: officeWeek, election, startVote = null }: BrasilTownProps) {
   const router = useRouter();
   const camera = useRef<CameraApi | null>(null);
   const cameraStore = useMemo(() => createCameraStore(), []);
@@ -101,7 +103,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [driveSpawn, setDriveSpawn] = useState<Spawn | null>(null);
   /** Dark between the town's car and the drift run, both ways, while the next world loads. */
   const [curtain, setCurtain] = useState<"drift" | "city" | null>(null);
-  const [panel, setPanel] = useState<PanelId>(null);
+  const [panel, setPanel] = useState<PanelId>(startVote ? "election" : null);
   const [state, setState] = useState<StateStats | null>(null);
   const [focused, setFocused] = useState<CityBuilding | null>(null);
   /** The state card a building was opened from: closing the building brings it back. */
@@ -916,8 +918,6 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           states={world.states}
           points={world.statePoints}
           yours={yours}
-          crowned={world.week.crown?.uf ?? null}
-          president={world.offices.president}
           onPick={(s) => {
             posthog.capture("brasil_state_opened", { uf: s.uf, from: "ranking" });
             openState(s.uf);
@@ -930,7 +930,9 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         <ElectionPanel
           slug={league.slug}
           initial={election}
+          startNumber={startVote}
           signedIn={!!viewerLogin}
+          ufOf={(login) => world.ufOf.get(login.toLowerCase())?.uf ?? null}
           onSignIn={signIn}
           onPickDev={(login) => {
             const b = world.placed.get(login.toLowerCase());
