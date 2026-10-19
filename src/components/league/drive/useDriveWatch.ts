@@ -10,6 +10,8 @@ import { syncBotClock } from "@/lib/league-city/drive/bots";
 // the car right now and where, batched by the server a few times a second.
 // Opens only while `enabled` (view mode); the drive room takes over in the car.
 
+const HIDDEN_GRACE_MS = 60_000;
+
 export function useDriveWatch(
   slug: string,
   enabled: boolean,
@@ -23,10 +25,29 @@ export function useDriveWatch(
   });
   const [drivers, setDrivers] = useState<DriverInfo[]>([]);
 
+  // A tab left in the background lets go of the room after a minute (each open
+  // socket keeps the room's Durable Object awake, and billed); back in front,
+  // it reconnects and the welcome brings everyone back.
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const on = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (document.hidden) timer = setTimeout(() => setAway(true), HIDDEN_GRACE_MS);
+      else setAway(false);
+    };
+    document.addEventListener("visibilitychange", on);
+    return () => {
+      document.removeEventListener("visibilitychange", on);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
   useEffect(() => {
     const map = remotes.current;
     const publish = () => setDrivers([...map.values()].map(({ id, name }) => ({ id, name })));
-    if (!enabled) {
+    if (!enabled || away) {
       map.clear();
       publish();
       return;
@@ -79,7 +100,7 @@ export function useDriveWatch(
       ws.close();
       map.clear();
     };
-  }, [slug, enabled]);
+  }, [slug, enabled, away]);
 
   return { remotes, drivers };
 }
