@@ -10,7 +10,9 @@
 -- wins), and who that account became when it joined the map.
 --
 -- brasil_candidates and brasil_votes are a term's presidential race: anyone
--- on the map can run (or an admin adds them), one vote per developer a term.
+-- on the map can run (or an admin adds them) and gets a two-digit number for
+-- the term, typed in like on Brazil's voting machine; one vote per developer
+-- a term.
 
 BEGIN;
 
@@ -39,10 +41,12 @@ CREATE INDEX IF NOT EXISTS brasil_invites_tagger ON public.brasil_invites (tagge
 CREATE TABLE IF NOT EXISTS public.brasil_candidates (
   term         smallint    NOT NULL,
   developer_id bigint      NOT NULL REFERENCES public.developers(id) ON DELETE CASCADE,
+  number       smallint    NOT NULL CHECK (number BETWEEN 10 AND 99),
   added_by     text        NOT NULL CHECK (added_by IN ('self', 'admin')),
   created_at   timestamptz NOT NULL DEFAULT now(),
   withdrawn_at timestamptz,
-  PRIMARY KEY (term, developer_id)
+  PRIMARY KEY (term, developer_id),
+  UNIQUE (term, number)
 );
 
 CREATE TABLE IF NOT EXISTS public.brasil_votes (

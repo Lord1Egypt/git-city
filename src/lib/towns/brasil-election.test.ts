@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIRST_TERM, FIRST_VOTE, cantVote, electionClock, term, winner } from "./brasil-election";
+import { BALLOT_NUMBERS, FIRST_TERM, FIRST_VOTE, cantVote, electionClock, nextNumber, term, winner } from "./brasil-election";
 
 const at = (iso: string) => Date.parse(iso);
 
@@ -44,5 +44,18 @@ describe("cantVote", () => {
     expect(cantVote({ onMap: false, accountCreated: at("2020-01-01T00:00:00Z"), clock: voting })).toMatch(/map/);
     expect(cantVote({ onMap: true, accountCreated: at("2026-10-10T00:00:00Z"), clock: voting })).toMatch(/30 days/);
     expect(cantVote({ onMap: true, accountCreated: null, clock: electionClock(FIRST_VOTE - 1) })).toMatch(/isn't open/);
+  });
+});
+
+describe("ballot numbers", () => {
+  it("two digits from 31, never a party's", () => {
+    expect(BALLOT_NUMBERS.every((n) => n >= 31 && n <= 99)).toBe(true);
+    for (const party of [33, 35, 40, 45, 50, 55, 65]) expect(BALLOT_NUMBERS).not.toContain(party);
+    expect(BALLOT_NUMBERS.length).toBeGreaterThan(40);
+  });
+  it("the lowest free one", () => {
+    expect(nextNumber([])).toBe(31);
+    expect(nextNumber([31, 32])).toBe(34);
+    expect(nextNumber(BALLOT_NUMBERS)).toBeNull();
   });
 });

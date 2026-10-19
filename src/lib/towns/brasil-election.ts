@@ -65,6 +65,20 @@ export function winner(votes: readonly { candidate: number; at: number }[], stan
   return best?.[0] ?? null;
 }
 
+/**
+ * A candidate's number: two digits from 31 up, typed on the vote like on
+ * Brazil's voting machine. Never a real party's number (the map stays out of real
+ * politics): the parties' current ballot numbers, and 17 and 25, which were.
+ */
+const PARTY_NUMBERS = new Set([10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 27, 28, 29, 30, 33, 35, 36, 40, 43, 44, 45, 50, 51, 55, 65, 70, 77, 80, 90]);
+export const BALLOT_NUMBERS: number[] = Array.from({ length: 69 }, (_, i) => i + 31).filter((n) => !PARTY_NUMBERS.has(n));
+
+/** The lowest number nobody holds this term, or null when they're all taken. */
+export function nextNumber(taken: Iterable<number>): number | null {
+  const used = new Set(taken);
+  return BALLOT_NUMBERS.find((n) => !used.has(n)) ?? null;
+}
+
 /** Why a dev can't vote, or null when they can. */
 export function cantVote(opts: { onMap: boolean; accountCreated: number | null; clock: ElectionClock }): string | null {
   if (opts.clock.phase !== "voting") return "The vote isn't open yet.";

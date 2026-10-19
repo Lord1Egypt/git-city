@@ -5,8 +5,6 @@ import { castVote, getElection, setRunning } from "@/lib/towns/brasil-election-s
 
 export const dynamic = "force-dynamic";
 
-const LOGIN = /^[a-z0-9](?:[a-z0-9-]{0,38})$/i;
-
 async function brasil(slug: string) {
   const league = await getLeagueBySlug(slug);
   return league?.map === "brasil" ? league : null;
@@ -19,7 +17,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   return NextResponse.json(await getElection(league.id, await getViewer()));
 }
 
-// POST { action: "run" | "withdraw" } | { action: "vote", candidate: login }: the signed-in dev runs, stops running, or votes.
+// POST { action: "run" | "withdraw" } | { action: "vote", number: 24 | null }: the signed-in dev runs, stops running, or votes (null: blank).
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const bad = assertSameOrigin(req);
   if (bad) return bad;
@@ -31,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   try {
     let error: string | null = null;
     if (body.action === "run" || body.action === "withdraw") error = await setRunning(league.id, viewer, body.action === "run");
-    else if (body.action === "vote" && typeof body.candidate === "string" && LOGIN.test(body.candidate)) error = await castVote(league.id, viewer, body.candidate);
+    else if (body.action === "vote" && (body.number === null || (typeof body.number === "number" && Number.isInteger(body.number) && body.number >= 10 && body.number <= 99))) error = await castVote(league.id, viewer, body.number);
     else return NextResponse.json({ error: "Bad request." }, { status: 400 });
     if (error) return NextResponse.json({ error }, { status: 400 });
     return NextResponse.json(await getElection(league.id, viewer));

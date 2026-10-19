@@ -11,7 +11,7 @@ interface Race {
   phase: "candidacy" | "voting";
   next: { n: number; opens: number; closes: number };
   president: { login: string } | null;
-  candidates: { login: string; votes: number; addedBy: "self" | "admin" }[];
+  candidates: { number: number; login: string; votes: number; addedBy: "self" | "admin" }[];
   totalVotes: number;
 }
 
@@ -94,7 +94,7 @@ export default function ElectionDesk({ input }: { input: string }) {
           {race?.candidates.map((c) => (
             <li key={c.login} className="flex items-center justify-between gap-3 border border-border px-3 py-1.5 text-[11px]">
               <span className="text-cream">
-                @{c.login} <span className="text-dim">{c.addedBy === "admin" ? "· added by admin" : ""}</span>
+                <span className="text-lime">{c.number}</span> @{c.login} <span className="text-dim">{c.addedBy === "admin" ? "· added by admin" : ""}</span>
               </span>
               <span className="flex items-center gap-3">
                 <span className="text-muted">{c.votes} votes</span>
