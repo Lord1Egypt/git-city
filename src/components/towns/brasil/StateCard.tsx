@@ -9,10 +9,11 @@ import TrophyIcon from "@/components/towns/TrophyIcon";
 import { stateOf } from "@/lib/towns/brasil-map";
 import { type StateStats, type WeekStanding } from "./stats";
 
-// A state's card, opened from its tag or a search: its founder, how many
-// devs live there and its place among the 27, its top five devs (each one a
-// click away), and the two ways to grow it: drive there, or invite someone
-// with the link and what to comment on the reel.
+// A state's card, opened from its tag or a search: its place in the week's
+// points race, its points, devs and newcomers, who runs it (founder forever,
+// the week's governor, senator and mayor with their points), its biggest
+// buildings, and the two ways to grow it: drive there, or invite someone.
+// Number first, every number labeled in plain words.
 
 export default function StateCard({
   state: s,
@@ -23,6 +24,7 @@ export default function StateCard({
   onClose,
   week,
   cabinet,
+  race,
 }: {
   state: StateStats;
   byLogin: ReadonlyMap<string, CityBuilding>;
@@ -35,6 +37,8 @@ export default function StateCard({
   week?: { crown: WeekStanding | null; leading: WeekStanding | null };
   /** The state's offices this week (brasil-roles): governor, senators, its second city's mayor. */
   cabinet?: { provisional: boolean; governor: string | null; senators: string[]; mayor: { city: string; login: string } | null; totals: Record<string, number> };
+  /** Its place and points in this week's race (the States table's order). */
+  race?: { place: number; points: number };
 }) {
   const sheet = useSheet(onClose);
   const { close } = sheet;
@@ -78,7 +82,12 @@ export default function StateCard({
               {s.second ? ` · ${s.second.name}` : ""}
             </p>
           </div>
-          {s.devs > 0 && <span className="shrink-0 border-2 border-lime px-1.5 py-0.5 text-xs text-lime">#{s.place}</span>}
+          {race && s.devs > 0 && (
+            <span className="shrink-0 text-right">
+              <span className="block border-2 border-lime px-1.5 py-0.5 text-xs text-lime">#{race.place}</span>
+              <span className="mt-0.5 block text-[7px] text-muted">this week</span>
+            </span>
+          )}
         </div>
 
         {(week?.crown?.uf === s.uf || week?.leading?.uf === s.uf) && (
@@ -86,11 +95,11 @@ export default function StateCard({
             <TrophyIcon size={12} className="shrink-0 text-lime" />
             {week?.crown?.uf === s.uf ? (
               <span className="text-lime">
-                State of the week <span className="normal-case text-muted">· +{fmt(week.crown.gained)} devs last week</span>
+                State of the week <span className="normal-case text-muted">· +{fmt(week.crown.gained)} new devs</span>
               </span>
             ) : (
               <span className="text-lime">
-                Leading the week <span className="normal-case text-muted">· +{fmt(week!.leading!.gained)} devs, the most so far</span>
+                Most new devs <span className="normal-case text-muted">· +{fmt(week!.leading!.gained)} this week</span>
               </span>
             )}
           </div>
@@ -98,9 +107,9 @@ export default function StateCard({
 
         <div className="mx-4 mb-4 grid grid-cols-3 gap-px border border-border/50 bg-border/30">
           {[
+            { label: "Points this week", value: fmt(race?.points ?? 0) },
             { label: "Devs", value: fmt(s.devs) },
-            { label: "This week", value: `+${fmt(s.newThisWeek)}` },
-            { label: "Contribs", value: fmt(s.contributions) },
+            { label: "New this week", value: `+${fmt(s.newThisWeek)}` },
           ].map((x) => (
             <div key={x.label} className="bg-bg-card px-1 py-2 text-center">
               <div className="truncate text-xs text-lime">{x.value}</div>
@@ -110,7 +119,7 @@ export default function StateCard({
         </div>
 
         {/* Who runs it: the founder (forever) and this week's offices, one aligned list. */}
-        <Section title={`Who runs ${s.uf}`} note={cabinet ? (cabinet.provisional ? "points this week" : "elected by last week's points") : undefined}>
+        <Section title={`Who runs ${s.uf}`} note={cabinet ? "changes Sunday 21h" : undefined}>
           <Row
             role="Founder"
             hot
@@ -122,19 +131,19 @@ export default function StateCard({
           />
           {cabinet && (
             <>
-              <Row role="Governor" hot login={cabinet.governor} avatar={cabinet.governor ? (byLogin.get(cabinet.governor)?.avatar_url ?? null) : null} value={cabinet.governor ? fmt(cabinet.totals[cabinet.governor] ?? 0) : undefined} empty="Open: the most points this week takes it." onPick={onPickDev} />
+              <Row role="Governor" hot login={cabinet.governor} avatar={cabinet.governor ? (byLogin.get(cabinet.governor)?.avatar_url ?? null) : null} value={cabinet.governor ? `${fmt(cabinet.totals[cabinet.governor] ?? 0)} pts` : undefined} empty="Open: the most points takes it." onPick={onPickDev} />
               {cabinet.senators.map((l) => (
-                <Row key={l} role="Senator" login={l} avatar={byLogin.get(l)?.avatar_url ?? null} value={fmt(cabinet.totals[l] ?? 0)} onPick={onPickDev} />
+                <Row key={l} role="Senator" login={l} avatar={byLogin.get(l)?.avatar_url ?? null} value={`${fmt(cabinet.totals[l] ?? 0)} pts`} onPick={onPickDev} />
               ))}
               {cabinet.mayor && (
-                <Row role={`Mayor`} sub={cabinet.mayor.city} login={cabinet.mayor.login} avatar={byLogin.get(cabinet.mayor.login)?.avatar_url ?? null} value={fmt(cabinet.totals[cabinet.mayor.login] ?? 0)} onPick={onPickDev} />
+                <Row role={`Mayor`} sub={cabinet.mayor.city} login={cabinet.mayor.login} avatar={byLogin.get(cabinet.mayor.login)?.avatar_url ?? null} value={`${fmt(cabinet.totals[cabinet.mayor.login] ?? 0)} pts`} onPick={onPickDev} />
               )}
             </>
           )}
         </Section>
 
         {s.top.length > 0 && (
-          <Section title="Biggest buildings" note="all-time contributions">
+          <Section title="Biggest buildings" note="commits, all time">
             {s.top.map((login, i) => {
               const b = byLogin.get(login.toLowerCase());
               return <Row key={login} role={`#${i + 1}`} login={login} avatar={b?.avatar_url ?? null} value={fmt(b?.contributions ?? 0)} onPick={onPickDev} />;
@@ -151,6 +160,7 @@ export default function StateCard({
           <button type="button" onClick={invite} className="btn-press w-full border-2 border-border py-2 text-[10px] text-cream hover:border-lime hover:text-lime">
             {copied ? "Invite copied" : `Invite to ${s.uf}`}
           </button>
+          <p className="text-center text-[8px] normal-case text-muted">Tag a friend in a reel comment: +50 pts when they join.</p>
         </div>
       </div>
     </div>

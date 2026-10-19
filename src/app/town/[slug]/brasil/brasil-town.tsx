@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Car, ChevronLeft, Landmark, Map as MapIcon, Trophy } from "lucide-react";
+import { Building2, Car, ChevronLeft, Code2, Instagram, Landmark, Map as MapIcon, MessageCircle, Trophy, UserPlus, Vote as VoteIcon, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import posthog from "posthog-js";
@@ -176,7 +176,9 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
     // Each holder's highest office, short, for the name plates.
     const SHORT = { president: "Pres", governor: "Gov", senator: "Sen", mayor: "Mayor" } as const;
     const plateOffice = new Map([...offices.byLogin].map(([l, os]) => [l, SHORT[os[0].kind]]));
-    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week, arrivals, fresh, offices, plateOffice, statePoints };
+    // Each state's place in the week's race: the States table's order.
+    const racePlace = new Map([...states].sort((a, b) => (statePoints[b.uf] ?? 0) - (statePoints[a.uf] ?? 0) || b.devs - a.devs || a.name.localeCompare(b.name)).map((st, i) => [st.uf, i + 1]));
+    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week, arrivals, fresh, offices, plateOffice, statePoints, racePlace };
   }, [layout, cityDevs, cityNorms, now, officeWeek, election]);
 
   const smash = useMemo(() => smashStoreFor(world.buildings), [world.buildings]);
@@ -957,6 +959,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           }}
           onDriveHere={state.devs > 0 ? () => startDrive() : undefined}
           week={world.week}
+          race={{ place: world.racePlace.get(state.uf) ?? 27, points: world.statePoints[state.uf] ?? 0 }}
           cabinet={{
             provisional: officeWeek.provisional,
             governor: world.offices.governors.get(state.uf) ?? null,
@@ -1240,23 +1243,29 @@ function ResidentRow({
   );
 }
 
-/** A resident's points this week and where they came from, on their building card. */
+/** A resident's points this week and where they came from, on their building card: the total, then an icon and a count per source. */
 function PointsLine({ b }: { b: PointsBreakdown }) {
   const n = (k: "invite" | "story" | "comment" | "coded") => b[k] / POINTS[k];
-  const parts = [
-    b.invite && `${fmt(n("invite"))} friend${n("invite") === 1 ? "" : "s"}`,
-    b.story && `${fmt(n("story"))} stor${n("story") === 1 ? "y" : "ies"}`,
-    b.comment && `${fmt(n("comment"))} comment${n("comment") === 1 ? "" : "s"}`,
-    b.coded && `${fmt(n("coded"))} day${n("coded") === 1 ? "" : "s"} coding`,
-    b.vote && "voted",
-    b.join && "joined",
-  ].filter(Boolean);
+  const parts: { icon: LucideIcon; count: number; label: string }[] = [
+    { icon: UserPlus, count: n("invite"), label: "friends who joined" },
+    { icon: Instagram, count: n("story"), label: "stories" },
+    { icon: MessageCircle, count: n("comment"), label: "comments" },
+    { icon: Code2, count: n("coded"), label: "days coding" },
+    { icon: VoteIcon, count: b.vote ? 1 : 0, label: "voted" },
+  ].filter((p) => p.count > 0);
   return (
-    <div className="mx-4 mb-2 flex items-baseline justify-between gap-3 border-2 border-border px-3 py-2">
+    <div className="mx-4 mb-2 flex items-center justify-between gap-3 border-2 border-border px-3 py-2">
       <span className="text-[9px] text-cream">
-        <span className="text-lime">{fmt(totalOf(b))}</span> pts this week
+        <span className="text-sm text-lime">{fmt(totalOf(b))}</span> pts this week
       </span>
-      <span className="min-w-0 truncate text-right text-[9px] normal-case text-muted">{parts.join(" · ")}</span>
+      <span className="flex items-center gap-2.5">
+        {parts.map((p) => (
+          <span key={p.label} title={`${p.count} ${p.label}`} aria-label={`${p.count} ${p.label}`} className="flex items-center gap-1 text-[9px] tabular-nums text-muted">
+            <p.icon size={12} aria-hidden />
+            {p.count}
+          </span>
+        ))}
+      </span>
     </div>
   );
 }
