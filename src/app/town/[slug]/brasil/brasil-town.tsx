@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Car, ChevronLeft, Map as MapIcon, Trophy } from "lucide-react";
+import { Building2, Car, ChevronLeft, Code2, Instagram, Landmark, Map as MapIcon, MessageCircle, Trophy, UserPlus, Vote as VoteIcon, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import posthog from "posthog-js";
@@ -38,12 +38,15 @@ import type { Spawn } from "@/lib/league-city/drive/spawn";
 import { LOT, lotToWorld } from "@/lib/league-city/grid";
 import BrasilMinimap from "@/components/towns/brasil/BrasilMinimap";
 import { BrasilPicker, BrasilRanking, BrasilSearchBar } from "@/components/towns/brasil/BrasilPanels";
+import ElectionPanel from "@/components/towns/brasil/ElectionPanel";
 import StateCard from "@/components/towns/brasil/StateCard";
 import { stateStats, swatchOf, weekCrown, type StateStats } from "@/components/towns/brasil/stats";
 import { ptState, stateOf, type BrasilLayout, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import { brasilWorld, plainBuilding } from "@/lib/towns/brasil-world";
 import { brasilOffices, officeLabel, type Office } from "@/lib/towns/brasil-roles";
 import type { BrasilWeek } from "@/lib/towns/brasil-server";
+import type { ElectionView } from "@/lib/towns/brasil-election-server";
+import { POINTS, totalOf, type PointsBreakdown } from "@/lib/towns/brasil-points";
 
 // The Brasil town's page: the map of Brazil with the town's residents, each
 // in their state's city, their buildings sized like everywhere in Git City.
@@ -66,11 +69,15 @@ export interface BrasilTownProps {
   startAt: { uf: string } | { login: string } | null;
   /** ?pick=1, back from signing in after a guest's free building: open the state picker if you're not on the map. */
   startPick?: boolean;
-  /** The week the offices come from: last closed week, or this week so far before the first one closes. */
+  /** The week's points the offices come from (last closed week, or this week so far before the first one closes), and this week's. */
   week: BrasilWeek;
+  /** The presidential race and who's in office (null while the presidency is off). */
+  election: ElectionView | null;
+  /** ?vote=34, from a shared vote: the voting machine opens with that number typed. */
+  startVote?: number | null;
 }
 
-type PanelId = "states" | null;
+type PanelId = "states" | "election" | null;
 const DriveHud = dynamic(() => import("@/components/league/hud/drive/DriveHud"), { ssr: false });
 /** The drive's mute switch, shared with every town. */
 const MUTE_KEY = "gc:drive-muted";
@@ -82,7 +89,7 @@ const HUD_BG = "bg-bg/90";
 const HUD_EDGE = "border-border";
 const HUD_SOFT = "text-muted";
 
-export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt, startPick = false, week: officeWeek }: BrasilTownProps) {
+export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewerLogin, home, startAt, startPick = false, week: officeWeek, election, startVote = null }: BrasilTownProps) {
   const router = useRouter();
   const camera = useRef<CameraApi | null>(null);
   const cameraStore = useMemo(() => createCameraStore(), []);
@@ -96,7 +103,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [driveSpawn, setDriveSpawn] = useState<Spawn | null>(null);
   /** Dark between the town's car and the drift run, both ways, while the next world loads. */
   const [curtain, setCurtain] = useState<"drift" | "city" | null>(null);
-  const [panel, setPanel] = useState<PanelId>(null);
+  const [panel, setPanel] = useState<PanelId>(startVote && election ? "election" : null);
   const [state, setState] = useState<StateStats | null>(null);
   const [focused, setFocused] = useState<CityBuilding | null>(null);
   /** The state card a building was opened from: closing the building brings it back. */
@@ -162,12 +169,17 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       .filter((a) => now - a.at < 86_400_000)
       .sort((a, b) => b.at - a.at);
     const fresh = new Set(arrivals.map((a) => a.login.toLowerCase()));
-    const offices = brasilOffices(layout, new Map(Object.entries(officeWeek.totals)));
+    const offices = brasilOffices(layout, new Map(Object.entries(officeWeek.totals)), election?.president?.login ?? null);
+    // Each state's points this week: its residents' points added up.
+    const statePoints: Partial<Record<UF, number>> = {};
+    for (const c of allCities) for (const d of c.devs) if (d.dev.uf) statePoints[d.dev.uf] = (statePoints[d.dev.uf] ?? 0) + (officeWeek.live.totals[d.dev.login.toLowerCase()] ?? 0);
     // Each holder's highest office, short, for the name plates.
     const SHORT = { president: "Pres", governor: "Gov", senator: "Sen", mayor: "Mayor" } as const;
     const plateOffice = new Map([...offices.byLogin].map(([l, os]) => [l, SHORT[os[0].kind]]));
-    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week, arrivals, fresh, offices, plateOffice };
-  }, [layout, cityDevs, cityNorms, now, officeWeek]);
+    // Each state's place in the week's race: the States table's order.
+    const racePlace = new Map([...states].sort((a, b) => (statePoints[b.uf] ?? 0) - (statePoints[a.uf] ?? 0) || b.devs - a.devs || a.name.localeCompare(b.name)).map((st, i) => [st.uf, i + 1]));
+    return { objects, buildings, placed, states, devs, founders, ufOf, allCities, cityByKey, cityOfLogin, week, arrivals, fresh, offices, plateOffice, statePoints, racePlace };
+  }, [layout, cityDevs, cityNorms, now, officeWeek, election]);
 
   const smash = useMemo(() => smashStoreFor(world.buildings), [world.buildings]);
 
@@ -822,7 +834,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
 
       {/* The bar: a row of words on a desktop, a tab bar of icons on a phone. */}
       {!inCar && (
-        <nav className="pointer-events-auto absolute inset-x-0 bottom-0 grid grid-cols-4 gap-px border-t-2 border-border bg-border pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_0_rgba(0,0,0,0.25)] sm:inset-x-auto sm:bottom-5 sm:left-1/2 sm:flex sm:-translate-x-1/2 sm:border-t-0 sm:bg-transparent sm:pb-0 sm:shadow-[0_6px_0_rgba(0,0,0,0.35)]">
+        <nav className={`pointer-events-auto absolute inset-x-0 bottom-0 grid ${election ? "grid-cols-5" : "grid-cols-4"} gap-px border-t-2 border-border bg-border pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_0_rgba(0,0,0,0.25)] sm:inset-x-auto sm:bottom-5 sm:left-1/2 sm:flex sm:-translate-x-1/2 sm:border-t-0 sm:bg-transparent sm:pb-0 sm:shadow-[0_6px_0_rgba(0,0,0,0.35)]`}>
           <button type="button" onClick={() => openPanel("states")} className={bar}>
             <Trophy size={16} className="sm:hidden" aria-hidden />
             States
@@ -841,6 +853,12 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             <MapIcon size={16} className="sm:hidden" aria-hidden />
             Brazil
           </button>
+          {election && (
+            <button type="button" onClick={() => openPanel("election")} className={bar}>
+              <Landmark size={16} className="sm:hidden" aria-hidden />
+              Vote
+            </button>
+          )}
           <button type="button" disabled={launching || world.devs === 0} onClick={() => startDrive()} className={`${bar} disabled:opacity-40`}>
             <Car size={16} className="sm:hidden" aria-hidden />
             Drive
@@ -902,14 +920,29 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       {panel === "states" && (
         <BrasilRanking
           states={world.states}
+          points={world.statePoints}
           yours={yours}
-          crowned={world.week.crown?.uf ?? null}
-          president={world.offices.president}
-          provisional={officeWeek.provisional}
           onPick={(s) => {
             posthog.capture("brasil_state_opened", { uf: s.uf, from: "ranking" });
             openState(s.uf);
           }}
+          onClose={() => setPanel(null)}
+        />
+      )}
+
+      {panel === "election" && election && (
+        <ElectionPanel
+          slug={league.slug}
+          initial={election}
+          startNumber={startVote}
+          signedIn={!!viewerLogin}
+          ufOf={(login) => world.ufOf.get(login.toLowerCase())?.uf ?? null}
+          onSignIn={signIn}
+          onPickDev={(login) => {
+            const b = world.placed.get(login.toLowerCase());
+            if (b) openBuilding(b);
+          }}
+          onPutOnMap={() => openPicker(null)}
           onClose={() => setPanel(null)}
         />
       )}
@@ -928,6 +961,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
           }}
           onDriveHere={state.devs > 0 ? () => startDrive() : undefined}
           week={world.week}
+          race={{ place: world.racePlace.get(state.uf) ?? 27, points: world.statePoints[state.uf] ?? 0 }}
           cabinet={{
             provisional: officeWeek.provisional,
             governor: world.offices.governors.get(state.uf) ?? null,
@@ -955,6 +989,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
                 offices={world.offices.byLogin.get(focused.loginLower) ?? []}
                 weekly={officeWeek.totals[focused.loginLower] ?? 0}
                 provisional={officeWeek.provisional}
+                live={officeWeek.live.breakdown[focused.loginLower] ?? null}
                 login={focused.loginLower}
                 ufOf={world.ufOf}
                 states={world.states}
@@ -1149,11 +1184,14 @@ function ResidentRow({
   offices,
   weekly,
   provisional,
+  live,
 }: {
-  /** What they hold this week, and the contributions that elected them. */
+  /** What they hold this week, and the points that elected them. */
   offices: Office[];
   weekly: number;
   provisional: boolean;
+  /** Their points this week so far, by where they came from. */
+  live: PointsBreakdown | null;
   login: string;
   ufOf: ReadonlyMap<string, { uf: UF | null; founder: boolean }>;
   states: StateStats[];
@@ -1176,10 +1214,15 @@ function ResidentRow({
             ))}
           </div>
           <p className="text-[9px] normal-case text-muted">
-            {provisional ? `Leading this week with ${fmt(weekly)} contributions. Offices change on Monday.` : `Elected by ${fmt(weekly)} contributions last week. Holds it until Monday.`}
+            {offices.some((o) => o.kind === "president")
+              ? "Voted in by Brazil's devs."
+              : provisional
+                ? `Leading this week with ${fmt(weekly)} points. Offices change Sunday 21h.`
+                : `Elected by ${fmt(weekly)} points last week. Holds it until Sunday 21h.`}
           </p>
         </div>
       )}
+      {live && totalOf(live) > 0 && <PointsLine b={live} />}
       <div className="mx-4 mb-3 flex items-center justify-between gap-2 border-2 border-border px-3 py-2">
         {s ? (
           <button type="button" onClick={() => onState(s.uf)} className="flex items-center gap-2 text-[9px] text-cream hover:text-lime">
@@ -1199,5 +1242,32 @@ function ResidentRow({
         </span>
       </div>
     </>
+  );
+}
+
+/** A resident's points this week and where they came from, on their building card: the total, then an icon and a count per source. */
+function PointsLine({ b }: { b: PointsBreakdown }) {
+  const n = (k: "invite" | "story" | "comment" | "coded") => b[k] / POINTS[k];
+  const parts: { icon: LucideIcon; count: number; label: string }[] = [
+    { icon: UserPlus, count: n("invite"), label: "friends who joined" },
+    { icon: Instagram, count: n("story"), label: "stories" },
+    { icon: MessageCircle, count: n("comment"), label: "comments" },
+    { icon: Code2, count: n("coded"), label: "days coding" },
+    { icon: VoteIcon, count: b.vote ? 1 : 0, label: "voted" },
+  ].filter((p) => p.count > 0);
+  return (
+    <div className="mx-4 mb-2 flex items-center justify-between gap-3 border-2 border-border px-3 py-2">
+      <span className="text-[9px] text-cream">
+        <span className="text-sm text-lime">{fmt(totalOf(b))}</span> pts this week
+      </span>
+      <span className="flex items-center gap-2.5">
+        {parts.map((p) => (
+          <span key={p.label} title={`${p.count} ${p.label}`} aria-label={`${p.count} ${p.label}`} className="flex items-center gap-1 text-[9px] tabular-nums text-muted">
+            <p.icon size={12} aria-hidden />
+            {p.count}
+          </span>
+        ))}
+      </span>
+    </div>
   );
 }

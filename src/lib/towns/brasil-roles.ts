@@ -1,12 +1,11 @@
-// ─── Brasil town: the week's offices ────────────────────────
-// Elected every week by contributions, from the town's standings (the towns'
-// weekly race: Monday 00:00 UTC, each day capped at 100). One office per
-// person, filled from the top down: the president is the top dev in Brazil;
-// each state's governor is its top dev left, its senator the next one; each
-// city's mayor is its
-// top dev left (a state's second city has its own). An office nobody is left
-// for stays empty. Only devs who coded count. The founder (the first to
-// arrive in a state) is not elected and never changes. Pure.
+// ─── Brasil town: the offices ───────────────────────────────
+// The president is voted in for a term (brasil-election.ts) and comes in from
+// outside. The rest go every week by points (brasil-points.ts: the week runs
+// Monday 00:00 UTC). One office per person, filled from the top down: each
+// state's governor is its top dev left, its senator the next one; each city's
+// mayor is its top dev left (a state's second city has its own). An office
+// nobody is left for stays empty. Only devs who scored count. The founder (the
+// first to arrive in a state) is not elected and never changes. Pure.
 
 import { STATES, type BrasilLayout, type UF } from "./brasil-map";
 
@@ -22,8 +21,8 @@ export interface BrasilOffices {
   byLogin: Map<string, Office[]>;
 }
 
-/** `totals`: each login's (lowercase) contributions for the week the offices come from. */
-export function brasilOffices(layout: BrasilLayout, totals: ReadonlyMap<string, number>): BrasilOffices {
+/** `totals`: each login's (lowercase) points for the week the offices come from; `president`: the elected one, if any. */
+export function brasilOffices(layout: BrasilLayout, totals: ReadonlyMap<string, number>, president: string | null = null): BrasilOffices {
   const score = (login: string) => totals.get(login.toLowerCase()) ?? 0;
   const taken = new Set<string>();
   const rank = (logins: string[]) =>
@@ -38,8 +37,7 @@ export function brasilOffices(layout: BrasilLayout, totals: ReadonlyMap<string, 
     taken.add(login);
     byLogin.set(login, [o]);
   };
-  const president = rank(all.flatMap((c) => c.devs.map((d) => d.dev.login)))[0] ?? null;
-  if (president) give(president, { kind: "president" });
+  if (president) give(president.toLowerCase(), { kind: "president" });
 
   const governors = new Map<UF, string>();
   const senators = new Map<UF, string[]>();
@@ -61,7 +59,7 @@ export function brasilOffices(layout: BrasilLayout, totals: ReadonlyMap<string, 
     mayors.set(c.name, { login: mayor, uf: c.uf });
     give(mayor, { kind: "mayor", city: c.name, uf: c.uf });
   }
-  return { president, governors, senators, mayors, byLogin };
+  return { president: president?.toLowerCase() ?? null, governors, senators, mayors, byLogin };
 }
 
 /** An office as its badge says it. */

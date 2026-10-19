@@ -7,12 +7,17 @@ import { getLeagueBySlug } from "@/lib/leagues/service";
 import { STATES, parseUF } from "@/lib/towns/brasil-map";
 import { BRASIL_SLUG, getBrasilLayout } from "@/lib/towns/brasil-server";
 import { weekCrown } from "@/components/towns/brasil/stats";
+import { candidateByNumber } from "@/lib/towns/brasil-election-server";
+import { PRESIDENCY_ON } from "@/lib/towns/brasil-election";
 
 // The Brasil map's share card: two short lines on the left, the map of Brazil
 // in pixels on the right with the real cities. Each link shares a moment:
 //   ?at=login  someone on the map: their state lit, their city glowing
 //              ("@login / tá no mapa.", "fundou SP." for a founder, "tá na ilha.")
 //   ?uf=SP     a state: lit, with its place ("#4 do Brasil.", "levou a coroa.", "tá vazio.")
+//   ?vote=34   a vote ("seu voto para"), ?run=34 a candidacy ("vote 34"): the
+//              voting machine's screen with the number, the candidate's face
+//              and @, their state lit and their city glowing
 //   nothing    the whole map: every city lit, "326 devs / e você?"
 // In Portuguese: whoever shares it and whoever gets it is Brazilian.
 
@@ -74,6 +79,49 @@ export async function GET(req: Request) {
   }
 
   const font = await readFile(join(process.cwd(), "public/fonts/Silkscreen-Regular.ttf"));
+  // A vote (?vote=34, "seu voto para") or a candidacy (?run=34, "vote 34"): the voting machine's screen with the number, the candidate's face and @.
+  const run = q.get("run");
+  const num = Number(run ?? q.get("vote"));
+  const cand = PRESIDENCY_ON && Number.isInteger(num) && num >= 10 && num <= 99 ? await candidateByNumber(num) : null;
+  if (cand) {
+    const me = residents.find((r) => r.dev.login.toLowerCase() === cand.login.toLowerCase());
+    const name = `@${cand.login}`;
+    const ink = "#1b1d22";
+    const photo = cand.avatar_url ? `${cand.avatar_url}${cand.avatar_url.includes("?") ? "&" : "?"}s=320` : null;
+    return new ImageResponse(
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", backgroundColor: OG.bg, fontFamily: "Silkscreen" }}>
+        <div style={{ display: "flex", padding: "0 0 0 56px" }}>
+          <div style={{ width: 600, height: 420, display: "flex", flexDirection: "column", backgroundColor: "#d9dad4", padding: 18, border: "4px solid #8d8d87", boxShadow: "0 12px 0 #6f706b" }}>
+            <div style={{ flex: 1, display: "flex", backgroundColor: "#eef0ea", border: "5px solid #9a9a94", padding: "22px 24px", color: ink, gap: 22 }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                <span style={{ fontSize: 20, textTransform: "uppercase" }}>{run ? "Para presidente," : "Seu voto para"}</span>
+                <span style={{ fontSize: 38, textTransform: "uppercase", marginTop: 6 }}>{run ? "Vote" : "Presidente"}</span>
+                <div style={{ display: "flex", marginTop: 20, gap: 12 }}>
+                  {String(num)
+                    .split("")
+                    .map((d, i) => (
+                      <span key={i} style={{ width: 100, height: 128, display: "flex", alignItems: "center", justifyContent: "center", border: `5px solid ${ink}`, backgroundColor: "rgba(255,255,255,0.6)", fontSize: 100 }}>
+                        {d}
+                      </span>
+                    ))}
+                </div>
+                <span style={{ fontSize: Math.max(18, Math.min(30, Math.floor(300 / (name.length * 1.05)))), marginTop: 22 }}>{name}</span>
+                <span style={{ fontSize: 22, marginTop: 4 }}>{me?.dev.uf ?? "Ilha"}</span>
+              </div>
+              <div style={{ width: 170, height: 214, display: "flex", border: "5px solid #9a9a94", backgroundColor: "#ffffff", overflow: "hidden" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- an OG image (satori) takes plain img */}
+                {photo && <img src={photo} width={170} height={214} style={{ objectFit: "cover" }} alt="" />}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", width: 540, height: 590 }}>
+          <BrasilPixels width={540} height={590} cities={cities} lit={me?.dev.uf ?? null} hot={me ? [me.x, me.z] : null} litIsland={!!me && !me.dev.uf} />
+        </div>
+      </div>,
+      { ...size, fonts: [{ name: "Silkscreen", data: font, style: "normal" }], headers: { "Cache-Control": "public, max-age=600, s-maxage=600" } },
+    );
+  }
   return new ImageResponse(
     <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", backgroundColor: OG.bg, fontFamily: "Silkscreen" }}>
       <div style={{ width: 560, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 0 0 72px", overflow: "hidden" }}>

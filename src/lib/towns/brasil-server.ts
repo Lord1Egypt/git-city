@@ -15,8 +15,8 @@ import { createDeveloperFromGitHub } from "../create-developer";
 import { GitHubFetchError } from "../github-api";
 import { BrasilPlacer, STATES, layoutFromResidents, ptState, type BrasilLayout, type MapDev, type Resident, type UF } from "./brasil-map";
 import { parseComment } from "./brasil-comments";
-import { weekStart } from "../leagues/scoring";
-import { loadLeagueStandings } from "../leagues/standings";
+import { awardPoints, creditInvite, getOfficeAndLiveWeeks } from "./brasil-points-server";
+import type { PointsBreakdown } from "./brasil-points";
 import { CAPITALS, ISLAND, SECOND_CITIES } from "./brasil-geo";
 import { sendBrasilMapNotification } from "../notification-senders/brasil-map";
 
@@ -98,6 +98,7 @@ export async function placeBrasilResident(
       : await sb.from("brasil_residents").insert(row);
     if (!error) {
       invalidateLeague(league.id);
+      if (!current) await awardPoints(dev.id, "join", String(dev.id));
       return { status: current ? "moved" : "added", x: lot.x, z: lot.z, hub: lot.hub };
     }
     // 23505: someone took that lot a moment ago (or this dev arrived twice at once). Read again and retry.
@@ -203,7 +204,11 @@ export async function importBrasilComment(
   }
 
   const placed = await placeBrasilResident(league, { id: dev.id, login: dev.github_login }, uf, "instagram");
-  if (placed.status === "added") await emailOnMap(league, { id: dev.id, login: dev.github_login }, uf, placed.hub);
+  if (placed.status === "added") {
+    await emailOnMap(league, { id: dev.id, login: dev.github_login }, uf, placed.hub);
+    // Someone tagged them: the friend's points go to whoever tagged them first.
+    if (c.igUser) await creditInvite(c.igUser, dev).catch((err) => console.error("[brasil] invite", err));
+  }
   return log(placed.status === "already" ? "already" : "added", dev.id);
 }
 
@@ -238,27 +243,19 @@ async function emailOnMap(league: Pick<League, "id">, dev: { id: number; login: 
 // ─── The week the offices come from ─────────────────────────
 
 export interface BrasilWeek {
-  /** The Monday (UTC) of the week the totals are for. */
+  /** The Monday (UTC) of the week that elects the offices. */
   weekStart: string;
-  /** No closed week yet: the totals are this week's so far. */
+  /** No closed points week yet: the offices go by this week so far. */
   provisional: boolean;
-  /** Each resident's contributions that week (login lowercase; each day capped like the towns' race). */
+  /** Each resident's points that week (login lowercase). */
   totals: Record<string, number>;
+  breakdown: Record<string, PointsBreakdown>;
+  /** This week so far (the same as the above while provisional). */
+  live: { weekStart: string; totals: Record<string, number>; breakdown: Record<string, PointsBreakdown> };
 }
 
-/** Last closed week's frozen standings (the offices hold all of this week), else this week so far. */
+/** Last closed week's points (the offices hold all of this week), else this week so far, and this week live. */
 export async function getBrasilWeek(leagueId: string): Promise<BrasilWeek> {
-  const thisWeek = weekStart(new Date());
-  const last = new Date(thisWeek.getTime() - 7 * 86_400_000);
-  const lastIso = last.toISOString().slice(0, 10);
-  const { data } = await getSupabaseAdmin()
-    .from("league_weeks")
-    .select("standings")
-    .eq("league_id", leagueId)
-    .eq("week_start", lastIso)
-    .maybeSingle<{ standings: { standings?: { login: string; total: number }[] } | null }>();
-  const frozen = data?.standings?.standings;
-  if (frozen?.length) return { weekStart: lastIso, provisional: false, totals: Object.fromEntries(frozen.map((s) => [s.login.toLowerCase(), s.total])) };
-  const live = await loadLeagueStandings({ id: leagueId }, thisWeek);
-  return { weekStart: thisWeek.toISOString().slice(0, 10), provisional: true, totals: Object.fromEntries(live.standings.map((s) => [s.login.toLowerCase(), s.total])) };
+  const { office, live, provisional } = await getOfficeAndLiveWeeks(leagueId);
+  return { ...office, provisional, live };
 }

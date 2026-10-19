@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, Clock, Code2, Instagram, MapPin, MessageCircle, Plus, Search, Trophy, UserPlus, Vote as VoteIcon, X, type LucideIcon } from "lucide-react";
 import type { CityBuilding } from "@/lib/github";
 import Panel from "@/components/league/hud/Panel";
-import { Avatar, fmt } from "@/components/league/hud/shared";
+import { Avatar, HUD_BOX, fmt, useCountdown } from "@/components/league/hud/shared";
 import TrophyIcon from "@/components/towns/TrophyIcon";
+import { PRESIDENCY_ON } from "@/lib/towns/brasil-election";
 import { STATES, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import { swatchOf, type StateStats } from "./stats";
 
 // The Brasil town's side panels, in the towns' Panel: search the map (a
-// state, a city, a dev), the 27 states ranked, and picking your state.
+// state, a city, a dev), the 27 states ranked by the week's points with how
+// points are made, and picking your state.
 
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -138,50 +140,204 @@ export function BrasilSearchBar({
   );
 }
 
-/** The 27 states by devs, your state picked out. */
+/** How points are made, the same table the reels show: icon, one word, one plain line, the points and how often. */
+const EARN: { icon: LucideIcon; pts: number; word: string; hint: string; cap: string }[] = [
+  { icon: UserPlus, pts: 50, word: "Friend", hint: "Tag a friend in a comment. They join, you score.", cap: "10/week" },
+  { icon: Instagram, pts: 20, word: "Story", hint: "Post a story tagging @samuelrizzondev.", cap: "1/day" },
+  { icon: MapPin, pts: 20, word: "Join", hint: "Put your building on the map.", cap: "1×" },
+  { icon: Code2, pts: 10, word: "Code", hint: "Commit on GitHub that day.", cap: "1/day" },
+  { icon: VoteIcon, pts: 10, word: "Vote", hint: "Vote for president.", cap: "1×" },
+  { icon: MessageCircle, pts: 5, word: "Comment", hint: "Comment on a reel.", cap: "1/day" },
+];
+
+export function PointsRules({ compact = false }: { compact?: boolean }) {
+  return (
+    <ul className="flex flex-col gap-1">
+      {EARN.filter((e) => PRESIDENCY_ON || e.word !== "Vote").map((e) => (
+        <li key={e.word} className={`flex items-center gap-3 border-2 border-border px-3 ${compact ? "py-2" : "py-2.5"}`}>
+          <e.icon size={18} className="shrink-0 text-cream" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] text-cream">{e.word}</span>
+            <span className="block text-[9px] normal-case text-muted">{e.hint}</span>
+          </span>
+          <span className="text-right">
+            <span className="block text-sm tabular-nums text-lime">+{e.pts}</span>
+            <span className="block text-[8px] text-dim">{e.cap}</span>
+          </span>
+        </li>
+      ))}
+      <li className="mt-2 px-1 text-[9px] normal-case text-muted">Your points → your state. #1 in each state = governor.</li>
+    </ul>
+  );
+}
+
+const STEP = 10;
+
+/** When the week's points close (Monday 00:00 UTC, Sunday 21h in Brasília), in plain words. */
+function WeekEnds() {
+  const left = useCountdown();
+  return (
+    <p className="flex items-center gap-1.5 px-1 text-[9px] text-muted">
+      <Clock size={12} aria-hidden /> Week ends in <span className="tabular-nums text-cream">{left}</span>
+    </p>
+  );
+}
+
+/** The table: 10 at a time and back, your state pinned under it while it's further down. */
+function StatesTable({ ranked, points, yours, onPick }: { ranked: StateStats[]; points: Partial<Record<UF, number>>; yours: UF | null; onPick: (s: StateStats) => void }) {
+  const [shown, setShown] = useState(STEP);
+  const yourIndex = yours ? ranked.findIndex((s) => s.uf === yours) : -1;
+  const left = ranked.length - shown;
+  const row = (s: StateStats, i: number) => {
+    const mine = s.uf === yours;
+    return (
+      <li key={s.uf}>
+        <button
+          type="button"
+          onClick={() => onPick(s)}
+          className={`flex w-full items-center gap-2 px-2 py-1.5 text-left ${mine ? "bg-lime text-bg" : `${i % 2 ? "" : "bg-white/[0.02]"} text-cream hover:text-lime`}`}
+        >
+          <span className={`flex w-5 justify-center text-[9px] tabular-nums ${mine ? "" : "text-muted"}`}>
+            {i === 0 && (points[s.uf] ?? 0) > 0 ? <TrophyIcon size={11} className={mine ? "" : "text-lime"} label="First place" /> : i + 1}
+          </span>
+          <span className="w-6 text-[10px]">{s.uf}</span>
+          <span className={`min-w-0 flex-1 truncate text-[9px] normal-case ${mine ? "" : "text-muted"}`}>{s.name}</span>
+          {mine && <span className="bg-bg px-1.5 py-0.5 text-[8px] text-lime">You</span>}
+          <span className={`w-10 text-right text-[9px] tabular-nums ${mine ? "" : "text-muted"}`}>{fmt(s.devs)}</span>
+          <span className="w-14 text-right text-[11px] tabular-nums">{fmt(points[s.uf] ?? 0)}</span>
+        </button>
+      </li>
+    );
+  };
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center gap-2 border-b-2 border-border px-2 pb-1.5 text-[8px] text-dim">
+        <span className="w-5 text-center">#</span>
+        <span className="flex-1">State</span>
+        <span className="w-10 text-right">Devs</span>
+        <span className="w-14 text-right">Points</span>
+      </div>
+      <ol className="flex flex-col">{ranked.slice(0, shown).map(row)}</ol>
+      {yourIndex >= shown && <ol className="mt-1 border-t-2 border-dashed border-border pt-1">{row(ranked[yourIndex], yourIndex)}</ol>}
+      {(left > 0 || shown > STEP) && (
+        <div className="mt-2 flex gap-1">
+          {left > 0 && (
+            <button type="button" onClick={() => setShown((n) => n + STEP)} className="btn-press flex min-h-10 flex-1 items-center justify-center gap-2 border-2 border-border text-[10px] text-cream hover:border-lime/60">
+              <ChevronDown size={13} aria-hidden /> Show more <span className="text-dim">({left})</span>
+            </button>
+          )}
+          {shown > STEP && (
+            <button type="button" onClick={() => setShown(STEP)} className="btn-press flex min-h-10 flex-1 items-center justify-center gap-2 border-2 border-border text-[10px] text-muted hover:text-cream">
+              <ChevronUp size={13} aria-hidden /> Show less
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Wider than a phone: the board in the middle. */
+function useWide(): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
+
+/**
+ * A board over the dimmed map, in the middle of a wide screen: for things
+ * read side by side (the table and how to score). Esc, the close button and
+ * the dimmed map close it.
+ */
+export function Board({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const boxRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // Focus moves into the board (not onto a button, which would show its ring before anyone touched a key).
+    boxRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+      <section ref={boxRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`${HUD_BOX} sheet-in relative outline-none flex max-h-[86vh] w-[min(820px,100%)] flex-col bg-bg/95 font-pixel uppercase text-warm`}>
+        <header className="flex items-center justify-between border-b-2 border-border px-5 py-3">
+          <h2 className="text-sm text-cream">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="btn-press -mr-1.5 flex h-8 w-8 items-center justify-center text-muted transition-colors hover:text-cream">
+            <X size={16} strokeWidth={2.5} />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
+      </section>
+    </div>
+  );
+}
+
+/**
+ * The 27 states by this week's points (devs break ties), your state picked
+ * out. A board with the table and how to score side by side on a wide
+ * screen; the sheet with two tabs on a phone.
+ */
 export function BrasilRanking({
   states,
+  points,
   yours,
-  crowned = null,
-  president = null,
-  provisional = false,
   onPick,
   onClose,
 }: {
   states: StateStats[];
+  /** Each state's points this week. */
+  points: Partial<Record<UF, number>>;
   yours: UF | null;
-  crowned?: UF | null;
-  /** This week's president (the top dev in Brazil by contributions). */
-  president?: string | null;
-  provisional?: boolean;
   onPick: (s: StateStats) => void;
   onClose: () => void;
 }) {
+  const wide = useWide();
+  const [tab, setTab] = useState<"table" | "points">("table");
+  const ranked = useMemo(() => [...states].sort((a, b) => (points[b.uf] ?? 0) - (points[a.uf] ?? 0) || b.devs - a.devs || a.name.localeCompare(b.name)), [states, points]);
+  const table = <StatesTable ranked={ranked} points={points} yours={yours} onPick={onPick} />;
+
+  if (wide) {
+    return (
+      <Board title="States" onClose={onClose}>
+        <div className="grid grid-cols-[1fr_300px] gap-5">
+          <div className="flex min-w-0 flex-col gap-2">
+            <WeekEnds />
+            {table}
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="px-1 text-[9px] text-muted">How to score</p>
+            <PointsRules compact />
+          </div>
+        </div>
+      </Board>
+    );
+  }
   return (
     <Panel title="States" onClose={onClose}>
-      {president && (
-        <p className="mb-2 border-2 border-lime px-2 py-1.5 text-[9px] text-muted">
-          <span className="text-lime">President</span> <span className="normal-case text-cream">@{president}</span>
-          {provisional ? " · leading this week" : " · elected last week"}
-        </p>
-      )}
-      <ol className="flex min-h-0 flex-col overflow-y-auto">
-        {states.map((s) => (
-          <li key={s.uf}>
-            <button
-              type="button"
-              onClick={() => onPick(s)}
-              className={`flex w-full items-center gap-2.5 px-2 py-1.5 text-left ${s.uf === yours ? "bg-lime text-bg" : "text-cream hover:text-lime"}`}
-            >
-              <span className={`w-6 text-[9px] ${s.uf === yours ? "" : "text-muted"}`}>{s.devs > 0 ? s.place : "–"}</span>
-              <span className="h-2.5 w-2.5 shrink-0 border border-border-light" style={{ background: swatchOf(s.uf) }} aria-hidden />
-              <span className="min-w-0 flex-1 truncate text-[10px] normal-case">{s.name}</span>
-              {s.uf === crowned && <TrophyIcon size={11} className={s.uf === yours ? "" : "text-lime"} label="State of the week" />}
-              <span className="text-[10px]">{fmt(s.devs)}</span>
+      <div className="flex flex-col gap-2">
+        <div role="tablist" className="grid grid-cols-2 border-2 border-border">
+          {(
+            [
+              ["table", Trophy, "Ranking"],
+              ["points", Plus, "Points"],
+            ] as const
+          ).map(([id, Icon, label]) => (
+            <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className={`flex min-h-10 items-center justify-center gap-2 text-[10px] ${tab === id ? "bg-lime text-bg" : "text-muted hover:text-cream"}`}>
+              <Icon size={13} aria-hidden /> {label}
             </button>
-          </li>
-        ))}
-      </ol>
+          ))}
+        </div>
+        <WeekEnds />
+        {tab === "table" ? table : <PointsRules />}
+      </div>
     </Panel>
   );
 }
