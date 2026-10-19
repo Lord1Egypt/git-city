@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import ElectionDesk from "./ElectionDesk";
 
 // The Brasil town's comments desk: the connected Instagram account and which
 // of its reels count (their comments arrive by webhook, with a sync as the
 // safety net); pasting comments by hand (one per line, "insta_user: the
 // comment" or just the comment); the log of every comment imported and what
-// came of it; and taking someone off the map.
+// came of it; taking someone off the map; and the game's desk (ElectionDesk:
+// the presidential race, a dev's points, a new Instagram token).
 
 interface CommentRow {
   id: string;
@@ -308,6 +310,8 @@ export default function BrasilAdminPage() {
             </>
           )}
         </section>
+
+        <ElectionDesk input={input} />
 
         <section className="flex flex-col gap-3 border border-border bg-bg-raised p-4">
           <h2 className="text-[11px] uppercase tracking-wider text-dim">Paste comments</h2>
