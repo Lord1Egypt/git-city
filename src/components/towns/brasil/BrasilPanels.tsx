@@ -10,7 +10,8 @@ import { STATES, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import { swatchOf, type StateStats } from "./stats";
 
 // The Brasil town's side panels, in the towns' Panel: search the map (a
-// state, a city, a dev), the 27 states ranked, and picking your state.
+// state, a city, a dev), the 27 states ranked by the week's points (and how
+// points are made), and picking your state.
 
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -138,46 +139,85 @@ export function BrasilSearchBar({
   );
 }
 
-/** The 27 states by devs, your state picked out. */
+/** How points are made, the same table the reels show. */
+const RULES: { points: string; what: string; cap: string }[] = [
+  { points: "+50", what: "A friend you tag in a comment joins the map", cap: "10 a week" },
+  { points: "+20", what: "A story tagging @samuelrizzondev", cap: "1 a day" },
+  { points: "+20", what: "Joining the map", cap: "once" },
+  { points: "+10", what: "A day you code", cap: "1 a day" },
+  { points: "+10", what: "Voting for president", cap: "once a term" },
+  { points: "+5", what: "A comment on a reel", cap: "1 a day" },
+];
+
+export function PointsRules() {
+  return (
+    <div className="flex flex-col gap-1">
+      {RULES.map((r) => (
+        <div key={r.what} className="flex items-center gap-2.5 border-2 border-border px-2 py-1.5">
+          <span className="w-8 shrink-0 text-[10px] text-lime">{r.points}</span>
+          <span className="min-w-0 flex-1 text-[9px] normal-case text-cream">{r.what}</span>
+          <span className="shrink-0 text-[8px] text-muted">{r.cap}</span>
+        </div>
+      ))}
+      <p className="mt-1 text-[9px] normal-case text-muted">Your points go to your state. The week closes Sunday 21h: the most points in a state makes its governor, the next its senator.</p>
+    </div>
+  );
+}
+
+/** The 27 states by this week's points (devs for the ones still at zero), your state picked out. */
 export function BrasilRanking({
   states,
+  points,
   yours,
   crowned = null,
   president = null,
-  provisional = false,
   onPick,
   onClose,
 }: {
   states: StateStats[];
+  /** Each state's points this week. */
+  points: Partial<Record<UF, number>>;
   yours: UF | null;
   crowned?: UF | null;
-  /** This week's president (the top dev in Brazil by contributions). */
+  /** The president in office (voted in). */
   president?: string | null;
-  provisional?: boolean;
   onPick: (s: StateStats) => void;
   onClose: () => void;
 }) {
+  const [rules, setRules] = useState(false);
+  const ranked = useMemo(() => [...states].sort((a, b) => (points[b.uf] ?? 0) - (points[a.uf] ?? 0) || b.devs - a.devs || a.name.localeCompare(b.name)), [states, points]);
   return (
     <Panel title="States" onClose={onClose}>
       {president && (
         <p className="mb-2 border-2 border-lime px-2 py-1.5 text-[9px] text-muted">
           <span className="text-lime">President</span> <span className="normal-case text-cream">@{president}</span>
-          {provisional ? " · leading this week" : " · elected last week"}
         </p>
       )}
+      <div className="mb-2 flex items-baseline justify-between gap-2 px-2">
+        <span className="text-[9px] text-muted">Points this week</span>
+        <button type="button" onClick={() => setRules((r) => !r)} className="text-[9px] text-cream underline hover:text-lime">
+          {rules ? "Hide" : "How to score"}
+        </button>
+      </div>
+      {rules && (
+        <div className="mb-3">
+          <PointsRules />
+        </div>
+      )}
       <ol className="flex min-h-0 flex-col overflow-y-auto">
-        {states.map((s) => (
+        {ranked.map((s, i) => (
           <li key={s.uf}>
             <button
               type="button"
               onClick={() => onPick(s)}
               className={`flex w-full items-center gap-2.5 px-2 py-1.5 text-left ${s.uf === yours ? "bg-lime text-bg" : "text-cream hover:text-lime"}`}
             >
-              <span className={`w-6 text-[9px] ${s.uf === yours ? "" : "text-muted"}`}>{s.devs > 0 ? s.place : "–"}</span>
+              <span className={`w-6 text-[9px] ${s.uf === yours ? "" : "text-muted"}`}>{s.devs > 0 ? i + 1 : "–"}</span>
               <span className="h-2.5 w-2.5 shrink-0 border border-border-light" style={{ background: swatchOf(s.uf) }} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-[10px] normal-case">{s.name}</span>
               {s.uf === crowned && <TrophyIcon size={11} className={s.uf === yours ? "" : "text-lime"} label="State of the week" />}
-              <span className="text-[10px]">{fmt(s.devs)}</span>
+              <span className={`text-[9px] ${s.uf === yours ? "" : "text-muted"}`}>{fmt(s.devs)} devs</span>
+              <span className="w-12 text-right text-[10px] tabular-nums">{fmt(points[s.uf] ?? 0)}</span>
             </button>
           </li>
         ))}

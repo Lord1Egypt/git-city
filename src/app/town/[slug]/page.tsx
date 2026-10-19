@@ -18,6 +18,7 @@ import { getLapBoard } from "@/lib/league-city/race/board";
 import { TRACK_ID } from "@/lib/league-city/race/track";
 import { getCityDevsByIds, getCityNorms, getLeagueCityDevs, getLeaguePageData, getTownRanking, townPlace } from "@/lib/leagues/queries";
 import { getBrasilLayout, getBrasilWeek } from "@/lib/towns/brasil-server";
+import { getElection } from "@/lib/towns/brasil-election-server";
 import BrasilTownLoader from "./brasil/loader";
 import { getCachedCity } from "@/lib/league-city/service";
 import { LOGIN_RE } from "@/lib/leagues/names";
@@ -85,7 +86,12 @@ export default async function LeaguePage({ params, searchParams }: Props) {
   // The Brasil town is drawn as the map of Brazil: its own page.
   if (league.map === "brasil") {
     const { layout, residents } = await getBrasilLayout(league.id);
-    const [cityDevs, cityNorms, week] = await Promise.all([getCityDevsByIds(residents.map((r) => r.dev.id)), getCityNorms(), getBrasilWeek(league.id)]);
+    const [cityDevs, cityNorms, week, election] = await Promise.all([
+      getCityDevsByIds(residents.map((r) => r.dev.id)),
+      getCityNorms(),
+      getBrasilWeek(league.id),
+      getElection(league.id, viewer),
+    ]);
     const home = viewer ? residents.find((r) => r.dev.id === viewer.id) : undefined;
     const uf = typeof query.uf === "string" && /^[A-Za-z]{2}$/.test(query.uf) ? query.uf.toUpperCase() : null;
     const atLogin = typeof at === "string" && LOGIN_RE.test(at.toLowerCase()) ? at.toLowerCase() : null;
@@ -100,6 +106,7 @@ export default async function LeaguePage({ params, searchParams }: Props) {
         startAt={atLogin ? { login: atLogin } : uf ? { uf } : null}
         startPick={query.pick === "1"}
         week={week}
+        election={election}
       />
     );
   }

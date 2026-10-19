@@ -110,7 +110,7 @@ export default function StateCard({
         </div>
 
         {/* Who runs it: the founder (forever) and this week's offices, one aligned list. */}
-        <Section title={`Who runs ${s.uf}`} note={cabinet ? (cabinet.provisional ? "election monday" : "elected last week") : undefined}>
+        <Section title={`Who runs ${s.uf}`} note={cabinet ? (cabinet.provisional ? "points this week" : "elected by last week's points") : undefined}>
           <Row
             role="Founder"
             hot
@@ -122,7 +122,7 @@ export default function StateCard({
           />
           {cabinet && (
             <>
-              <Row role="Governor" hot login={cabinet.governor} avatar={cabinet.governor ? (byLogin.get(cabinet.governor)?.avatar_url ?? null) : null} value={cabinet.governor ? fmt(cabinet.totals[cabinet.governor] ?? 0) : undefined} empty="Open: top committer this week takes it." onPick={onPickDev} />
+              <Row role="Governor" hot login={cabinet.governor} avatar={cabinet.governor ? (byLogin.get(cabinet.governor)?.avatar_url ?? null) : null} value={cabinet.governor ? fmt(cabinet.totals[cabinet.governor] ?? 0) : undefined} empty="Open: the most points this week takes it." onPick={onPickDev} />
               {cabinet.senators.map((l) => (
                 <Row key={l} role="Senator" login={l} avatar={byLogin.get(l)?.avatar_url ?? null} value={fmt(cabinet.totals[l] ?? 0)} onPick={onPickDev} />
               ))}
