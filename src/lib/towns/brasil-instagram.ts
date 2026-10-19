@@ -140,6 +140,18 @@ async function read(c: IncomingComment, own: string): Promise<{ login: string | 
   return reading ? { login: reading.login, uf: reading.uf, reader: "model" } : rules;
 }
 
+/** Which of these comment ids brasil_comments already holds. */
+async function importedIds(ids: string[]): Promise<Set<string>> {
+  const seen = new Set<string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await getSupabaseAdmin().from("brasil_comments").select("id").in("id", ids.slice(i, i + 200));
+    // A failed read skips nothing: the claim still keeps a comment from being imported twice.
+    if (error) return new Set();
+    for (const r of (data ?? []) as { id: string }[]) seen.add(r.id);
+  }
+  return seen;
+}
+
 /** Reads every watched reel's comments and imports the ones not seen yet. */
 export async function syncBrasilReels(ownUserId: string | null): Promise<{ reels: number; fresh: number }> {
   const { data: reels } = await getSupabaseAdmin().from("brasil_reels").select("media_id").eq("watching", true);
@@ -154,8 +166,10 @@ export async function syncBrasilReels(ownUserId: string | null): Promise<{ reels
       { id: c.id, mediaId: media_id, text: c.text, igUser: c.from?.username?.toLowerCase() ?? null, from: c.from?.id },
       ...(c.replies?.data ?? []).map((r) => ({ id: r.id, mediaId: media_id, text: r.text, igUser: r.from?.username?.toLowerCase() ?? null, from: r.from?.id, parentId: c.id })),
     ]).filter((c) => c.from && c.from !== own.id && (!own.username || c.igUser !== own.username));
+    // Skip the ones already imported up front: the claim insert would refuse them anyway, but one failed insert per old comment every sync filled the db log with errors.
+    const seen = await importedIds(flat.map((c) => `ig:${c.id}`));
     // Oldest first, so the first to comment is the first on the map.
-    fresh += await handleBrasilComments(flat.reverse());
+    fresh += await handleBrasilComments(flat.filter((c) => !seen.has(`ig:${c.id}`)).reverse());
   }
   return { reels: reels?.length ?? 0, fresh };
 }

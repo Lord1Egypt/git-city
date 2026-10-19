@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
 
   try {
     const created = await createDeveloperFromGitHub(username);
-    sb.rpc("recalculate_ranks").then(() => {}, () => {});
 
     const { data: withRank } = await sb
       .from("developers")
