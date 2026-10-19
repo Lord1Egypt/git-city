@@ -8,6 +8,7 @@ import { STATES, parseUF } from "@/lib/towns/brasil-map";
 import { BRASIL_SLUG, getBrasilLayout } from "@/lib/towns/brasil-server";
 import { weekCrown } from "@/components/towns/brasil/stats";
 import { candidateByNumber } from "@/lib/towns/brasil-election-server";
+import { PRESIDENCY_ON } from "@/lib/towns/brasil-election";
 
 // The Brasil map's share card: two short lines on the left, the map of Brazil
 // in pixels on the right with the real cities. Each link shares a moment:
@@ -78,7 +79,7 @@ export async function GET(req: Request) {
 
   const font = await readFile(join(process.cwd(), "public/fonts/Silkscreen-Regular.ttf"));
   const voted = Number(q.get("vote"));
-  const cand = Number.isInteger(voted) && voted >= 10 && voted <= 99 ? await candidateByNumber(voted) : null;
+  const cand = PRESIDENCY_ON && Number.isInteger(voted) && voted >= 10 && voted <= 99 ? await candidateByNumber(voted) : null;
   if (cand) {
     const me = residents.find((r) => r.dev.login.toLowerCase() === cand.login.toLowerCase());
     const name = `@${cand.login}`;

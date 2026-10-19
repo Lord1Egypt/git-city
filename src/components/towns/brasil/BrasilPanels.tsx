@@ -6,6 +6,7 @@ import type { CityBuilding } from "@/lib/github";
 import Panel from "@/components/league/hud/Panel";
 import { Avatar, HUD_BOX, fmt, useCountdown } from "@/components/league/hud/shared";
 import TrophyIcon from "@/components/towns/TrophyIcon";
+import { PRESIDENCY_ON } from "@/lib/towns/brasil-election";
 import { STATES, type CityLayout, type UF } from "@/lib/towns/brasil-map";
 import { swatchOf, type StateStats } from "./stats";
 
@@ -152,7 +153,7 @@ const EARN: { icon: LucideIcon; pts: number; word: string; hint: string; cap: st
 export function PointsRules({ compact = false }: { compact?: boolean }) {
   return (
     <ul className="flex flex-col gap-1">
-      {EARN.map((e) => (
+      {EARN.filter((e) => PRESIDENCY_ON || e.word !== "Vote").map((e) => (
         <li key={e.word} className={`flex items-center gap-3 border-2 border-border px-3 ${compact ? "py-2" : "py-2.5"}`}>
           <e.icon size={18} className="shrink-0 text-cream" aria-hidden />
           <span className="min-w-0 flex-1">

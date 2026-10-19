@@ -19,6 +19,7 @@ import { TRACK_ID } from "@/lib/league-city/race/track";
 import { getCityDevsByIds, getCityNorms, getLeagueCityDevs, getLeaguePageData, getTownRanking, townPlace } from "@/lib/leagues/queries";
 import { getBrasilLayout, getBrasilWeek } from "@/lib/towns/brasil-server";
 import { getElection } from "@/lib/towns/brasil-election-server";
+import { PRESIDENCY_ON } from "@/lib/towns/brasil-election";
 import BrasilTownLoader from "./brasil/loader";
 import { getCachedCity } from "@/lib/league-city/service";
 import { LOGIN_RE } from "@/lib/leagues/names";
@@ -43,7 +44,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   // The Brasil map: its own card, naming the dev (?at=) or the state (?uf=) the link points at.
   if (league.map === "brasil") {
     const { at, uf, vote } = await searchParams;
-    const voted = typeof vote === "string" && /^\d{2}$/.test(vote) ? vote : null;
+    const voted = PRESIDENCY_ON && typeof vote === "string" && /^\d{2}$/.test(vote) ? vote : null;
     const q = voted ? `?vote=${voted}` : at ? `?at=${encodeURIComponent(at)}` : uf ? `?uf=${encodeURIComponent(uf)}` : "";
     // Portuguese: the link travels between Brazilians (WhatsApp, stories), and the preview speaks to them.
     const st = uf ? STATES.find((s) => s.uf === uf.toUpperCase()) : undefined;
@@ -91,7 +92,7 @@ export default async function LeaguePage({ params, searchParams }: Props) {
       getCityDevsByIds(residents.map((r) => r.dev.id)),
       getCityNorms(),
       getBrasilWeek(league.id),
-      getElection(league.id, viewer),
+      PRESIDENCY_ON ? getElection(league.id, viewer) : Promise.resolve(null),
     ]);
     const home = viewer ? residents.find((r) => r.dev.id === viewer.id) : undefined;
     const uf = typeof query.uf === "string" && /^[A-Za-z]{2}$/.test(query.uf) ? query.uf.toUpperCase() : null;
@@ -106,7 +107,7 @@ export default async function LeaguePage({ params, searchParams }: Props) {
         home={home ? (home.dev.uf ?? "island") : null}
         startAt={atLogin ? { login: atLogin } : uf ? { uf } : null}
         startPick={query.pick === "1"}
-        startVote={typeof query.vote === "string" && /^\d{2}$/.test(query.vote) ? Number(query.vote) : null}
+        startVote={PRESIDENCY_ON && typeof query.vote === "string" && /^\d{2}$/.test(query.vote) ? Number(query.vote) : null}
         week={week}
         election={election}
       />

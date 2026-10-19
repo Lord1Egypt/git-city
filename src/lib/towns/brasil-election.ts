@@ -8,6 +8,14 @@
 
 const DAY = 86_400_000;
 
+/**
+ * The presidency is built but off (Sam, 2026-10-19: not launching it yet).
+ * Off: no Vote button or panel, no president, the election API and the vote
+ * card answer nothing, and voting isn't on the points table. The admin can
+ * still line up candidates.
+ */
+export const PRESIDENCY_ON = false;
+
 /** The first term starts (and its vote closes): Sunday Oct 25 2026, 21h Brasília. */
 export const FIRST_TERM = Date.parse("2026-10-26T00:00:00Z");
 /** The first vote opens: Friday Oct 23 2026, 21h Brasília. */

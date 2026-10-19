@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { getLeagueBySlug, getViewer } from "@/lib/leagues/service";
 import { assertSameOrigin, readJson } from "@/lib/leagues/http";
 import { castVote, getElection, setRunning } from "@/lib/towns/brasil-election-server";
+import { PRESIDENCY_ON } from "@/lib/towns/brasil-election";
 
 export const dynamic = "force-dynamic";
 
 async function brasil(slug: string) {
+  if (!PRESIDENCY_ON) return null;
   const league = await getLeagueBySlug(slug);
   return league?.map === "brasil" ? league : null;
 }

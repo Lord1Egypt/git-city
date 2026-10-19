@@ -71,8 +71,8 @@ export interface BrasilTownProps {
   startPick?: boolean;
   /** The week's points the offices come from (last closed week, or this week so far before the first one closes), and this week's. */
   week: BrasilWeek;
-  /** The presidential race and who's in office. */
-  election: ElectionView;
+  /** The presidential race and who's in office (null while the presidency is off). */
+  election: ElectionView | null;
   /** ?vote=34, from a shared vote: the voting machine opens with that number typed. */
   startVote?: number | null;
 }
@@ -103,7 +103,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
   const [driveSpawn, setDriveSpawn] = useState<Spawn | null>(null);
   /** Dark between the town's car and the drift run, both ways, while the next world loads. */
   const [curtain, setCurtain] = useState<"drift" | "city" | null>(null);
-  const [panel, setPanel] = useState<PanelId>(startVote ? "election" : null);
+  const [panel, setPanel] = useState<PanelId>(startVote && election ? "election" : null);
   const [state, setState] = useState<StateStats | null>(null);
   const [focused, setFocused] = useState<CityBuilding | null>(null);
   /** The state card a building was opened from: closing the building brings it back. */
@@ -169,7 +169,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
       .filter((a) => now - a.at < 86_400_000)
       .sort((a, b) => b.at - a.at);
     const fresh = new Set(arrivals.map((a) => a.login.toLowerCase()));
-    const offices = brasilOffices(layout, new Map(Object.entries(officeWeek.totals)), election.president?.login ?? null);
+    const offices = brasilOffices(layout, new Map(Object.entries(officeWeek.totals)), election?.president?.login ?? null);
     // Each state's points this week: its residents' points added up.
     const statePoints: Partial<Record<UF, number>> = {};
     for (const c of allCities) for (const d of c.devs) if (d.dev.uf) statePoints[d.dev.uf] = (statePoints[d.dev.uf] ?? 0) + (officeWeek.live.totals[d.dev.login.toLowerCase()] ?? 0);
@@ -834,7 +834,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
 
       {/* The bar: a row of words on a desktop, a tab bar of icons on a phone. */}
       {!inCar && (
-        <nav className="pointer-events-auto absolute inset-x-0 bottom-0 grid grid-cols-5 gap-px border-t-2 border-border bg-border pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_0_rgba(0,0,0,0.25)] sm:inset-x-auto sm:bottom-5 sm:left-1/2 sm:flex sm:-translate-x-1/2 sm:border-t-0 sm:bg-transparent sm:pb-0 sm:shadow-[0_6px_0_rgba(0,0,0,0.35)]">
+        <nav className={`pointer-events-auto absolute inset-x-0 bottom-0 grid ${election ? "grid-cols-5" : "grid-cols-4"} gap-px border-t-2 border-border bg-border pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_0_rgba(0,0,0,0.25)] sm:inset-x-auto sm:bottom-5 sm:left-1/2 sm:flex sm:-translate-x-1/2 sm:border-t-0 sm:bg-transparent sm:pb-0 sm:shadow-[0_6px_0_rgba(0,0,0,0.35)]`}>
           <button type="button" onClick={() => openPanel("states")} className={bar}>
             <Trophy size={16} className="sm:hidden" aria-hidden />
             States
@@ -853,10 +853,12 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
             <MapIcon size={16} className="sm:hidden" aria-hidden />
             Brazil
           </button>
-          <button type="button" onClick={() => openPanel("election")} className={bar}>
-            <Landmark size={16} className="sm:hidden" aria-hidden />
-            Vote
-          </button>
+          {election && (
+            <button type="button" onClick={() => openPanel("election")} className={bar}>
+              <Landmark size={16} className="sm:hidden" aria-hidden />
+              Vote
+            </button>
+          )}
           <button type="button" disabled={launching || world.devs === 0} onClick={() => startDrive()} className={`${bar} disabled:opacity-40`}>
             <Car size={16} className="sm:hidden" aria-hidden />
             Drive
@@ -928,7 +930,7 @@ export default function BrasilTown({ league, layout, cityDevs, cityNorms, viewer
         />
       )}
 
-      {panel === "election" && (
+      {panel === "election" && election && (
         <ElectionPanel
           slug={league.slug}
           initial={election}
