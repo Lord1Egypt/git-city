@@ -13,8 +13,12 @@ const layout = {
 
 describe("brasilOffices", () => {
   const totals = new Map([["ana", 50], ["bia", 90], ["caio", 10], ["duda", 0], ["enzo", 70], ["fabi", 200], ["gus", 300]]);
-  const o = brasilOffices(layout, totals);
-  it("elects the top dev of Brazil president, the island included", () => expect(o.president).toBe("gus"));
+  const o = brasilOffices(layout, totals, "Gus");
+  it("the president comes from the vote and holds nothing else", () => {
+    expect(o.president).toBe("gus");
+    expect(o.byLogin.get("gus")?.map(officeLabel)).toEqual(["President"]);
+    expect(brasilOffices(layout, totals).president).toBeNull();
+  });
   it("one office each, from the top down: governor, then the next one to the Senate", () => {
     expect(o.governors.get("SP")).toBe("bia");
     expect(o.senators.get("SP")).toEqual(["enzo"]);
