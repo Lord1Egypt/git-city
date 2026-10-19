@@ -71,6 +71,7 @@ export default function ElectionPanel({
   const [e, setE] = useState(initial);
   const [typed, setTyped] = useState(startNumber ? String(startNumber) : "");
   const [shared, setShared] = useState(false);
+  const [sharedRun, setSharedRun] = useState(false);
   const [fim, setFim] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +165,26 @@ export default function ElectionPanel({
     await navigator.clipboard.writeText(`${text} ${url}`).catch(() => {});
     setShared(true);
     setTimeout(() => setShared(false), 1500);
+  }, [e.viewer, slug]);
+
+  // A candidacy shared: the same machine, opened on their number, under a "vote 34" preview with their face.
+  const shareRun = useCallback(async () => {
+    const n = e.viewer?.running;
+    if (!n) return;
+    const url = `${location.origin}/town/${slug}?run=${n}`;
+    const text = `Sou candidato a presidente do Brasil dos devs. Vote ${n} 🗳️`;
+    posthog.capture("brasil_candidacy_shared", { number: n });
+    try {
+      if (navigator.share) {
+        await navigator.share({ text, url });
+        return;
+      }
+    } catch {
+      return;
+    }
+    await navigator.clipboard.writeText(`${text} ${url}`).catch(() => {});
+    setSharedRun(true);
+    setTimeout(() => setSharedRun(false), 1500);
   }, [e.viewer, slug]);
 
   // The keyboard types on the machine too: digits, Backspace (CORRIGE), Enter (CONFIRMA).
@@ -380,7 +401,11 @@ export default function ElectionPanel({
           Run for president
         </button>
       )}
-      {me?.running && <p className="px-1 text-[9px] normal-case text-muted">Campaign with your number: &ldquo;vote {me.running}&rdquo;.</p>}
+      {me?.running && (
+        <button type="button" onClick={shareRun} className="btn-press border-2 border-lime bg-lime py-2 text-[10px] text-bg">
+          {sharedRun ? "Link copied" : `Share "vote ${me.running}"`}
+        </button>
+      )}
     </div>
   );
 

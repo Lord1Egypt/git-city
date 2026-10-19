@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; at?: string; join?: string; new?: string; uf?: string; pick?: string; vote?: string }>;
+  searchParams: Promise<{ invite?: string; ref?: string; t?: string; edit?: string; drive?: string; at?: string; join?: string; new?: string; uf?: string; pick?: string; vote?: string; run?: string }>;
 };
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -43,13 +43,14 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   if (!league) return { title: "Town not found - Git City" };
   // The Brasil map: its own card, naming the dev (?at=) or the state (?uf=) the link points at.
   if (league.map === "brasil") {
-    const { at, uf, vote } = await searchParams;
+    const { at, uf, vote, run } = await searchParams;
     const voted = PRESIDENCY_ON && typeof vote === "string" && /^\d{2}$/.test(vote) ? vote : null;
-    const q = voted ? `?vote=${voted}` : at ? `?at=${encodeURIComponent(at)}` : uf ? `?uf=${encodeURIComponent(uf)}` : "";
+    const running = PRESIDENCY_ON && typeof run === "string" && /^\d{2}$/.test(run) ? run : null;
+    const q = running ? `?run=${running}` : voted ? `?vote=${voted}` : at ? `?at=${encodeURIComponent(at)}` : uf ? `?uf=${encodeURIComponent(uf)}` : "";
     // Portuguese: the link travels between Brazilians (WhatsApp, stories), and the preview speaks to them.
     const st = uf ? STATES.find((s) => s.uf === uf.toUpperCase()) : undefined;
-    const title = voted ? `Votei ${voted} pra presidente do Brasil dos devs · Git City` : at ? `@${at} tá no mapa dos devs · Git City` : st ? `${st.name} no mapa dos devs · Git City` : "Mapa dos devs do Brasil · Git City";
-    const description = voted ? "Digita o número na urna do mapa e vota também." : "Cada dev vira um prédio na cidade do seu estado. Onde você tá?";
+    const title = running ? `Vote ${running} pra presidente do Brasil dos devs · Git City` : voted ? `Votei ${voted} pra presidente do Brasil dos devs · Git City` : at ? `@${at} tá no mapa dos devs · Git City` : st ? `${st.name} no mapa dos devs · Git City` : "Mapa dos devs do Brasil · Git City";
+    const description = voted || running ? "Digita o número na urna do mapa e vota também." : "Cada dev vira um prédio na cidade do seu estado. Onde você tá?";
     const image = { url: `/town/${league.slug}/brasil-og${q}`, width: 1200, height: 630, alt: "The Brasil map in Git City" };
     return { title, description, openGraph: { title, description, images: [image] }, twitter: { card: "summary_large_image", title, description, images: [image] } };
   }
@@ -107,7 +108,7 @@ export default async function LeaguePage({ params, searchParams }: Props) {
         home={home ? (home.dev.uf ?? "island") : null}
         startAt={atLogin ? { login: atLogin } : uf ? { uf } : null}
         startPick={query.pick === "1"}
-        startVote={PRESIDENCY_ON && typeof query.vote === "string" && /^\d{2}$/.test(query.vote) ? Number(query.vote) : null}
+        startVote={PRESIDENCY_ON ? [query.run, query.vote].map((v) => (typeof v === "string" && /^\d{2}$/.test(v) ? Number(v) : null)).find((v) => v !== null) ?? null : null}
         week={week}
         election={election}
       />
