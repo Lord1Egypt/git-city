@@ -21,6 +21,11 @@
 //   risk (Forza, NFSU, Absolute Drift); off the asphalt or too slow drains it.
 // - A clipping point passed in a drift is +500 × multiplier (CarX).
 // - The finish banks whatever is at risk.
+// - Each stretch of the course scores once a run: only a car past the
+//   farthest point it has reached scores (Forza's drift zones, CarX's
+//   sections). Turning round to drive a stretch again, circling on one
+//   spot, or a respawn back to a checkpoint earns nothing until the car is
+//   on new track.
 
 import { CHASSIS } from "../league-city/drive/tuning";
 import { arcDelta, finishOf, locate, locateNear, pointAt, type Track } from "../league-city/race/track";
@@ -55,6 +60,8 @@ export const DRIFT_SCORE = {
   wallSlack: 0.1,
   /** Farther than this between two ticks (m) is a jump: the car can't move that fast (45 m/s). */
   jump: 2.25,
+  /** How far behind the farthest point reached a car still counts as on new track (m): a drift's sideways wander. */
+  frontierSlack: 3,
 } as const;
 
 /** Where a respawn at checkpoint k puts the car: on the centerline, facing down the track. */
@@ -92,7 +99,7 @@ export type DriftEvent =
 export type AngleBand = "dead" | "ideal" | "over";
 
 /** Why a slide isn't scoring right now (the HUD says it), or null. */
-export type SlideHint = "shallow" | "over" | "slow" | "off" | "wrong" | null;
+export type SlideHint = "shallow" | "over" | "slow" | "off" | "wrong" | "covered" | null;
 
 /** How good a scoring drift is: the word the HUD shows instead of degrees (Forza, CarX, NFS). */
 export function driftGrade(angle: number, kmh: number): "Good" | "Great" | "Insane" {
@@ -151,6 +158,8 @@ export class Scorer {
   private readonly recent: Frame[] = [];
   private readonly speeds: number[] = [];
   private s = 0;
+  /** The farthest point along the course reached so far (m): only past it does a drift score. */
+  private frontier = -Infinity;
   private segment = 0;
   private nextCheckpoint = 1;
   private readonly clipped = new Set<number>();
@@ -195,6 +204,8 @@ export class Scorer {
     st.progress = this.started ? st.progress + arcDelta(t, this.s, spot.s) : t.closed ? arcDelta(t, 0, spot.s) : spot.s;
     this.s = spot.s;
     this.started = true;
+    const fresh = st.progress >= this.frontier - DRIFT_SCORE.frontierSlack;
+    this.frontier = Math.max(this.frontier, st.progress);
     const p = t.samples[spot.i];
     const nx = p.tz;
     const nz = -p.tx; // left of travel
@@ -248,6 +259,8 @@ export class Scorer {
       ? "wrong"
       : !sliding
       ? null
+      : !fresh
+        ? "covered"
       : st.angle < DRIFT_SCORE.minAngle
         ? "shallow"
         : st.angle > DRIFT_SCORE.maxAngle
@@ -263,7 +276,7 @@ export class Scorer {
       if (st.risk >= 0.5) st.events.push({ t: f.t, kind: "lost", points: Math.round(st.risk), why: wall ? "wall" : spin ? "spin" : "limiter" });
       this.reset();
     } else {
-      st.drifting = st.band === "ideal" && st.kmh > DRIFT_SCORE.minKmh && onAsphalt && !wrongWay;
+      st.drifting = st.band === "ideal" && st.kmh > DRIFT_SCORE.minKmh && onAsphalt && !wrongWay && fresh;
       st.braking = st.drifting && decel > DRIFT_SCORE.brakeDecel;
       if (st.drifting) {
         this.segment += DT;
@@ -278,7 +291,7 @@ export class Scorer {
         this.segment = 0;
         if (st.risk > 0 || st.mult > 1) {
           st.gap += DT;
-          if (st.risk > 0 && (!onAsphalt || st.kmh <= DRIFT_SCORE.minKmh || wrongWay)) {
+          if (st.risk > 0 && (!onAsphalt || st.kmh <= DRIFT_SCORE.minKmh || wrongWay || !fresh)) {
             st.risk -= st.risk * DRIFT_SCORE.drain * DT;
             st.mult = Math.max(1, st.mult - DT);
           }

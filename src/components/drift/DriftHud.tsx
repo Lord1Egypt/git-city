@@ -41,6 +41,7 @@ const HINT_TEXT: Record<Exclude<SlideHint, null>, [string, string]> = {
   slow: ["Too slow", "Carry more speed in"],
   off: ["Off the asphalt", "Back on the road"],
   wrong: ["Wrong way", "Turn around"],
+  covered: ["Already driven", "Only new track scores"],
 };
 
 const FIRST_HINTS: { keys: string[]; text: string }[] = [

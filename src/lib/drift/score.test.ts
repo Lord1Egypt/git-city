@@ -217,3 +217,51 @@ describe("FrameRecorder", () => {
     expect(r.elapsed(5100)).toBe(200);
   });
 });
+
+describe("scoring each stretch once", () => {
+  /** Frames at 17 m/s down the straight from z0 to z1 (either way), the nose `angle` rad off the travel. */
+  function run(out: number[], from: { t: number; z: number }, z1: number, angle: number): { t: number; z: number } {
+    let { t, z } = from;
+    const dir = Math.sign(z1 - z);
+    const travel = dir > 0 ? 0 : Math.PI;
+    while ((z1 - z) * dir > 0) {
+      t += TICK_MS;
+      z += dir * 17 * (TICK_MS / 1000);
+      out.push(t, 0, Math.round(z * 100) / 100, Math.round((travel + angle) * 1000) / 1000);
+    }
+    return { t, z };
+  }
+
+  it("gives nothing for driving back and drifting the same stretch again", () => {
+    const once: number[] = [0, 0, 2, 0];
+    run(once, run(once, run(once, { t: 0, z: 2 }, 40, 0), 140, 0.6), 200, 0);
+    const first = scoreRun(course(), once).score;
+    expect(first).toBeGreaterThan(0);
+
+    // The same, then back up the straight and down it again in the same drift.
+    const again = [...once];
+    let at = { t: once[once.length - 4], z: once[once.length - 2] };
+    at = run(again, at, 40, 0);
+    at = run(again, at, 140, 0.6);
+    run(again, at, 240, 0);
+    const sc = new Scorer(course());
+    let hint = null;
+    for (let i = 0; i < frameCount(again); i++) hint = sc.step(frameAt(again, i)).hint ?? hint;
+    expect(Math.round(sc.state.score + sc.state.risk)).toBe(first);
+    expect(hint).toBe("covered");
+  });
+
+  it("gives nothing for circling on one spot once its first half turn is driven", () => {
+    // Donuts 8 m across in the middle of the straight, sideways, for 20 s.
+    const f: number[] = [0, 0, 200, 0];
+    const r = 4;
+    const w = 17 / r;
+    for (let t = TICK_MS; t <= 20000; t += TICK_MS) {
+      const a = (w * t) / 1000;
+      const travel = a + Math.PI / 2;
+      f.push(t, Math.round(r * Math.cos(a) * 100) / 100 - r, Math.round((200 + r * Math.sin(a)) * 100) / 100, Math.round((Math.atan2(Math.sin(travel), Math.cos(travel)) + 0.6) * 1000) / 1000);
+    }
+    const r1 = scoreRun(course(), f);
+    expect(r1.score).toBeLessThan(500);
+  });
+});
